@@ -123,7 +123,7 @@ class IncumbentRule:
         return np.log(self.std / std_x) + (std_x ** 2 + (mean_x - mu) ** 2) / (2 * self.std ** 2) - 0.5
 
 
-# Exact benchmark (dynamic programming on a grid, numerics-v38/benchmark.json of the manuscript): the
+# Exact benchmark (dynamic programming on a grid, numerics/wear-allowance/benchmark.json of the manuscript): the
 # failure-only optimum's (breakdown probability q_beta, stopped utility U) by price, and the exact
 # barrier optima for theta = 0.1. Grid values; the paper re-evaluates the policies by Monte Carlo.
 EXACT_FRONTIER = {0.0: (0.59187, 5.4343), 0.01: (0.55413, 5.429), 0.02: (0.43856, 5.3937), 0.03: (0.33083, 5.3402),
