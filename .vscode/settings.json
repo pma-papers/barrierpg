@@ -1,0 +1,16 @@
+{
+    // Use the toolbox's virtual environment at ~/.venvs/bpg-toolbox (outside the synced repository) for code, terminals, notebooks and tests.
+    // This workspace setting overrides the user-level python.defaultInterpreterPath.
+    "python.defaultInterpreterPath": "${userHome}/.venvs/bpg-toolbox/bin/python",
+    "python.terminal.activateEnvironment": true,
+    "python-envs.defaultEnvManager": "ms-python.python:venv",
+    "python-envs.pythonProjects": [
+        { "path": ".", "envManager": "ms-python.python:venv", "packageManager": "ms-python.python:pip" }
+    ],
+    "jupyter.notebookFileRoot": "${fileDirname}",
+    "python.analysis.extraPaths": ["${workspaceFolder}"],
+    "python.testing.pytestEnabled": true,
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestArgs": ["tests"],
+    "files.exclude": { "**/__pycache__": true, "**/*.egg-info": true }
+}
