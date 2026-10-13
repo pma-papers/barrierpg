@@ -1,4 +1,4 @@
-"""Needs gymnasium + stable_baselines3 (+ Box2D for the lunar reproduction): run with numerics-v38/.venv."""
+"""Needs gymnasium + stable_baselines3 (+ Box2D for the lunar reproduction): run with ~/.venvs/constrained-rl-numerics."""
 import numpy as np
 
 
@@ -11,7 +11,7 @@ def test_wrapper_reproduces_fuellander():
         import Box2D  # noqa: F401
     except ImportError:
         print("Box2D not installed; skipped"); return
-    root = Path(__file__).resolve().parents[2] / "barrier-policy-gradients" / "numerics-v39"
+    root = Path(__file__).resolve().parents[2] / "barrier-policy-gradients" / "numerics" / "fuel-tank"
     if not (root / "lunar.py").exists():
         print("lunar.py not found; skipped"); return
     sys.path.insert(0, str(root))
