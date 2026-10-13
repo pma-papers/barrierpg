@@ -1,0 +1,45 @@
+cff-version: 1.2.0
+message: "If you use this toolbox, please cite the paper below and the software."
+title: "bpg: clipped barrier policy gradients under resource budgets"
+version: 0.2.0
+date-released: 2026-10-12
+license: MIT
+authors:
+  - family-names: Malo
+    given-names: Pekka
+    affiliation: "Aalto University, Department of Information and Service Management"
+  - family-names: Viitasaari
+    given-names: Lauri
+    affiliation: "Aalto University, Department of Information and Service Management"
+  - family-names: Suominen
+    given-names: Antti
+    affiliation: "Aalto University, Department of Information and Service Management"
+  - family-names: Vilkkumaa
+    given-names: Eeva
+    affiliation: "Aalto University, Department of Information and Service Management"
+  - family-names: Tahvonen
+    given-names: Olli
+    affiliation: "University of Helsinki, Department of Forest Sciences"
+keywords:
+  - reinforcement learning
+  - policy gradients
+  - resource budgets
+  - chance constraints
+  - barrier methods
+  - regularization
+preferred-citation:
+  type: article
+  title: "The Price of Failure Risk: Clipped Barrier Policy Gradients with Convex Regularization"
+  status: in-preparation
+  year: 2026
+  authors:
+    - family-names: Malo
+      given-names: Pekka
+    - family-names: Viitasaari
+      given-names: Lauri
+    - family-names: Suominen
+      given-names: Antti
+    - family-names: Vilkkumaa
+      given-names: Eeva
+    - family-names: Tahvonen
+      given-names: Olli
