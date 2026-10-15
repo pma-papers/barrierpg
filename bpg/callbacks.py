@@ -21,7 +21,7 @@ from typing import Callable, List, Optional, Sequence
 
 import numpy as np
 
-from .convergence import MultiplierDiagnosis, multiplier_diagnosis, trend_test
+from .convergence import MultiplierDiagnosis, multiplier_diagnosis, plot_training, training_convergence, trend_test
 from .paper import cite
 from .spec import failure_tail
 
@@ -327,13 +327,25 @@ class BudgetMonitor(BaseCallback):
 
     beta, m, horizon: the spec's; near: reserve fraction counted as near-exhaustion. Under penalty='multiplier'
     the flat penalty charged at failures is the DualAscent callback's current multiplier (dual=...) or a frozen
-    value (multiplier=...)."""
+    value (multiplier=...).
+
+    Convergence monitoring: convergence() checks whether the run has stopped changing (training_convergence) and
+    plot() draws the training curves. With check_every=k the check runs every k batches and is kept in `checks`
+    (verbose=1 prints it); with stop_when_converged=True training stops once the run has been converged at
+    `patience` consecutive checks and has taken at least `min_steps` steps."""
 
     def __init__(self, beta: float, m: float, horizon: Optional[int] = None, near: float = 0.05, penalty: str = "price",
-                 dual: Optional[DualAscent] = None, multiplier: Optional[float] = None, verbose: int = 0):
+                 dual: Optional[DualAscent] = None, multiplier: Optional[float] = None, verbose: int = 0,
+                 check_every: int = 0, window: Optional[int] = None, rel_tol: float = 0.05,
+                 stop_when_converged: bool = False, patience: int = 2, min_steps: int = 0):
         super().__init__(verbose)
         self.beta, self.m, self.horizon, self.near, self.penalty = float(beta), float(m), horizon, float(near), penalty
         self.dual, self.frozen = dual, multiplier
+        self.check_every, self.window, self.rel_tol = int(check_every), window, float(rel_tol)
+        self.stop_when_converged, self.patience, self.min_steps = bool(stop_when_converged), int(patience), int(min_steps)
+        self.checks: List[dict] = []
+        self.stopped_early = False
+        self._stop = False
         self._reset_acc()
         self.trace: List[dict] = []
 
@@ -363,7 +375,7 @@ class BudgetMonitor(BaseCallback):
             self._U.append(rec["U"]); self._I.append(rec["I"]); self._V.append(rec["U"] - rec["I"] - tail)
             self._fail.append(float(rec["failed"])); self._near.append(float(rec["min_reserve_fraction"] <= self.near))
             self._len.append(rec["length"])
-        return True
+        return not self._stop
 
     def _on_rollout_end(self):
         n = len(self._fail)
@@ -376,11 +388,31 @@ class BudgetMonitor(BaseCallback):
             row.update(failure_rate=np.nan, U=np.nan, I_m=np.nan, V_m=np.nan, near=np.nan, length=np.nan)
         if hasattr(self.model.policy, "log_std"):
             row["log_std"] = float(np.mean(self.model.policy.log_std.detach().cpu().numpy()))
+        if self.dual is not None:
+            row["multiplier"] = float(self.dual.multiplier)
         self.trace.append(row)
         self._reset_acc()
+        if self.check_every and len(self.trace) % self.check_every == 0:
+            c = self.convergence()
+            self.checks.append(dict(steps=row["steps"], status=c.status))
+            if self.verbose:
+                print(f"[{row['steps']} steps] " + c.explain().split("\n")[0])
+            recent = [k["status"] for k in self.checks[-self.patience:]]
+            if (self.stop_when_converged and len(recent) == self.patience and all(r == "converged" for r in recent)
+                    and row["steps"] >= self.min_steps):
+                self._stop = self.stopped_early = True
 
     def series(self, key: str) -> np.ndarray:
         return np.array([t.get(key, np.nan) for t in self.trace], dtype=float)
+
+    def convergence(self, window: Optional[int] = None, rel_tol: Optional[float] = None):
+        """Has the run stopped changing? See bpg.convergence.training_convergence."""
+        return training_convergence(self.trace, window=self.window if window is None else window,
+                                    rel_tol=self.rel_tol if rel_tol is None else rel_tol)
+
+    def plot(self, keys=("failure_rate", "U", "log_std"), title: Optional[str] = None):
+        """The training curves per batch, with the windows of the convergence check shaded (needs matplotlib)."""
+        return plot_training(self.trace, self.convergence(), keys=keys, title=title)
 
     def diagnostics(self, window: int = 20) -> dict:
         """Trend tests over the last `window` rollouts of V_m, U, the failure rate, near-exhaustion and log_std."""

@@ -173,6 +173,16 @@ Two kinds of regularization act on different things, and each has a use.
   It makes the learning problem better conditioned, and it biases the learned policy toward the **prior policy**,
   the policy the network computes at the prior's weights. The learner inherits that policy's risk and utility.
 
+The notebooks show the code of each: [notebook 1](../notebooks/01_lander_fuel_tank.ipynb) trains from a controller in
+use with a parameter anchor and with an action anchor, and [notebook 2](../notebooks/02_retailer_cash.ipynb) fits a
+network to a rule and trains from it, with and without an anchor. In short:
+
+```python
+anchor = ParameterAnchor(model, kappa_p=1.0).install()        # weight decay toward the current weights (the prior)
+model.learn(steps, callback=[ActionAnchor(0.05, log_reference), monitor])   # charge log pi(a|s) - log reference(a|s)
+fit_actor_mean(model, rule_mean_action, states); set_log_std(model, np.log(0.03))   # a prior fitted to a rule
+```
+
 How to choose, by what you have:
 
 * **A controller in use** (the lander). Start training from it. If its behavior violates the new requirement, do not
@@ -200,9 +210,16 @@ anchor or raise the price, not to anchor harder.
 
 ## Step 8. Validate the policy you deploy
 
-* **Compare policies only after training has converged.** `BudgetMonitor` records the failure rate and the utility of
-  every batch of training episodes. The retailer's learners were still improving after a few million steps; compared
-  then, they looked worse than the rule in use, and trained longer they earned more than it.
+* **Compare policies only after training has converged.** `BudgetMonitor` records the failure rate, the utility, the
+  priced objective and the action dispersion of every batch of training episodes. `monitor.convergence()` checks
+  whether the run has stopped changing: it compares the last tenth of the batches with the tenth before, and a
+  quantity counts as still changing when its change exceeds both its batch-to-batch noise and 5% of its size.
+  `monitor.plot()` draws the curves, and `BudgetMonitor(check_every=k, stop_when_converged=True)` checks during
+  training and can stop it. A short run is reported as too short to judge. Converged means that the run stopped
+  changing, not that its policy is good: a learning rate that decays to zero makes any run stop changing at its end,
+  and a run can stop in a bad place (the lander's anchored runs). Pass `training=monitor.convergence()` to
+  `interpret`, and the report states it. The retailer's learners were still improving after a few million steps;
+  compared then, they looked worse than the rule in use, and trained longer they earned more than it.
 * **Validate the candidate that is deployed.** The stochastic policy and its mean action (the network without its
   noise) are different candidates with different risks; so are the policy before and after any change to its
   dispersion. Noise in the actions can carry much of the risk: the retailer's rule goes insolvent several times more
@@ -234,5 +251,5 @@ behavior under a different simulator.
 | Price | `plan`, `frontier.check_runs`, `frontier.price_sequence_check`, `DualAscent`, `callbacks.dual_step_suggestion`, `DualAscent.diagnose` |
 | Reserve | `Stage(theta=...)`, `BudgetWrapper(true_budget_scale=...)` |
 | Regularizers | `ActionAnchor`, `ParameterAnchor`, `ParameterNoise`, `fit_actor_mean`, `set_log_std`, `advise_regularizers`, `regularizer_effects` |
-| Validation | `BudgetMonitor`, `evaluate`, `evaluation_from_episodes`, `Evaluation.validate`, `validation.validate_direct`, `validation.resolution_floor`, `validation.episodes_for_tolerance` |
+| Validation | `BudgetMonitor.convergence`, `BudgetMonitor.plot`, `evaluate`, `evaluation_from_episodes`, `Evaluation.validate`, `validation.validate_direct`, `validation.resolution_floor`, `validation.episodes_for_tolerance` |
 | Report | `interpret(...).summary()`, `interpret(...).text()`, `plan(...).explain()` |

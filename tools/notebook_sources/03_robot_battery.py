@@ -153,19 +153,16 @@ def train(stage, steps, seed=1, **env_options):
 
 
 model, venv, monitor = train(stage, 300_000)
-fig, ax = plt.subplots(1, 2, figsize=(9, 2.8))
-steps = [t["steps"] / 1e3 for t in monitor.trace]
-ax[0].plot(steps, [t["failure_rate"] for t in monitor.trace]); ax[0].set_ylabel("stranded (per batch)")
-ax[1].plot(steps, [t["U"] for t in monitor.trace]); ax[1].set_ylabel("discounted reward (per batch)")
-for x in ax: x.set_xlabel("thousand steps")
-plt.tight_layout(); plt.show()
+monitor.plot(title="price 3, 300,000 steps"); plt.show()
+print(monitor.convergence().explain())
 last = monitor.trace[-5:]
-print(f"last five batches: stranded {np.mean([t['failure_rate'] for t in last]):.1%}, "
+print(f"\nlast five batches: stranded {np.mean([t['failure_rate'] for t in last]):.1%}, "
       f"discounted reward {np.mean([t['U'] for t in last]):.0f}")
 
 # %% [markdown]
-# After three hundred thousand steps the robot has barely learned to move forward: its reward is a small fraction of the
-# campaign's policies' (about 2,400 after 2 million steps), and it is already stranded in some missions. The campaign ran the same function for 2
+# A short run, and the convergence check says so: after three hundred thousand steps the robot has barely learned to
+# move forward. Its reward is a small fraction of the campaign's policies' (about 2,400 after 2 million
+# steps), and it is already stranded in some missions. The campaign ran the same function for 2
 # million steps, at prices of 0, 1, 3 and 10 per step from the stranding to the end of the mission, and also trained a
 # gait without a battery (a battery that never runs flat). That gait uses more energy than the battery holds:
 
@@ -184,9 +181,13 @@ plt.tight_layout(); plt.show()
 prices = ["unpriced", "price-1", "price-3", "price-10"]
 print(Campaign.show(camp.table(prices, extras=("distance", "energy")), extras=("distance", "energy")))
 
+print("\nConvergence at the end of training (the toolbox's check on each run's record):")
+print(camp.convergence_table(prices + ["barrier"]))
+
 # %% [markdown]
 # Stranding falls steadily with the price, and so does the distance covered: pacing the battery means running slower.
-# Only the price of 10 meets the 5% tolerance in every seed.
+# Only the price of 10 meets the 5% tolerance in every seed. Most runs had converged by the end of training; in most
+# configurations one seed was still changing, and its policy is the policy at the end of the run.
 #
 # **Theory.** The price chooses a point on the trade-off between distance and the risk of stranding: each trained
 # policy is, up to the learner's shortfall, the best among those stranded no more often than it is. The tolerance
@@ -237,6 +238,14 @@ for det in (False, True):
 # %% [markdown]
 # Both pass. The mean action covers more distance with no more stranding: it spends no effort on the noise that the
 # stochastic policy adds to its actions. If you deploy the mean action, it is the candidate whose validation counts.
+#
+# ## Regularizers
+#
+# The robot learns from scratch, and nothing trusted is available. The gait trained without a battery is a policy the new
+# requirement rejects: it uses more energy than the battery holds, and anchoring to it would keep that, as the lander's
+# parameter anchor kept its controller's flaw. So the campaign used no regularizer. If you have a reference policy you
+# trust (a gait that respects the battery, say), the code of notebook 1 applies unchanged: start from it, and add
+# `ParameterAnchor(model, kappa_p).install()` or an `ActionAnchor(eta, log_reference)` callback to `train`.
 #
 # ## Your own task
 #

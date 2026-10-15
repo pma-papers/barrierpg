@@ -37,6 +37,7 @@ import bpg  # noqa: E402
 from bpg.callbacks import ActionAnchor, BudgetMonitor, DualAscent, ParameterAnchor, ParameterNoise, fit_actor_mean, set_log_std  # noqa: E402
 
 torch.set_num_threads(1)
+LOAD_OBJECTS = {"learning_rate": 0.0, "lr_schedule": lambda _: 0.0, "clip_range": lambda _: 0.2}   # see records.py
 
 
 def _jsonable(x):
@@ -125,7 +126,7 @@ def main():
     model, venv = build(problem, config, args.seed, init_stats)
     prior_mse = None
     if config.init:
-        start = PPO.load(str(src / "model.zip"), device="cpu")
+        start = PPO.load(str(src / "model.zip"), device="cpu", custom_objects=LOAD_OBJECTS)
         model.policy.load_state_dict(start.policy.state_dict())
     if config.prior == "incumbent":
         mean, log_std, _ = problem.incumbent()
@@ -145,7 +146,7 @@ def main():
     anchor = ParameterAnchor(model, config.anchor).install() if config.anchor else None
     action_anchor = None
     if config.action_anchor:
-        reference = PPO.load(str(src / "model.zip"), device="cpu")
+        reference = PPO.load(str(src / "model.zip"), device="cpu", custom_objects=LOAD_OBJECTS)
 
         def log_reference(obs, act):
             with torch.no_grad():

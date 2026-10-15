@@ -271,27 +271,23 @@ def train(stage, steps, seed=1, prior=None, anchor=None, dual=None):
         fit_actor_mean(model, lambda o: np.stack([mean_action(x) for x in o]), states, seed=seed, steps=15000)
         set_log_std(model, log_std)
     if anchor:                                              # weight decay toward the starting weights (section 7)
-        ParameterAnchor(model, anchor).install()
+        anchor = ParameterAnchor(model, anchor).install()
     monitor = BudgetMonitor(spec.beta, stage.m, horizon=spec.horizon, penalty=stage.penalty, dual=dual,
                             multiplier=None if dual else stage.multiplier)
     model.learn(steps, callback=([dual] if dual else []) + [monitor])   # dual: an adaptive multiplier (section 8)
-    return model, monitor
+    return model, monitor, anchor
 
 
-model, monitor = train(stage, 1_000_000)
-fig, ax = plt.subplots(1, 2, figsize=(9, 2.8))
-steps = [t["steps"] / 1e6 for t in monitor.trace]
-ax[0].plot(steps, [t["U"] for t in monitor.trace]); ax[0].set_ylabel("profit (per batch)")
-ax[1].plot(steps, [t["failure_rate"] for t in monitor.trace]); ax[1].set_ylabel("insolvency (per batch)"); ax[1].set_yscale("log")
-for x in ax: x.set_xlabel("million steps")
-plt.tight_layout(); plt.show()
+model, monitor, _ = train(stage, 1_000_000)
+monitor.plot(keys=("failure_rate", "U"), title="from scratch, 1 million steps"); plt.show()
+print(monitor.convergence().explain())
 short = assess(lambda o: model.predict(o)[0], n=1000, seed=13)
-print(f"after 1 million steps: insolvency {short.p_T:.2%}, profit {short.U:.0f}")
+print(f"\nafter 1 million steps: insolvency {short.p_T:.2%}, profit {short.U:.0f}")
 
 # %% [markdown]
-# After a million steps (about 19,000 simulated years) the learner stays solvent in most years, and its profit is still
-# rising. The campaign ran the same function for 10 million steps. Its learning curves were still rising after three and
-# six million steps; compared at that point, the learners looked worse than the rule in use.
+# After a million steps (about 19,000 simulated years) the learner stays solvent in most years, and the convergence
+# check says the run has not converged: a short run gives the policy at the end of the run, not a trained one. The campaign ran the same function for 10 million steps. Its learning curves were still rising after
+# three and six million steps; compared at that point, the learners looked worse than the rule in use.
 
 # %%
 fig, ax = plt.subplots(1, 2, figsize=(9, 3))
@@ -304,8 +300,13 @@ ax[0].set_ylabel("profit (training)"); ax[1].set_ylabel("insolvency (training)")
 for x in ax: x.set_xlabel("million steps")
 ax[0].legend(fontsize=7); plt.tight_layout(); plt.show()
 
+print("Convergence at the end of training (the toolbox's check on each run's record):")
+print(camp.convergence_table(["unpriced", "lump-20000"]))
+
 # %% [markdown]
-# Check the learning curves before comparing candidates.
+# Check the learning curves, and the convergence check, before comparing candidates. Even after 10 million steps, some
+# runs were still changing slowly at the end, mostly a failure rate still falling: their policies are the policies at
+# the end of the run, and a longer run might be safer.
 #
 # ## 6. The full campaign: costs of failure, and the deployed policy's dispersion
 #
@@ -394,7 +395,18 @@ print(f"the prior policy: insolvency {prior_ev.p_T:.2%}, profit {prior_ev.U:.0f}
       f"{rule_ev['in use (cover 2, reserve 300)'].p_T:.2%}, {rule_ev['in use (cover 2, reserve 300)'].U:.0f})")
 
 # %% [markdown]
-# With `train(stage, steps, prior=prior)` the learner starts from this network; `anchor=1.0` adds the anchor. The
+# With `train(stage, steps, prior=prior)` the learner starts from this network, and `anchor=1.0` adds a parameter anchor
+# that pulls the weights back toward it. Here is one short run of each.
+
+# %%
+for name, options in {"from the prior, no anchor": dict(prior=prior), "from the prior, anchor 1": dict(prior=prior, anchor=1.0)}.items():
+    m_, mon, anchor = train(stage, 1_000_000, **options)
+    e = assess(lambda o: m_.predict(o)[0], n=1000, seed=19)
+    moved = f"; weights moved {anchor.distance():.3f} from the prior" if anchor else ""
+    print(f"{name:28s} insolvency {e.p_T:6.2%}, profit {e.U:6.0f}{moved}; training {mon.convergence().status}")
+
+# %% [markdown]
+# These short runs show how to start from a rule and anchor to it; they say little about what full training does. The
 # campaign ran both for 10 million steps:
 
 # %%
@@ -402,6 +414,8 @@ starts = ["prior-only", "anchor-1", "anchor-10"]
 print(Campaign.show(camp.table(["lump-5000"] + starts)))
 for cfg in ["anchor-1", "anchor-10"]:
     print(f"{cfg}: weight distance from the prior at the end {np.round([r['anchor_distance'] for r in camp.records(cfg)], 3)}")
+print("\nConvergence at the end of training:")
+print(camp.convergence_table(["lump-5000"] + starts))
 
 # %% [markdown]
 # The prior policy is close to the rule but riskier: the network smooths the rule's cash check. Trained from it, the
@@ -458,7 +472,8 @@ final = {"the rule in use": assess(rules["in use (cover 2, reserve 300)"].determ
          f"the learned policy {best[0]}, seed {best[1]}": assess(camp.policy(*best), n=5000, seed=31)}
 for name, e in final.items():
     print()
-    print(interpret(spec, req, stage, e, candidate_name=name).summary(resource="cash", period="weeks"))
+    training = camp.convergence(*best) if name.startswith("the learned") else None
+    print(interpret(spec, req, stage, e, candidate_name=name, training=training).summary(resource="cash", period="weeks"))
 
 # %% [markdown]
 # Both pass the lender's tolerance; the report states what the test shows and what it does not. Which to deploy is the

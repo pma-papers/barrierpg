@@ -104,7 +104,7 @@ if HAVE_SAFETY_GYMNASIUM:
             break
     print(f"episode ended at step {info['t']}: failure = {info['failure']}, allowance left {info['reserve'][0]:.0f}")
     model, venv, monitor = train(stage, 100_000)             # a short run; the campaign trained for 2 million steps
-    print("last batches: exhausted", np.round([t["failure_rate"] for t in monitor.trace[-3:]], 3))
+    print(monitor.convergence().explain())                   # a run this short has not converged
 else:
     print("Safety-Gymnasium is not installed in this environment: the code above is what the campaign ran with it.\n"
           "The rest of the notebook reads the campaign's records.")
@@ -118,6 +118,8 @@ else:
 # %%
 configs = ["unpriced", "price-0.003", "price-0.01", "price-0.03", "price-0.1"]
 print(Campaign.show(camp.table(configs, extras=("cost", "ret")), extras=("cost", "ret")))
+print("\nConvergence at the end of training (the toolbox's check on each run's record):")
+print(camp.convergence_table(configs))
 
 # %% [markdown]
 # Counted up to the step at which the allowance runs out (the episode ends there), the episodes of the robot trained
@@ -166,8 +168,9 @@ for m in (0.03, 0.1):
 req = Requirement(T=spec.horizon - 1, alpha=0.2, zeta=0.05, family=15)
 for s in camp.seeds("price-0.03"):
     rep = interpret(spec, req, camp.stage("price-0.03", s), camp.evaluation("price-0.03", s),
-                    candidate_name=f"the policy at price 0.03, seed {s}")
+                    candidate_name=f"the policy at price 0.03, seed {s}", training=camp.convergence("price-0.03", s))
     print("\n".join(rep.summary(resource="the damage allowance", period="steps").split("\n")[:3]))
+    print("  " + next(line for line in rep.summary().split("\n") if line.startswith("Training")))
     print(f"  (return per episode {np.mean(camp.record('price-0.03', s)['evaluation']['ret']):.2f})\n")
 value = [b for b in rep.bounds if "Value" in b.source]
 print("The value certificate of the last one:", value[0].statement().split("\n")[0] if value else "not computed")

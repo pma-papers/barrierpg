@@ -97,13 +97,16 @@ make_env = lambda st: BudgetWrapper(gym.make("LunarLanderContinuous-v3"), fuel_u
 
 print(plan(spec, req, stage=stage).explain())          # another method?, validation size, checks
 model = PPO("MlpPolicy", make_env(stage), gamma=spec.beta, ent_coef=0.0)
-model.learn(3_000_000, callback=[BudgetMonitor(spec.beta, stage.m, horizon=spec.horizon)])
+monitor = BudgetMonitor(spec.beta, stage.m, horizon=spec.horizon, check_every=20)   # records every batch
+model.learn(3_000_000, callback=[monitor])
+print(monitor.convergence().explain())                 # has the run stopped changing? monitor.plot() draws the curves
 ev = evaluate(lambda: make_env(stage), lambda o: model.predict(o)[0], 1000, spec=spec, stage=stage, T=req.T)
-print(interpret(spec, req, stage, ev).summary())       # the verdict, and what the test does not show
+print(interpret(spec, req, stage, ev, training=monitor.convergence()).summary())   # the verdict, and what it does not show
 ```
 
-The wrapper appends the remaining budget to the observation, ends the episode when the budget is exhausted, and
-charges the price there. Options cover a reserve margin (`Stage(theta=...)`), a lump sum charged once at failure
+Regularizers that use a policy you trust (a parameter anchor, an action anchor, a prior fitted to a rule in use) are
+optional; the template and notebooks 1 and 2 show them in code. The wrapper appends the remaining budget to the
+observation, ends the episode when the budget is exhausted, and charges the price there. Options cover a reserve margin (`Stage(theta=...)`), a lump sum charged once at failure
 (`Stage(penalty="multiplier", multiplier=F)`), an adaptive multiplier toward a tolerance (the `DualAscent`
 callback), a budget that is smaller than the policy believes (`true_budget_scale=0.9`), and a resource that is also
 replenished, such as cash (`RunningMaxCost`). The modules in [`bpg/problems/`](bpg/problems) show the mapping from a

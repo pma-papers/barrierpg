@@ -179,7 +179,7 @@ if TRAIN_THE_CONTROLLER:
                      **PPO_SETTINGS)
     controller.learn(5_000_000)
 else:
-    controller = PPO.load(str(camp.root / "controller" / "seed2" / "model.zip"), device="cpu")
+    controller = camp.model("controller", seed=2)               # the campaign's controller (a stable_baselines3 PPO)
 
 # %% [markdown]
 # How much fuel does the controller burn, and how often would it run dry under the new tank? The campaign trained three
@@ -216,34 +216,45 @@ print(f"random actions burn {per_frame:.3f} per frame: the tank is empty after a
 def train(stage, steps, start, seed=1, anchor=None, action_anchor=None):
     model = PPO("MlpPolicy", vec_env(stage, seed), seed=seed, **PPO_SETTINGS)
     model.policy.load_state_dict(start.policy.state_dict())             # start from the controller in use
-    monitor = BudgetMonitor(spec.beta, stage.m, horizon=spec.horizon)
-    callbacks = [monitor]
+    monitor = BudgetMonitor(spec.beta, stage.m, horizon=spec.horizon)   # records every batch; checks convergence
+    callbacks, regularizers = [monitor], {}
     if anchor:                                                          # weight decay toward the starting weights
-        ParameterAnchor(model, anchor).install()
+        regularizers["anchor"] = ParameterAnchor(model, anchor).install()
     if action_anchor:                                                   # charge departures from the start's actions
         def log_start(obs, act):
             with torch.no_grad():
                 return start.policy.evaluate_actions(torch.as_tensor(obs), torch.as_tensor(act))[1].numpy()
-        callbacks.insert(0, ActionAnchor(action_anchor, log_start))
+        regularizers["action anchor"] = ActionAnchor(action_anchor, log_start)
+        callbacks.insert(0, regularizers["action anchor"])
     model.learn(steps, callback=callbacks)
-    return model, monitor
+    return model, monitor, regularizers
 
 
-model, monitor = train(Stage(m=0.0, clip_utility=False), 300_000, controller)
-fig, ax = plt.subplots(1, 2, figsize=(9, 2.8))
-steps = [t["steps"] / 1e3 for t in monitor.trace]
-ax[0].plot(steps, [t["failure_rate"] for t in monitor.trace]); ax[0].set_ylabel("ran dry (per batch)")
-ax[1].plot(steps, [t["U"] for t in monitor.trace]); ax[1].set_ylabel("discounted reward (per batch)")
-for a in ax: a.set_xlabel("thousand frames")
-plt.tight_layout(); plt.show()
-short = evaluate(lambda: make_env(Stage(m=0.0, clip_utility=False)), lambda o: model.predict(o)[0], 200, spec=spec,
-                 stage=Stage(m=0.0, clip_utility=False), T=req.T, seed=5)
-print(f"after 300,000 frames: ran dry in {short.p_T:.1%} of 200 fresh landings")
+def landings(model, stage, n=200, seed=5):
+    """Ran dry, landed and crashed, over n fresh episodes of the stochastic policy."""
+    env, counts = make_env(stage), dict(ran_dry=0, landed=0, crashed=0)
+    for i in range(n):
+        obs, _ = env.reset(seed=seed + i)
+        while True:
+            obs, _, terminated, truncated, info = env.step(model.predict(obs)[0])
+            if terminated or truncated:
+                break
+        counts["ran_dry"] += info["failure"]; counts["landed"] += info.get("landed", False); counts["crashed"] += info.get("crashed", False)
+    return {k: v / n for k, v in counts.items()}
+
+
+tank_alone = Stage(m=0.0, clip_utility=False)
+model, monitor, _ = train(tank_alone, 300_000, controller)
+monitor.plot(title="the tank alone, 300,000 frames"); plt.show()
+print(monitor.convergence().explain())
+print("fresh landings:", {k: f"{v:.1%}" for k, v in landings(model, tank_alone).items()})
 
 # %% [markdown]
-# Three hundred thousand frames are not enough: the lander still runs dry about as often as the controller did. The
-# campaign continued every controller for 3 million frames. Its learning curves, recorded by the same `BudgetMonitor`,
-# show when the lander learns to save fuel.
+# This run is short, and the convergence check says so: the lander still runs dry about as often as the controller
+# did. `BudgetMonitor.convergence()` compares the last tenth of the training batches with the tenth
+# before; `BudgetMonitor(check_every=k, stop_when_converged=True)` checks during training and stops once the run has
+# converged. The campaign continued every controller for 3 million frames. Its learning curves, recorded by the same
+# monitor, show when the lander learns to save fuel.
 
 # %%
 fig, ax = plt.subplots(figsize=(6.4, 2.8))
@@ -275,8 +286,13 @@ for k, key in enumerate(["failed", "crashed"]):
     ax[k].set_ylabel({"failed": "ran dry", "crashed": "crashed"}[key]); ax[k].legend(fontsize=7)
 ax[0].axhline(req.alpha, color="C3", ls=":", lw=1)
 plt.tight_layout(); plt.show()
+print("Convergence at the end of training (the toolbox's check on each run's record):")
+print(camp.convergence_table(prices))
 
 # %% [markdown]
+# Most runs had converged by the end of training. Where one had not, its policy is the policy at the end of the run:
+# it is validated as such, and a longer run might do better.
+#
 # The price adds little to the tank. Higher prices barely change how often the lander runs dry and make it crash more
 # often, in some seeds in a quarter of the landings or more. Once running dry costs more than a crash, the learner
 # sometimes chooses the crash.
@@ -298,12 +314,38 @@ plt.tight_layout(); plt.show()
 # **Theory.** A parameter anchor biases the learned policy toward the prior policy, the policy at the anchor's weights,
 # and the learner inherits that policy's risk. An action anchor keeps the policy's failure risk close to the
 # reference's, by an amount set by how far the two action distributions are apart.
+#
+# Here are the three, trained live for 300,000 frames each at the price 0.5. `ParameterAnchor.distance()` measures how
+# far the weights moved from the controller's, and `ActionAnchor.mean_log_ratio` how far the actions moved.
+
+# %%
+priced = Stage(m=0.5, clip_utility=False)
+for name, options in {"no regularizer": {}, "parameter anchor, kappa_p = 1": dict(anchor=1.0),
+                      "action anchor, eta = 0.05": dict(action_anchor=0.05)}.items():
+    m_, mon, regs_ = train(priced, 300_000, controller, **options)
+    moved = ""
+    if "anchor" in regs_:
+        moved = f"; weights moved {regs_['anchor'].distance():.3f}"
+    if "action anchor" in regs_:
+        moved = f"; mean log ratio of actions {regs_['action anchor'].mean_log_ratio:.3f}"
+    outcome = landings(m_, priced)
+    print(f"{name:30s} ran dry {outcome['ran_dry']:6.1%}, landed {outcome['landed']:6.1%}, crashed {outcome['crashed']:5.1%}"
+          f"{moved}; training {mon.convergence().status}")
+
+# %% [markdown]
+# These are short runs, too short for the convergence check to judge, so the numbers show how to use the regularizers
+# rather than what they do after full training. Two limits of the check matter here as everywhere. A run can stop
+# changing in a bad place, and a learning rate that decays to zero makes any run stop changing at its end. Converged
+# means that the run stopped changing, not that its policy is good; the validation decides that. The full campaign
+# trained each for 3 million frames:
 
 # %%
 regs = ["price-0.5", "anchor-0.01", "anchor-0.1", "anchor-1", "anchor-10", "action-anchor"]
 print(Campaign.show(camp.table(regs, extras=("landed", "crashed"))))
 for cfg in ["anchor-0.01", "anchor-0.1", "anchor-1", "anchor-10"]:
     print(f"{cfg}: weight distance from the controller at the end {np.round([r['anchor_distance'] for r in camp.records(cfg)], 3)}")
+print("\nConvergence at the end of training:")
+print(camp.convergence_table(regs))
 
 # %% [markdown]
 # The parameter anchor keeps the controller's flaw. The controller runs dry under the new tank, and anchored to its
@@ -337,7 +379,7 @@ for det in (False, True):
                  T=req.T, seed=777)
     name = f"the {'mean action of the' if det else 'stochastic'} policy {best[0]}, seed {best[1]}"
     print()
-    print(interpret(spec, req, best_stage, e, candidate_name=name).summary(resource="fuel", period="frames"))
+    print(interpret(spec, req, best_stage, e, candidate_name=name, training=camp.convergence(*best)).summary(resource="fuel", period="frames"))
 
 # %% [markdown]
 # The candidate that learned the tank without a price passes, as a stochastic policy and as its mean action. On this

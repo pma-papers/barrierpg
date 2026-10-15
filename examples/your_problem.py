@@ -8,11 +8,12 @@ policy worth deploying). To use it for your own task, change the parts marked YO
 """
 import gymnasium as gym
 import numpy as np
+import torch
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 
 from bpg import BudgetSpec, Requirement, Stage, BudgetWrapper, evaluate, interpret, plan
-from bpg.callbacks import BudgetMonitor
+from bpg.callbacks import ActionAnchor, BudgetMonitor, ParameterAnchor
 
 STEPS = 300_000          # training steps; a lander needs a few million to land well
 
@@ -49,6 +50,20 @@ OBSERVE_TIME = False                     # True when the horizon is fixed and th
 def make_env(stage, **options):
     return BudgetWrapper(make_task(), resource_used, spec, stage, observe_time=OBSERVE_TIME, **options)
 
+# --- YOUR PROBLEM, optional: regularizers. Use one only when you have a reference policy you trust. ------------------
+# START_FROM: a policy in use to continue training from (a saved stable_baselines3 PPO model with the same
+#   observation, including the budget gauge). Start from it when retraining from scratch would not find good behavior.
+# ANCHOR: a parameter anchor of strength kappa_p, weight decay toward START_FROM's weights. The learner inherits that
+#   policy's risk, so anchor only if its behavior is acceptable under the new budget (notebook 1: a controller that
+#   violated the new limit kept violating it when anchored).
+# ACTION_ANCHOR: an action anchor of weight eta, which charges how far the action distribution departs from
+#   START_FROM's; it holds the behavior near the reference and gives way where the budget demands a change.
+# To start from a rule rather than a trained policy, fit the network to the rule first (notebook 2: fit_actor_mean on
+#   states that include the bad ones, then set_log_std) and evaluate the fitted network as a policy before training.
+START_FROM = None        # e.g. "controller.zip"
+ANCHOR = None            # e.g. 1.0
+ACTION_ANCHOR = None     # e.g. 0.05
+
 # --- 1. check the wrapped environment ----------------------------------------------------------------------------------
 
 env = make_env(stage)
@@ -71,9 +86,22 @@ venv = VecNormalize(DummyVecEnv([lambda: make_env(stage) for _ in range(16)]), n
                     clip_reward=1e9, gamma=spec.beta)
 model = PPO("MlpPolicy", venv, gamma=spec.beta, ent_coef=0.0, n_steps=1024, batch_size=64, n_epochs=4,
             learning_rate=lambda p: 3e-4 * p, seed=1, device="cpu", verbose=0)
-monitor = BudgetMonitor(spec.beta, stage.m, horizon=spec.horizon)
-model.learn(STEPS, callback=[monitor])
-print(monitor.explain(window=10))
+# the monitor records every batch and checks convergence every 10 batches (stop_when_converged=True would stop there)
+monitor = BudgetMonitor(spec.beta, stage.m, horizon=spec.horizon, check_every=10, verbose=1)
+callbacks = [monitor]
+if START_FROM:
+    start = PPO.load(START_FROM, device="cpu", custom_objects={"learning_rate": 0.0, "lr_schedule": lambda _: 0.0})
+    model.policy.load_state_dict(start.policy.state_dict())
+    if ANCHOR:
+        anchor = ParameterAnchor(model, ANCHOR).install()
+    if ACTION_ANCHOR:
+        def log_start(obs, act):
+            with torch.no_grad():
+                return start.policy.evaluate_actions(torch.as_tensor(obs), torch.as_tensor(act))[1].numpy()
+        callbacks.insert(0, ActionAnchor(ACTION_ANCHOR, log_start))
+model.learn(STEPS, callback=callbacks)
+training = monitor.convergence()
+print(training.explain())                # a short run will not have converged: train longer before deploying
 
 # --- 4. validate the policy you deploy, and report ----------------------------------------------------------------------
 
@@ -82,4 +110,4 @@ for deterministic in (False, True):          # the stochastic policy and its mea
                   stage=stage, T=req.T, seed=1000)
     name = "the mean action" if deterministic else "the stochastic policy"
     print()
-    print(interpret(spec, req, stage, ev, candidate_name=name).summary(resource="the budget", period="steps"))
+    print(interpret(spec, req, stage, ev, candidate_name=name, training=training).summary(resource="the budget", period="steps"))

@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.5.0 (2026-10-15): convergence monitoring; regularizers as examples
+
+- Convergence monitoring of a training run: `bpg.convergence.training_convergence` compares the last tenth of the
+  training batches with the tenth before, for the failure rate, the utility, the priced objective, the action
+  dispersion and an adaptive multiplier, and reports converged, not converged (with what is still changing), or too
+  short to judge (fewer than two windows of 10 batches). `BudgetMonitor.convergence()` and `BudgetMonitor.plot()` apply
+  it to a run; `BudgetMonitor(check_every=k, stop_when_converged=True, patience=, min_steps=)` checks during training
+  and can stop it; `interpret(..., training=...)` states it in the report. The explanation says what convergence does
+  not mean: a learning rate that decays to zero makes any run stop changing, and a run can stop in a bad place.
+- The notebooks run the regularizers live: the lander from its controller with a parameter anchor and with an action
+  anchor, the retailer from a prior fitted to its rule with and without an anchor; every short run is followed by the
+  convergence check, and every campaign table by the convergence of its runs (`records.Campaign.convergence_table`).
+- The template `examples/your_problem.py` has optional regularizers (start from a policy in use, parameter anchor,
+  action anchor) and checks convergence during training.
+- Shipped models load anywhere: `records.Campaign.model()` and the runner replace the pickled schedules on loading.
+
 ## 0.4.1 (2026-10-15): the notebooks build and train their problems in view
 
 - Every problem notebook now defines its problem and trains it in visible cells: the resource (a cost function, or a

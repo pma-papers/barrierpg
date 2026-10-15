@@ -17,6 +17,8 @@ from typing import Dict, List, Optional
 import numpy as np
 
 HERE = Path(__file__).resolve().parent
+# a saved PPO model stores its schedules as pickled functions; replacing them on loading keeps a model loadable anywhere
+LOAD_OBJECTS = {"learning_rate": 0.0, "lr_schedule": lambda _: 0.0, "clip_range": lambda _: 0.2}
 RESULTS = HERE / "results"
 if str(HERE) not in sys.path:
     sys.path.insert(0, str(HERE))
@@ -48,6 +50,28 @@ class Campaign:
     def stage(self, config: str, seed: int) -> Stage:
         """The stage under which the run was evaluated (for an adaptive multiplier: its final penalty)."""
         return _stage(self.record(config, seed)["stage"])
+
+    # --- convergence of the training runs --------------------------------------------------------------------------
+    def convergence(self, config: str, seed: int, **kw):
+        """The toolbox's convergence check (bpg.convergence.training_convergence) on the run's per-batch record."""
+        from bpg.convergence import training_convergence
+        r = self.record(config, seed)
+        trace = [dict(t) for t in r["monitor"]]
+        if r.get("dual") and len(r["dual"]["trace"]) == len(trace):
+            for t, d in zip(trace, r["dual"]["trace"]):
+                t["multiplier"] = d["multiplier"]
+        return training_convergence(trace, **kw)
+
+    def convergence_table(self, configs: List[str], **kw) -> str:
+        """For each configuration: in how many seeds the run had converged at the end, and what was still changing."""
+        lines = []
+        for c in configs:
+            res = [(s, self.convergence(c, s, **kw)) for s in self.seeds(c)]
+            ok = sum(r.converged for _, r in res)
+            moving = "; ".join(f"seed {s}: " + ", ".join(m.label.replace("the ", "") for m in r.moving)
+                               for s, r in res if not r.converged)
+            lines.append(f"{c:20s} converged in {ok} of {len(res)} seeds" + (f"  (still changing: {moving})" if moving else ""))
+        return "\n".join(lines)
 
     # --- evaluations -----------------------------------------------------------------------------------------------
     def evaluation(self, config: str, seed: int, which: str = "evaluation", T: Optional[int] = None, extra: int = 0):
@@ -93,11 +117,16 @@ class Campaign:
         return "\n".join(out)
 
     # --- policies --------------------------------------------------------------------------------------------------
+    def model(self, config: str, seed: int):
+        """The trained stable_baselines3 PPO model of a run (for training further, or as a reference or a prior)."""
+        from stable_baselines3 import PPO
+        return PPO.load(str(self.root / config / f"seed{seed}" / "model.zip"), device="cpu", custom_objects=LOAD_OBJECTS)
+
     def policy(self, config: str, seed: int, deterministic: bool = False):
         """The trained network of a run as obs -> action (observations normalized as in training when needed)."""
         from stable_baselines3 import PPO
         d = self.root / config / f"seed{seed}"
-        model = PPO.load(str(d / "model.zip"), device="cpu")
+        model = PPO.load(str(d / "model.zip"), device="cpu", custom_objects=LOAD_OBJECTS)
         norm = None
         if (d / "vecnormalize.pkl").exists():
             import pickle

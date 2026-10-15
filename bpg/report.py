@@ -14,12 +14,16 @@ from typing import List, Optional
 from .bounds import Bound
 from .certificates import (action_risk_bound, comparison_law_risk, finite_from_geometric, near_exhaustion_bound,
                            price_risk_law, risk_from_value)
-from .convergence import MultiplierDiagnosis, SeedDispersion, TrendTest
+from .convergence import MultiplierDiagnosis, SeedDispersion, TrainingConvergence, TrendTest
 from .evaluate import Evaluation
 from .regularizers import RegularizerEffects
 from .spec import BudgetSpec, Requirement, Stage, price_from_multiplier
 from .paper import cite
 from .validation import DirectValidation, lump_sanction_risk, physical_horizon_risk
+
+
+def _and(items):
+    return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1]
 
 
 @dataclass
@@ -36,6 +40,7 @@ class Report:
     not_established: List[str] = field(default_factory=list)
     candidate: str = "the final stochastic policy"
     multiplier: Optional[MultiplierDiagnosis] = None
+    training: Optional[TrainingConvergence] = None
 
     @property
     def certified(self) -> bool:
@@ -73,6 +78,17 @@ class Report:
         near = e.near.get(0.05)
         if near is not None:
             lines.append(f"Episodes that came within 5% of running out, or ran out: {near:.1%}.")
+        if self.training is not None:
+            t = self.training
+            if t.status == "converged":
+                lines.append(f"Training had converged by the toolbox's check (the last {t.window} batches against the {t.window} before).")
+            elif t.status == "not converged":
+                moving = [c.label for c in t.moving]
+                lines.append("Training had not converged: " + (_and(moving) + (" was" if len(moving) == 1 else " were")
+                                                               if moving else "the check had nothing to compare")
+                             + " still changing at the end. A longer run may give a better policy.")
+            else:
+                lines.append("The training record is too short to judge convergence.")
         if self.multiplier is not None:
             lines.append({"stable": "The adaptive multiplier converged during training.",
                           "trending": "The adaptive multiplier was still moving when training ended.",
@@ -108,6 +124,8 @@ class Report:
             lines += ["", self.effects.explain()]
         if self.bounds:
             lines += ["", "Bounds (value, source, hypotheses):"] + ["  " + b.statement().replace("\n", "\n  ") for b in self.bounds]
+        if self.training is not None:
+            lines += ["", self.training.explain()]
         lines += ["", "Not established by this evidence:"] + ["  - " + x for x in self.not_established]
         return "\n".join(lines)
 
@@ -117,7 +135,8 @@ def interpret(spec: BudgetSpec, requirement: Requirement, stage: Stage, evaluati
               action_entropy: Optional[float] = None, reference_risk: Optional[float] = None,
               lower_barrier: Optional[float] = None, multiplier: Optional[MultiplierDiagnosis] = None,
               trends: Optional[dict] = None, seeds: Optional[dict] = None, exact_frontier_gap: Optional[float] = None,
-              candidate_name: str = "the final stochastic policy", effects: Optional[RegularizerEffects] = None) -> Report:
+              candidate_name: str = "the final stochastic policy", effects: Optional[RegularizerEffects] = None,
+              training: Optional[TrainingConvergence] = None) -> Report:
     """Compose the report for one candidate.
 
     delta          optimization error (measured against an exact frontier, or a conservative allowance);
@@ -129,6 +148,7 @@ def interpret(spec: BudgetSpec, requirement: Requirement, stage: Stage, evaluati
     lower_barrier  underline B(eps) at a chosen reserve threshold (near-exhaustion certificate).
     multiplier     diagnosis of a dual-ascent trace (adaptive configurations).
     trends         BudgetMonitor.diagnostics() of the training run.
+    training       BudgetMonitor.convergence() of the training run: whether it had stopped changing (stated in the summary).
     seeds          dict of name -> SeedDispersion across training seeds.
     exact_frontier_gap  relative shortfall from an exact frontier if one exists.
     effects        bpg.regularizers.regularizer_effects(...) of the candidate (action anchor, parameter anchor,
@@ -251,7 +271,8 @@ def interpret(spec: BudgetSpec, requirement: Requirement, stage: Stage, evaluati
                        f"failed certificate, never as a passed one [{cite('bias')}]")
     if effects is not None:
         missing += ["regularizer flag: " + f for f in effects.flags]
-    return Report(spec, requirement, stage, evaluation, val, bounds, effects, reading, evidence, missing, candidate_name, multiplier)
+    return Report(spec, requirement, stage, evaluation, val, bounds, effects, reading, evidence, missing, candidate_name, multiplier,
+                  training)
 
 
 __all__ = ["Report", "interpret"]

@@ -400,8 +400,128 @@ def objective_gap_trace(objective: Sequence[float], final: Optional[float] = Non
     return J - Jf
 
 
+# ---------------------------------------------------------------------------------------------
+# Convergence of a training run, read from its per-batch record
+# ---------------------------------------------------------------------------------------------
+_LABELS = {"failure_rate": "the failure rate", "U": "the utility", "V_m": "the priced objective",
+           "log_std": "the action dispersion (log std)", "multiplier": "the adaptive multiplier"}
+
+
+@dataclass
+class QuantityCheck:
+    key: str
+    previous: float            # mean over the window before the last
+    last: float                # mean over the last window
+    change: float
+    noise: float               # standard error of the change, from the batch-to-batch variation
+    scale: float               # the size against which the change is judged
+    status: str                # 'stable', 'rising' or 'falling'
+
+    @property
+    def label(self) -> str:
+        return _LABELS.get(self.key, self.key)
+
+    def line(self) -> str:
+        if self.status == "stable":
+            return f"{self.label}: stable ({self.previous:.4g} then {self.last:.4g})"
+        return f"{self.label}: still {self.status} ({self.previous:.4g} then {self.last:.4g}, a change of {abs(self.change) / self.scale:.0%})"
+
+
+@dataclass
+class TrainingConvergence:
+    """The convergence check of a training run: the last `window` batches against the `window` before them."""
+    status: str                # 'converged', 'not converged' or 'too short'
+    window: int
+    batches: int
+    rel_tol: float
+    checks: List[QuantityCheck] = field(default_factory=list)
+
+    @property
+    def converged(self) -> bool:
+        return self.status == "converged"
+
+    @property
+    def moving(self) -> List[QuantityCheck]:
+        return [c for c in self.checks if c.status != "stable"]
+
+    def explain(self) -> str:
+        if self.status == "too short":
+            return (f"Training convergence: too short to judge ({self.batches} batches recorded; the check compares two windows "
+                    f"of at least 10 batches). A run this short has rarely converged: train longer before comparing or deploying.")
+        head = (f"Training convergence over the last {self.window} batches, compared with the {self.window} before: "
+                + ("converged." if self.converged else "not converged."))
+        lines = [head] + ["  " + c.line() for c in self.checks]
+        if self.converged:
+            lines.append(f"Every quantity changed by less than {self.rel_tol:.0%} or by less than its batch-to-batch noise. This means "
+                         "that the run stopped changing, not that its policy is good: a learning rate that decays to zero makes any "
+                         "run stop changing at its end, and a run can stop in a bad place. A longer run may still improve; the "
+                         "validation decides whether the policy meets the requirement.")
+        else:
+            lines.append("Train longer before comparing this run with others or deploying its policy; a policy taken from a run "
+                         "that is still changing is the policy at the end of the run, and it should be validated as such.")
+        return "\n".join(lines)
+
+
+def training_convergence(trace: Sequence[dict], window: Optional[int] = None, rel_tol: float = 0.05,
+                         keys: Sequence[str] = ("failure_rate", "U", "V_m", "log_std", "multiplier")) -> TrainingConvergence:
+    """Has a training run stopped changing? Reads the per-batch record of a run (BudgetMonitor.trace, or the 'monitor'
+    of a campaign record) and compares, for each quantity, the mean over the last `window` batches with the mean over the
+    `window` batches before. A quantity is still changing when its change exceeds both twice its standard error (from
+    the batch-to-batch variation) and `rel_tol` times its size (the larger of its level and its batch-to-batch
+    variation). The default window is a tenth of the batches, at least 10, and fewer than two windows of batches give
+    'too short'. Evidence about one run, not a convergence guarantee: the theory's convergence results concern the exact
+    population flow, not stochastic training, and a learning rate that decays to zero makes any run stop changing."""
+    n = len(trace)
+    w = int(window) if window is not None else max(10, n // 10)
+    if n < 2 * w or w < 5:
+        return TrainingConvergence("too short", w, n, rel_tol)
+    checks = []
+    for key in keys:
+        x = np.array([t.get(key, np.nan) for t in trace], dtype=float)
+        prev, last = x[-2 * w:-w], x[-w:]
+        prev, last = prev[np.isfinite(prev)], last[np.isfinite(last)]
+        if len(prev) < 3 or len(last) < 3:
+            continue
+        mp, ml = float(prev.mean()), float(last.mean())
+        noise = float(np.sqrt(prev.var(ddof=1) / len(prev) + last.var(ddof=1) / len(last)))
+        spread = float(np.sqrt(0.5 * (prev.var(ddof=1) + last.var(ddof=1))))
+        scale = max(abs(mp), abs(ml), spread, 1e-12)
+        change = ml - mp
+        moving = abs(change) > 2.0 * noise and abs(change) > rel_tol * scale
+        checks.append(QuantityCheck(key, mp, ml, change, noise, scale,
+                                    "stable" if not moving else ("rising" if change > 0 else "falling")))
+    status = "converged" if checks and all(c.status == "stable" for c in checks) else "not converged"
+    return TrainingConvergence(status, w, n, rel_tol, checks)
+
+
+def plot_training(trace: Sequence[dict], report: Optional[TrainingConvergence] = None, keys: Sequence[str] = ("failure_rate", "U", "log_std"),
+                  axes=None, title: Optional[str] = None):
+    """Training curves per batch (needs matplotlib), with the two windows of the convergence check shaded."""
+    import matplotlib.pyplot as plt
+    keys = [k for k in keys if any(np.isfinite(t.get(k, np.nan)) for t in trace)]
+    if axes is None:
+        fig, axes = plt.subplots(1, len(keys), figsize=(3.2 * len(keys), 2.6))
+    axes = np.atleast_1d(axes)
+    steps = np.array([t.get("steps", i) for i, t in enumerate(trace)], dtype=float)
+    unit, scale = ("million steps", 1e6) if steps.max() >= 1e6 else ("thousand steps", 1e3)
+    report = training_convergence(trace) if report is None else report
+    for ax, key in zip(axes, keys):
+        ax.plot(steps / scale, [t.get(key, np.nan) for t in trace], lw=0.8)
+        if report.status != "too short":
+            w = report.window
+            ax.axvspan(steps[-2 * w] / scale, steps[-w - 1] / scale, color="0.85", lw=0)
+            ax.axvspan(steps[-w] / scale, steps[-1] / scale, color="0.7", lw=0)
+        ax.set_title(_LABELS.get(key, key), fontsize=8); ax.set_xlabel(unit, fontsize=8)
+    fig = axes[0].figure
+    fig.suptitle((title + ": " if title else "") + {"converged": "converged", "not converged": "not converged",
+                                                   "too short": "too short to judge"}[report.status], fontsize=9)
+    fig.tight_layout()
+    return fig
+
+
 __all__ = ["KernelConstants", "FeatureConstants", "curvature_constants", "gaussian_prior_curvature", "supplied_curvature", "tv_constant",
            "rate", "certified_kappa", "time_to_fraction", "CurvatureBudget", "curvature_budget", "learning_risk_bound",
            "learning_time_for_slack", "initial_gap_upper", "finite_training_transfer", "risk_slack_from_prior", "kappa_for_tolerance",
            "action_slack_from_prior", "fit_exponential_rate", "TrendTest", "trend_test",
-           "MultiplierDiagnosis", "multiplier_diagnosis", "SeedDispersion", "seed_dispersion", "objective_gap_trace"]
+           "MultiplierDiagnosis", "multiplier_diagnosis", "SeedDispersion", "seed_dispersion", "objective_gap_trace",
+           "QuantityCheck", "TrainingConvergence", "training_convergence", "plot_training"]
