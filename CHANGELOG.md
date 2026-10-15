@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.1 (2026-10-15): the notebooks build and train their problems in view
+
+- Every problem notebook now defines its problem and trains it in visible cells: the resource (a cost function, or a
+  wrapper that adds the resource to a task), the budget specification with each argument explained, the requirement,
+  the price or the cost of failure, the wrapper and a check that it fails when it should, `plan`, and the training code
+  (PPO settings, normalization, `BudgetMonitor`, regularizers, an adaptive multiplier), run live on a short budget
+  before the full campaign's records are loaded. Notes marked Theory say what the results behind the method imply at
+  each step. The retailer's simulator is written in the notebook, as a template for writing one's own, and checked
+  against the copy the campaign used.
+- `examples/your_problem.py`: a complete, runnable template from the task to the report.
+- Experiment wording: no "predicted" or "pre-registered" (fixed before the campaign).
+
 ## 0.4.0 (2026-10-15): a toolbox for practitioners; the paper's examples as a separate track
 
 Structure

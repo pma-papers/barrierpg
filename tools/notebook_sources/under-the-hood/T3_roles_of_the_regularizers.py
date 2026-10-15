@@ -84,7 +84,7 @@ plt.tight_layout(); plt.show()
 for name, (k1, k2) in configs.items():
     r = runs[name]
     pred = stationary_spread(k1, k2) if k2 > 0 else float("nan")
-    print(f"{name:34s} final V_m = {r.V_m[-1]:+.4f}  spread = {r.spread[-1]:.3f}  predicted = {pred:.3f}")
+    print(f"{name:34s} final V_m = {r.V_m[-1]:+.4f}  spread = {r.spread[-1]:.3f}  from the formula = {pred:.3f}")
 print(f"plateau value: {plateau_value:.4f}")
 
 # %% [markdown]

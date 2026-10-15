@@ -189,7 +189,7 @@ for buffer in (0.0, 1.0, 2.0):
 # * **The reading of the objective.** With a known optimization error $\delta$, the fixed-price reading
 #   (*Fixed price of failure risk*): the candidate is optimal at the risk it attains, up to $\delta$. With `delta=None` the report
 #   makes no optimality claim.
-# * **Certificates and validation.** Each bound carries its source and hypotheses. The direct test at the specified
+# * **Certificates and validation.** Each bound carries its source and the assumptions it needs. The direct test at the specified
 #   horizon is the deployment decision.
 # * **What is not established.** Eventual risk, other horizons, other candidates, convergence of the training run,
 #   and model error.

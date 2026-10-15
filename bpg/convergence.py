@@ -329,7 +329,7 @@ def multiplier_diagnosis(trace: Sequence[dict], alpha: float, beta: float, windo
                 (within tol, relative, plus the sampling error of the window);
     increasing  the multiplier rose in nearly every rollout while the failure rate stayed far above the tolerance.
                 When every episode fails, the flat penalty carries no gradient (the fuel-tank study with its
-                pre-registered step); reduce the dual step, use a fixed price, or start from a controller that sometimes
+                step fixed before its campaign); reduce the dual step, use a fixed price, or start from a controller that sometimes
                 survives;
     inactive    the multiplier is zero and the failure rate is below the tolerance: the tolerance does not constrain
                 the unpriced optimum;

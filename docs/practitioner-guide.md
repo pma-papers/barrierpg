@@ -12,8 +12,10 @@ problems, each with its own notebook:
 | [A legged robot on a battery](../notebooks/03_robot_battery.ipynb) | charge | what the policy must observe (a clock); prices; a reserve margin against an uncertain battery |
 | [A navigation robot with a damage allowance](../notebooks/04_navigation_allowance.ipynb) | allowance of damage | which requirement the task means; a price that is too high |
 
-The [under-the-hood track](under-the-hood/decisions-and-theory.md) ties each step to the paper's results, using test
-problems with exact solutions.
+Each notebook builds its problem and trains it in view, with notes on what the theory implies at each step;
+[`examples/your_problem.py`](../examples/your_problem.py) is a complete template, from the task to the report, to copy
+for your own problem. The [under-the-hood track](under-the-hood/decisions-and-theory.md) ties each step to the paper's
+results, using test problems with exact solutions.
 
 ## The method in brief
 

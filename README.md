@@ -19,14 +19,15 @@ exact statistical test and writes a report that says what the evidence shows and
 
 ## Four problems, four notebooks
 
-Each notebook starts from a problem as a practitioner meets it, ships the trained policies of its campaign (so it
-runs in minutes), and shows the decisions in order: the requirement, the price, the regularizers, the validation and
-the report.
+Each notebook starts from a problem as a practitioner meets it and builds it in the open: the resource and the
+budget, the requirement, the price, the wrapper and a check of it, the training code (run live on a short budget),
+the regularizers, the validation and the report. Short notes say what the theory behind the method implies at each
+step. The comparisons use the shipped policies of each problem's full campaign, so every notebook runs in minutes.
 
 | Notebook | Problem | What it shows |
 |---|---|---|
-| [1. Lander with a fuel tank](notebooks/01_lander_fuel_tank.ipynb) | Gymnasium's LunarLander with a tank smaller than its controller needs | imposing a budget on a controller already in use, and what to anchor to |
-| [2. Retailer with a cash balance](notebooks/02_retailer_cash.ipynb) | a three-line retailer that pays suppliers from cash; insolvency is the failure | a failure with a known cost; an incumbent rule as the prior and as a benchmark |
+| [1. Lander with a fuel tank](notebooks/01_lander_fuel_tank.ipynb) | Gymnasium's LunarLander with a tank smaller than its controller needs | adding a budget to a task you already train; continuing from a controller in use, and what to anchor to |
+| [2. Retailer with a cash balance](notebooks/02_retailer_cash.ipynb) | a three-line retailer that pays suppliers from cash; insolvency is the failure | writing your own simulator; a resource that is also replenished; a failure with a known cost; a rule in use as the prior and as a benchmark |
 | [3. Robot on a battery](notebooks/03_robot_battery.ipynb) | MuJoCo's HalfCheetah with a battery whose efficiency varies by mission | what the policy must observe (a clock), the price, and a reserve margin against a battery that holds less than expected |
 | [4. Navigation with a damage allowance](notebooks/04_navigation_allowance.ipynb) | Safety-Gymnasium's PointGoal1 with its cost limit read as an allowance | which requirement a task means; a price that charges more than an episode earns |
 
@@ -77,16 +78,28 @@ Every bound with its assumptions: report.text().
 
 ## Your own problem
 
+[`examples/your_problem.py`](examples/your_problem.py) is a complete template, from the task to the report, that runs
+as it stands on LunarLander with a fuel tank; change the parts marked YOUR PROBLEM. In outline:
+
 ```python
 import gymnasium as gym
 from stable_baselines3 import PPO
-from bpg import BudgetSpec, Stage, BudgetWrapper
-from bpg.problems.lander import fuel_cost              # the resource one step consumes: fuel_cost(obs, action, next_obs, reward, info)
+from bpg import BudgetSpec, Requirement, Stage, BudgetWrapper, evaluate, interpret, plan
+from bpg.callbacks import BudgetMonitor
+
+def fuel_used(obs, action, next_obs, reward, info):     # the resource one step consumes (nonnegative)
+    ...
 
 spec = BudgetSpec(budgets=[24.0], beta=0.999, ubar=100.0, u_minus=100.0, horizon=1000)
-stage = Stage(m=0.5, clip_utility=False)               # a price of 0.5 per frame from a failure to the end of the episode
-env = BudgetWrapper(gym.make("LunarLanderContinuous-v3"), cost=fuel_cost, spec=spec, stage=stage)
-model = PPO("MlpPolicy", env, gamma=spec.beta).learn(1_000_000)
+req = Requirement(T=999, alpha=0.05, zeta=0.05, family=5)
+stage = Stage(m=0.5, clip_utility=False)               # a price of 0.5 per step from a failure to the end of the episode
+make_env = lambda st: BudgetWrapper(gym.make("LunarLanderContinuous-v3"), fuel_used, spec, st)
+
+print(plan(spec, req, stage=stage).explain())          # another method?, validation size, checks
+model = PPO("MlpPolicy", make_env(stage), gamma=spec.beta, ent_coef=0.0)
+model.learn(3_000_000, callback=[BudgetMonitor(spec.beta, stage.m, horizon=spec.horizon)])
+ev = evaluate(lambda: make_env(stage), lambda o: model.predict(o)[0], 1000, spec=spec, stage=stage, T=req.T)
+print(interpret(spec, req, stage, ev).summary())       # the verdict, and what the test does not show
 ```
 
 The wrapper appends the remaining budget to the observation, ends the episode when the budget is exhausted, and
