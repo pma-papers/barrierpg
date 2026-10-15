@@ -1,0 +1,6 @@
+lander anchor-0.01 1
+lander anchor-0.01 2
+lander anchor-0.01 3
+lander anchor-0.1 1
+lander anchor-0.1 2
+lander anchor-0.1 3

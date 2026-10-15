@@ -34,6 +34,8 @@ class Report:
     reading: List[str] = field(default_factory=list)
     evidence: List[str] = field(default_factory=list)
     not_established: List[str] = field(default_factory=list)
+    candidate: str = "the final stochastic policy"
+    multiplier: Optional[MultiplierDiagnosis] = None
 
     @property
     def certified(self) -> bool:
@@ -42,6 +44,48 @@ class Report:
     def best_bound(self) -> Optional[Bound]:
         cands = [b for b in self.bounds if b.name.startswith(f"p_{self.requirement.T}")]
         return min(cands, key=lambda b: b.value) if cands else None
+
+    def summary(self, resource: str = "the budget", period: str = "steps") -> str:
+        """The verdict in plain words, without the theory: how often the candidate ran out on fresh episodes, the
+        validated bound on its risk, whether the requirement is met, its utility, and what the test does not show.
+        text() gives every bound with its assumptions."""
+        r, s, e, v = self.requirement, self.stage, self.evaluation, self.validation
+        steps = f"{r.T + 1} {period}"
+        who = self.candidate[0].upper() + self.candidate[1:]
+        if e.event == "q_beta":
+            lines = [f"{who} was run on {e.n} fresh episodes, each ending at a random time (the geometric clock). "
+                     f"It ran out of {resource} in {e.failures} of them ({e.failures / e.n:.2%})."]
+        else:
+            lines = [f"{who} was run on {e.n} fresh episodes. It ran out of {resource} within {steps} in {e.failures} of them "
+                     f"({e.failures / e.n:.2%})."]
+        if v is not None:
+            share = f" (the error {r.zeta:g} is shared among {r.family} candidates)" if r.family > 1 else ""
+            what = "of running out before the episode's random end" if v.event == "q_beta" else f"of running out within {steps}"
+            lines.append(f"With confidence {1 - r.zeta:g}, its probability {what} is at most {v.upper:.3%}{share}.")
+            if v.passed:
+                lines.append(f"Requirement (at most {r.alpha:.2%}): met.")
+            else:
+                floor = (f" With this sample, even no failures would show no less than {v.floor:.3%}." if v.failures == 0 else "")
+                lines.append(f"Requirement (at most {r.alpha:.2%}): not shown. The test does not prove a violation; a larger test "
+                             f"may certify the policy, or the policy may not meet the tolerance.{floor}")
+        lines.append(f"Utility per episode: {e.U:.4g} (standard error {e.U_se:.2g})."
+                     + (f" The reserve margin cost {e.I_m:.4g} of it." if s.theta else ""))
+        near = e.near.get(0.05)
+        if near is not None:
+            lines.append(f"Episodes that came within 5% of running out, or ran out: {near:.1%}.")
+        if self.multiplier is not None:
+            lines.append({"stable": "The adaptive multiplier converged during training.",
+                          "trending": "The adaptive multiplier was still moving when training ended.",
+                          "increasing": "The adaptive multiplier rose while every episode failed; the run did not learn to avoid failure.",
+                          "inactive": "The adaptive multiplier stayed at zero: the tolerance did not constrain the policy.",
+                          "off-target": "The adaptive multiplier stopped moving away from the tolerance.",
+                          "short": "The adaptive multiplier's record is too short to judge."}[self.multiplier.status])
+        lines += ["", "What this test does not show:",
+                  "  - that the policy is the best possible at this risk: how far training fell short of the optimum is not measured;",
+                  f"  - its risk over more than {steps}, or that of other policies (its mean action, a retrained network);",
+                  "  - its behavior outside the simulator.",
+                  "Every bound with its assumptions: report.text()."]
+        return "\n".join(lines)
 
     def text(self) -> str:
         r, s, e = self.requirement, self.stage, self.evaluation
@@ -207,7 +251,7 @@ def interpret(spec: BudgetSpec, requirement: Requirement, stage: Stage, evaluati
                        f"failed certificate, never as a passed one [{cite('bias')}]")
     if effects is not None:
         missing += ["regularizer flag: " + f for f in effects.flags]
-    return Report(spec, requirement, stage, evaluation, val, bounds, effects, reading, evidence, missing)
+    return Report(spec, requirement, stage, evaluation, val, bounds, effects, reading, evidence, missing, candidate_name, multiplier)
 
 
 __all__ = ["Report", "interpret"]

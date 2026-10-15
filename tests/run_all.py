@@ -6,7 +6,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT.parent)); sys.path.insert(0, str(ROOT))
-MODULES = ["test_spec_wrapper", "test_certificates", "test_validation", "test_convergence_frontier", "test_wear_evaluate", "test_regularizers", "test_paper_results", "test_report_assumptions"]
+MODULES = ["test_spec_wrapper", "test_certificates", "test_validation", "test_convergence_frontier", "test_wear_evaluate", "test_regularizers", "test_paper_results", "test_report_assumptions", "test_problems"]
 if "--rl" in sys.argv:
     MODULES.append("test_sb3")
 failed = 0; passed = 0

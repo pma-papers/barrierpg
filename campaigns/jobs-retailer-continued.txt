@@ -1,0 +1,6 @@
+retailer lump-20000-long 1
+retailer lump-20000-long 2
+retailer lump-20000-long 3
+retailer adaptive-1pct-warm 1
+retailer adaptive-1pct-warm 2
+retailer adaptive-1pct-warm 3

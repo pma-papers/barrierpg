@@ -336,7 +336,7 @@ def action_risk_bound(A: float, q_ref: float, beta: float, T: Optional[int] = No
 
 
 # ---------------------------------------------------------------------------------------------
-# Supplementary results of the toolbox (proofs in docs/supplementary-results.md)
+# Supplementary results of the toolbox (proofs in docs/under-the-hood/supplementary-results.md)
 # ---------------------------------------------------------------------------------------------
 def near_exhaustion_bound(V_m: float, m: float, ubar: float, beta: float, T: int, lower_barrier: float) -> Bound:
     """P(exists t <= T, k: z_{t+1,k} <= eps_k) <= min{1, (ubar - (1-beta) V_m) / ((1-beta) beta^T min{m+ubar, B_(eps)})},

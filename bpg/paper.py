@@ -12,7 +12,7 @@ by what they say (for example "price-risk law"). All citations go through `cite`
 map only; it is never printed, since a revision may also change a statement's kind. `PAPER["checked_against"]`
 records the last revision of the paper against which the toolbox's statements were checked.
 
-Results marked "toolbox" are proved in `docs/supplementary-results.md` and are not stated in the paper.
+Results marked "toolbox" are proved in `docs/under-the-hood/supplementary-results.md` and are not stated in the paper.
 """
 from __future__ import annotations
 
@@ -95,7 +95,7 @@ def cite(key: str, part: Optional[str] = None) -> str:
     Parts of 'Fixed price of failure risk' may be given as i, ii, iii, iv; they are printed by name."""
     kind, title = RESULTS[key]
     if kind == "toolbox":
-        return f"toolbox, {title} (docs/supplementary-results.md)"
+        return f"toolbox, {title} (docs/under-the-hood/supplementary-results.md)"
     where = f"paper, {title}" if kind == "study" else f"paper, '{title}'"
     if part is None:
         return where

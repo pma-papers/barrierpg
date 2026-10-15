@@ -20,6 +20,9 @@ clipped_return) that bpg.evaluate and the training monitor consume.
 
 true_budget_scale < 1 judges failure against a reduced true allowance while the observation shows
 the nominal reserve (the misjudged-allowance test of the wear study).
+
+observe_time=True also appends the elapsed fraction of the horizon, t/H. With a fixed horizon the policy needs it to
+pace the budget: whether the remaining budget suffices depends on how much of the episode is left.
 """
 from __future__ import annotations
 
@@ -75,11 +78,12 @@ class BudgetWrapper(_Base):
     spec: BudgetSpec; stage: Stage; observe: 'fraction' (z/b clipped to [0, 1]), 'reserve' or 'none'.
     geometric_stop: end the episode after each period with probability 1 - beta (see above).
     true_budget_scale: judge failure against scale * b while observing the nominal reserve.
+    observe_time: also observe t/H, the elapsed fraction of the horizon (needs spec.horizon).
     """
 
     def __init__(self, env, cost: CostFn, spec: BudgetSpec, stage: Stage, *, utility: Optional[UtilityFn] = None,
                  observe: str = "fraction", geometric_stop: bool = False, true_budget_scale: float = 1.0,
-                 barrier: Optional[Callable] = None):
+                 barrier: Optional[Callable] = None, observe_time: bool = False):
         if gym is not None and not isinstance(env, gym.Env):
             env = _Adapter(env)
         super().__init__(env)
@@ -94,13 +98,16 @@ class BudgetWrapper(_Base):
         self.clip_utility = bool(stage.clip_utility)
         self.observe, self.geometric_stop = observe, bool(geometric_stop)
         self.true_scale = float(true_budget_scale)
+        self.observe_time = bool(observe_time)
+        if self.observe_time and spec.horizon is None:
+            raise ValueError("observe_time needs a horizon in the BudgetSpec")
         self.B = LogBarrier(stage.theta, self.b) if barrier is None else barrier
         self._rng = np.random.default_rng()
         if gym is not None and observe != "none" and hasattr(env, "observation_space") \
                 and isinstance(env.observation_space, gym.spaces.Box):
-            low = np.append(env.observation_space.low, np.zeros(self.K)).astype(np.float32)
+            low = np.append(env.observation_space.low, np.zeros(self.K + int(self.observe_time))).astype(np.float32)
             hi = np.ones(self.K) if observe == "fraction" else self.b
-            high = np.append(env.observation_space.high, hi).astype(np.float32)
+            high = np.append(env.observation_space.high, np.append(hi, np.ones(int(self.observe_time)))).astype(np.float32)
             self.observation_space = gym.spaces.Box(low, high, dtype=np.float32)
 
     # --- controls that callbacks use ------------------------------------------------------
@@ -116,6 +123,8 @@ class BudgetWrapper(_Base):
             return o
         z = np.maximum(self.reserve, 0.0)
         extra = np.minimum(z / self.b, 1.0) if self.observe == "fraction" else z
+        if self.observe_time:
+            extra = np.append(extra, min(self.t / self.horizon, 1.0))
         return np.append(np.asarray(o, dtype=np.float32).reshape(-1), extra).astype(np.float32)
 
     def failure_reward(self) -> float:
@@ -162,10 +171,14 @@ class BudgetWrapper(_Base):
             terminated = True
         else:
             Bz = self.B(nominal_next if self.true_scale == 1.0 else true_next)
-            if self.penalty == "multiplier" and self.stage.theta == 0.0:
-                interior = 0.0            # frozen-multiplier form U - nu q: only the failure is priced
+            if self.stage.theta == 0.0 and (self.penalty == "multiplier" or not self.clip_utility):
+                interior = 0.0            # failure-only price, unclipped (frozen-multiplier) form: only the failure is priced
             else:
                 interior = interior_term(Bz, u, self.m, self.clip_utility)
+                if not np.isfinite(interior):
+                    # a reserve of exactly zero (possible with whole-unit costs) under the unclipped form: the barrier is
+                    # infinite there, and the step is charged as the clipped reward charges it, down to -m
+                    interior = u + self.m
             reward = u - interior
             utility = u
             self.U += w * u

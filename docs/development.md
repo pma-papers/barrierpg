@@ -8,16 +8,23 @@ sits in a synced folder, and an environment inside it makes the editor and the s
 ```bash
 python3 -m venv ~/.venvs/bpg-toolbox
 source ~/.venvs/bpg-toolbox/bin/activate
-pip install -e ".[all]"     # the package in editable mode, with Gymnasium, Stable-Baselines3, PyTorch, Jupyter and pytest
+pip install -e ".[all]"     # editable, with Gymnasium (Box2D, MuJoCo), Stable-Baselines3, PyTorch, Jupyter and pytest
 ```
 
 The exact package set in use is frozen in `../environments/bpg-toolbox.txt`.
 
-Extras: `rl` (Gymnasium, Stable-Baselines3, PyTorch), `notebooks` (Jupyter, matplotlib, nbformat, nbclient),
-`test` (pytest), and `all`. The core (`pip install -e .`) needs only numpy and scipy.
+Extras: `rl` (Gymnasium, Stable-Baselines3, PyTorch), `problems` (Box2D for the lander, MuJoCo for the robot),
+`notebooks` (Jupyter, matplotlib, nbformat, nbclient), `test` (pytest), and `all`. The core (`pip install -e .`)
+needs only numpy and scipy. Building `box2d-py` needs a `swig` executable on the path; on macOS, `brew install swig`
+provides it. Tests that need Box2D or MuJoCo are skipped without them.
 
-The paper's fuel-tank test needs Box2D (`pip install "gymnasium[box2d]"`). Building `box2d-py` needs a `swig`
-executable on the path; on macOS, `brew install swig` provides it. Without Box2D that test is skipped.
+The navigation problem needs Safety-Gymnasium 1.0, which requires Python 3.10 or older, Gymnasium 0.28 and MuJoCo 2.3,
+so it lives in a second environment (here `~/.venvs/constrained-rl-safety310`) with the toolbox installed editable
+and without dependencies (`pip install --no-deps -e .`). Only training and new evaluations of the navigation policies
+need it; the navigation notebook reads the shipped records.
+
+The step-by-step test of the paper's fuel-tank environment needs the replication repository checked out next to the
+toolbox (`../bpg-replication`); without it the test is skipped.
 
 ## VS Code
 
@@ -47,10 +54,17 @@ python tests/run_all.py --rl     # also the Stable-Baselines3 and Gymnasium chec
 python -m pytest tests -q        # the same checks under pytest
 ```
 
-The checks reproduce numbers of the paper where the toolbox can compute them: the curvature deficit of the solvable
-flow ($C_m=1940$, certified $\kappa=2037$), the plateau value $-2.2533$, the stationary spreads of the roles study, the
-protocol's noise strengths, the incumbent rule's risk and utility in the wear example, the price-sequence reading of
-the emissions study, and a step-by-step reproduction of the fuel-tank environment.
+The checks cover the budget mechanics of the four tutorial problems, the validation and certificates, the plain
+report, and they reproduce numbers of the paper where the toolbox can compute them: the curvature deficit of the
+solvable flow ($C_m=1940$, certified $\kappa=2037$), the plateau value $-2.2533$, the stationary spreads of the roles
+study, the incumbent rule's risk and utility in the wear example, the price-sequence reading of the emissions study,
+and a step-by-step reproduction of the paper's fuel-tank environment.
+
+## Campaigns
+
+The notebooks of the four problems read trained policies from `campaigns/results/`; [`campaigns/README.md`](../campaigns/README.md)
+explains how to rerun them. Rerunning a campaign changes the numbers in the notebooks' outputs, so rebuild those
+notebooks afterwards.
 
 ## Notebooks and figures
 
@@ -59,9 +73,9 @@ notebook in the "percent" format: `# %%` starts a code cell, `# %% [markdown]` a
 rebuild and execute:
 
 ```bash
-python tools/build_notebooks.py          # all notebooks (about 40 minutes on one core; notebooks 2, 3 and 5 train PPO)
-python tools/build_notebooks.py 01 04    # selected notebooks
-python tools/show_outputs.py notebooks/01_quickstart.ipynb   # print the text outputs for review
+python tools/build_notebooks.py          # all notebooks: the four problems (minutes each) and the under-the-hood track
+python tools/build_notebooks.py 01 T4    # selected notebooks, by the start of their names
+python tools/show_outputs.py notebooks/01_lander_fuel_tank.ipynb   # print the text outputs for review
 python tools/make_readme_figures.py      # the figure on the landing page
 ```
 

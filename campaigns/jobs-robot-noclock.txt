@@ -1,0 +1,6 @@
+robot unpriced-no-clock 1
+robot unpriced-no-clock 2
+robot unpriced-no-clock 3
+robot price-3-no-clock 1
+robot price-3-no-clock 2
+robot price-3-no-clock 3

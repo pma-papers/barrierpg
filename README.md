@@ -1,184 +1,133 @@
-# bpg: clipped barrier policy gradients under resource budgets
+# bpg: reinforcement learning when a resource can run out
 
-**Keep the reinforcement learner you already use. Add a budget. Know what the trained policy delivers, and prove it.**
+**Keep the learner you use. Add the budget. Know how often the trained policy runs out, and show it.**
 
 ![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-3776ab)
 ![License: MIT](https://img.shields.io/badge/license-MIT-2e9e5b)
 ![Core: numpy + scipy](https://img.shields.io/badge/core-numpy%20%2B%20scipy-8a8a8a)
 
-`bpg` is the companion toolbox of the paper *The Price of Failure Risk: Clipped Barrier Policy Gradients with
-Convex Regularization* (Malo, Viitasaari, Suominen, Vilkkumaa, Tahvonen). It is for practitioners who train a
-policy under a cumulative resource budget (a wear allowance, a fuel tank, an emissions cap, a bycatch quota)
-and must say, at the end, how often the deployed policy exhausts the budget and in what sense it solves the problem.
+Many control and decision problems have a resource that can run out: the fuel of a lander, the charge of a robot's
+battery, the cash of a firm, an allowance of damage or emissions. Running out is a failure, and the question after
+training is always the same: how often does the policy we deploy run out, and can we show it?
+
+`bpg` answers it for any policy-gradient learner. A wrapper turns the budget into part of the problem: the policy
+observes what is left, the episode ends when it runs out, and a price is charged at that moment. You train PPO, SAC
+or any other learner on the wrapped environment unchanged. The toolbox then validates the policy you deploy with an
+exact statistical test and writes a report that says what the evidence shows and what it does not.
 
 ![What the toolbox is about](docs/images/overview.png)
 
-## The idea in one paragraph
+## Four problems, four notebooks
 
-Carry the remaining budget in the state, subtract a reserve barrier from the reward, and train a standard learner
-such as PPO or SAC unchanged. That ease of use is why the method is worth understanding. An unbounded barrier gives
-every exploratory policy the value $-\infty$, so the combined reward is clipped from below at $-m$. The paper shows
-that $m$ is then a **price of failure risk**: any optimizer of the clipped objective is optimal at the risk it attains,
-its risk exceeds any other policy's by at most order $1/m$, and its risk can be certified from its value or from
-validation data. It also explains what the regularizers do: action regularization holds the policy near a trusted
-reference, and parameter regularization makes the learning problem well posed and holds it near a prior policy.
-The toolbox turns these results into code.
+Each notebook starts from a problem as a practitioner meets it, ships the trained policies of its campaign (so it
+runs in minutes), and shows the decisions in order: the requirement, the price, the regularizers, the validation and
+the report.
 
-## What the toolbox does
-
-| Step | You get | Main functions |
+| Notebook | Problem | What it shows |
 |---|---|---|
-| **Configure** | A requirement stated before any mechanism; a conservative starting price; a validation budget; the conditions under which another method is better; regularizer advice with reasons | `BudgetSpec`, `Requirement`, `plan`, `advise_regularizers` |
-| **Train** | A drop-in wrapper for any Gymnasium environment, and callbacks for Stable-Baselines3: an adaptive multiplier, an action anchor, a parameter anchor, parameter noise, a training monitor | `BudgetWrapper`, `DualAscent`, `ActionAnchor`, `ParameterAnchor`, `ParameterNoise`, `BudgetMonitor` |
-| **Supply evidence** | Evaluation of the deployed candidate; exact binomial validation with the error shared across candidates; every certificate of the paper with its hypotheses; checks across prices; trace diagnostics | `evaluate`, `validation`, `certificates`, `frontier`, `convergence` |
-| **Interpret** | A report that says in what sense the candidate solves the problem, what each regularizer did to it, and what the evidence does **not** establish | `interpret`, `regularizer_effects` |
+| [1. Lander with a fuel tank](notebooks/01_lander_fuel_tank.ipynb) | Gymnasium's LunarLander with a tank smaller than its controller needs | imposing a budget on a controller already in use, and what to anchor to |
+| [2. Retailer with a cash balance](notebooks/02_retailer_cash.ipynb) | a three-line retailer that pays suppliers from cash; insolvency is the failure | a failure with a known cost; an incumbent rule as the prior and as a benchmark |
+| [3. Robot on a battery](notebooks/03_robot_battery.ipynb) | MuJoCo's HalfCheetah with a battery whose efficiency varies by mission | what the policy must observe (a clock), the price, and a reserve margin against a battery that holds less than expected |
+| [4. Navigation with a damage allowance](notebooks/04_navigation_allowance.ipynb) | Safety-Gymnasium's PointGoal1 with its cost limit read as an allowance | which requirement a task means; a price that charges more than an episode earns |
 
-Every bound the toolbox returns carries its value, the paper result it comes from, the hypotheses it needs, and a
-flag when it is uninformative.
+The [practitioner guide](docs/practitioner-guide.md) goes through the same decisions step by step, with what the
+theory behind the method implies for each.
 
-## Quick start
+## Install
 
 ```bash
 git clone <this repository> bpg-toolbox && cd bpg-toolbox
 python -m venv ~/.venvs/bpg-toolbox && source ~/.venvs/bpg-toolbox/bin/activate
-pip install -e ".[all]"      # core + Gymnasium, Stable-Baselines3, PyTorch, Jupyter, pytest
-python tests/run_all.py --rl # 43 checks
+pip install -e ".[all]"      # core + Gymnasium (Box2D, MuJoCo), Stable-Baselines3, PyTorch, Jupyter, pytest
+python tests/run_all.py --rl
 ```
 
-The core needs only `numpy` and `scipy` (`pip install -e .`). The wrapper uses Gymnasium when it is installed, and
-the callbacks need Stable-Baselines3 (`pip install -e ".[rl]"`).
+The core needs only numpy and scipy (`pip install -e .`). The navigation problem needs Safety-Gymnasium, which pins
+older versions of Gymnasium and MuJoCo; use a separate environment for it (see the notebook).
 
-### Sixty seconds: certify a candidate and read the report
+## Sixty seconds: validate a policy and read the verdict
 
 ```python
 from bpg import Requirement, Stage, evaluate, interpret
-from bpg.examples.wear import WearModel, make_wear_env, IncumbentRule
+from bpg.problems.inventory import Retailer, make_inventory_env, BaseStockRule
 
-model = WearModel()                                   # an asset run under a wear allowance (the paper's running example)
-spec = model.spec(ubar=1.0)                           # budget b = 1, utility discount 0.95, utility in [0, 1]
-req = Requirement(T=19, alpha=0.05, zeta=0.05)        # breakdown within 20 periods: at most 5%, at 95% confidence
-stage = Stage(m=1.0)                                  # the price of failure risk
+retailer = Retailer()                                   # three product lines, 52 weeks, starting cash 2,500
+spec = retailer.spec()                                  # the budget is the cash; failure is the first week with negative cash
+req = Requirement(T=51, alpha=0.02, zeta=0.05)          # insolvency within the year: at most 2%, at 95% confidence
+stage = Stage(m=0.0, penalty="multiplier", multiplier=5000.0, clip_utility=False)   # insolvency costs 5,000
 
-policy = IncumbentRule(span=3.0, std=0.1, seed=0)     # any callable obs -> action: a rule or a trained network
-ev = evaluate(lambda: make_wear_env(stage, model), policy, 10_000, spec=spec, stage=stage, T=19)
-print(interpret(spec, req, stage, ev).text())
+rule = BaseStockRule(retailer, cover=2.0, reserve=300.0)   # any callable obs -> action: a rule or a trained network
+ev = evaluate(lambda: make_inventory_env(stage, retailer), rule.deterministic, 2000, spec=spec, stage=stage, T=51)
+print(interpret(spec, req, stage, ev, candidate_name="the base-stock rule").summary(resource="cash", period="weeks"))
 ```
 
 ```text
-Candidate under price m = 1; requirement p_19 <= 0.05 at error 0.05.
+The base-stock rule was run on 2000 fresh episodes. It ran out of cash within 52 weeks in 6 of them (0.30%).
+With confidence 0.95, its probability of running out within 52 weeks is at most 0.591%.
+Requirement (at most 2.00%): met.
+Utility per episode: 6620 (standard error 73).
+Episodes that came within 5% of running out, or ran out: 0.4%.
 
-Measured on fresh episodes:
-  n=10000: p_T censored by the geometric clock (105 failures counted for q_beta), q_beta=0.0105, U=2.729±0.018, ...
-
-Verdict: CERTIFIED by direct validation at the specified horizon.
-
-In what sense the candidate is a solution:
-  - Optimization error is unknown: no optimality or convergence claim is made for this candidate. ...
-
-Evidence and bounds:
-  - direct validation under the geometric clock: 105 failures in 10000 episodes; exact binomial upper endpoint 0.01234 ...
-  - finite-horizon requirement validated through q_beta <= alpha beta^T = 0.01887: passes (p_19 <= 0.03269) ...
-
-Not established by this evidence:
-  - eventual risk: a small q_beta or a certificate at T does not bound P(tau < inf) ...
-  - other horizons: certification at T = 19 does not certify a longer horizon ...
-  - other candidates: the mean-action policy, a policy with reduced dispersion, or a retrained one is a different candidate ...
-  - convergence of this training run: ... the trace diagnostics are evidence about this run, not a convergence theorem
-  - model error: every certificate and validation is conditional on the simulator
+What this test does not show:
+  - that the policy is the best possible at this risk: how far training fell short of the optimum is not measured;
+  - its risk over more than 52 weeks, or that of other policies (its mean action, a retrained network);
+  - its behavior outside the simulator.
+Every bound with its assumptions: report.text().
 ```
 
-### Use it with your own environment and learner
+## Your own problem
 
 ```python
 import gymnasium as gym
 from stable_baselines3 import PPO
 from bpg import BudgetSpec, Stage, BudgetWrapper
-from bpg.callbacks import BudgetMonitor
+from bpg.problems.lander import fuel_cost              # the resource one step consumes: fuel_cost(obs, action, next_obs, reward, info)
 
-def fuel(obs, action, next_obs, reward, info):          # the resource each step consumes (nonnegative)
-    main = (min(max(action[0], 0.0), 1.0) + 1.0) / 2 if action[0] > 0 else 0.0
-    side = min(max(abs(action[1]), 0.5), 1.0) if abs(action[1]) > 0.5 else 0.0
-    return [0.30 * main + 0.03 * side]
-
-spec = BudgetSpec(budgets=[22.0], beta=0.999, ubar=100.0, u_minus=100.0, horizon=1000)   # a 22-unit fuel tank
-stage = Stage(m=0.5, clip_utility=False)   # the crash penalty lies below -m, so price the failure only
-env = BudgetWrapper(gym.make("LunarLanderContinuous-v3"), cost=fuel, spec=spec, stage=stage)
-model = PPO("MlpPolicy", env, gamma=spec.beta).learn(1_000_000, callback=BudgetMonitor(spec.beta, stage.m, horizon=spec.horizon))
+spec = BudgetSpec(budgets=[24.0], beta=0.999, ubar=100.0, u_minus=100.0, horizon=1000)
+stage = Stage(m=0.5, clip_utility=False)               # a price of 0.5 per frame from a failure to the end of the episode
+env = BudgetWrapper(gym.make("LunarLanderContinuous-v3"), cost=fuel_cost, spec=spec, stage=stage)
+model = PPO("MlpPolicy", env, gamma=spec.beta).learn(1_000_000)
 ```
 
-The wrapper appends the remaining budget to the observation, replaces the reward by the clipped barrier reward,
-ends the episode at failure with the discounted total of the price, and records what the certificates need. Options
-cover an interior barrier (`Stage(theta=...)`), a flat penalty updated by dual ascent (`Stage(penalty="multiplier")`),
-a geometric clock that implements the discount exactly (`geometric_stop=True`), a misjudged allowance
-(`true_budget_scale=0.9`), and resources whose step use can be negative (`RunningMaxCost`).
-
-## Tutorials
-
-Executed notebooks with their outputs, in [`notebooks/`](notebooks/) (times on one CPU core):
-
-| Notebook | What it shows | Needs | Time |
-|---|---|---|---|
-| [1. Quickstart](notebooks/01_quickstart.ipynb) | The clipped reward and the identity behind every result; a plan; candidates against the exact frontier; validation; the report | numpy | 20 s |
-| [2. Training with PPO](notebooks/02_training_with_ppo.ipynb) | Training through the wrapper; stochastic versus mean-action candidates; training at several prices and the optimization error; an adaptive multiplier; the margin bought by the barrier | RL extras | 11 min |
-| [3. Regularizers and their roles](notebooks/03_regularizers_and_roles.ipynb) | Action versus parameter regularization; noise, pull and spread on the solvable flow; convergence versus bias; the prior is a policy; parameter noise on PPO; joint use | RL extras | 12 min |
-| [4. Validation and reporting](notebooks/04_validation_and_reporting.ipynb) | Resolution floors; why the error is allocated before selecting; the geometric clock versus a fixed horizon; when value certificates are informative; a lump sanction with your own vectorized evaluator | numpy | 1 min |
-| [5. Bring your own problem](notebooks/05_bring_your_own_problem.ipynb) | A new task written from scratch, with no exact benchmark: structured policies first, pilot runs at several prices, what can and cannot be claimed | RL extras | 13 min |
-
-The scripts in [`examples/`](examples/) cover the same ground from the command line.
+The wrapper appends the remaining budget to the observation, ends the episode when the budget is exhausted, and
+charges the price there. Options cover a reserve margin (`Stage(theta=...)`), a lump sum charged once at failure
+(`Stage(penalty="multiplier", multiplier=F)`), an adaptive multiplier toward a tolerance (the `DualAscent`
+callback), a budget that is smaller than the policy believes (`true_budget_scale=0.9`), and a resource that is also
+replenished, such as cash (`RunningMaxCost`). The modules in [`bpg/problems/`](bpg/problems) show the mapping from a
+task to a budget for each of the four problems and serve as templates.
 
 ## When to use another method
 
-The bounded barrier is a reasonable first method when failures can be permitted in simulation and deployment has a
-positive tolerance or a finite failure cost. The paper quantifies this choice; it does not claim that the method
-outperforms methods built for particular constraint structures. Another approach is the better choice when
+The method is a reasonable first choice when failures can be allowed in simulation and deployment tolerates a small
+probability of failure or carries a known cost of failure. It is not claimed to outperform methods built for
+particular constraint structures. Another method is the better choice when
 
-1. **no failure is permissible and a controlled-invariant set is known** (an almost-sure method: an infinite failure
-   penalty, a control-barrier safety layer, or a method that learns which actions keep probability-one constraints);
-2. **a prescribed level is attainable with slack and the multiplier's step can be tuned** (an adaptive multiplier, as
-   in a Lagrangian chance-constrained policy gradient);
+1. **no failure is permissible** and a set of states from which failure can always be avoided is known (a safety
+   layer, or a method with an infinite penalty);
+2. **a prescribed tolerance must be met closely** and you can tune a multiplier's step (a Lagrangian method);
 3. **violations during training matter** (constrained policy optimization);
-4. **the loss grows with the amount by which the consumption exceeds the budget** (a CVaR constraint on the
-   cumulative consumption);
-5. **the model is known and small** (an exact dynamic program; the toolbox's certificates and validation apply to its
-   policy too).
+4. **the loss grows with the size of the excess** (a constraint on the tail of the cumulative consumption);
+5. **the model is known and small** (solve it exactly; the toolbox's validation applies to that policy too).
 
-Two further cases concern the barrier itself: a required price that charges far more for a failure than an episode
-earns (reward normalization or a prescribed-level formulation), and an allowance error of known size (tighten the
-allowance instead of adding an interior margin). `plan` states these conditions for your problem before anything is
-trained.
+`plan(spec, req, ...)` states these cases for your problem before anything is trained.
 
-## What the evidence means
+## Under the hood
 
-The report separates three kinds of statements, as the paper does.
+The method comes from the paper *The Price of Failure Risk: Clipped Barrier Policy Gradients with Convex
+Regularization* (Malo, Viitasaari, Suominen, Vilkkumaa, Tahvonen). For readers who want to see the guarantees at
+work, the [under-the-hood track](notebooks/under-the-hood/) runs the paper's test problems, which have exact
+solutions: the price against an exact trade-off of utility and risk, training against an exact benchmark, the roles
+of the regularizers on a solvable learning problem, and the validation in detail. The
+[decisions and the theory behind them](docs/under-the-hood/decisions-and-theory.md) and the
+[results map](docs/under-the-hood/results-map.md) connect each function to the result it implements; results are
+cited by the paper's titles, never by numbers. The paper's own studies are reproduced in the separate replication
+repository.
 
-* **The reading of the objective.** With a known optimization error $\delta$, a fixed-price candidate is optimal at
-  the risk it attains, up to $\delta$. With an unknown error the report makes no optimality claim.
-* **Certificates and validation.** Value certificates need no optimization guarantee but degrade with the horizon.
-  The exact binomial test of the deployed candidate at its horizon, with the error shared across every candidate
-  inspected, is the deployment decision. Zero failures certify the resolution floor, never zero.
-* **Convergence.** The population flow converges exponentially above a curvature threshold that grows with the price;
-  near the threshold the minimizer lies close to the prior, so strengths are set for conditioning. Under a potential
-  regularizer, continuous-time training of a finite network is that flow. Discrete stochastic training with PPO or
-  SAC is outside both results, and trace diagnostics are evidence about one run.
+## Campaigns
 
-Not established by any of this: eventual risk from a small geometric risk, other horizons, other candidates (the
-mean-action policy is a different candidate), and behavior under a different simulator.
-
-## Documentation
-
-* [Practitioner's guide](docs/practitioner-guide.md): one section per decision, with the functions that implement it.
-* [Worked examples](docs/worked-examples.md): the paper's wear-allowance, fuel-tank, roles, emissions and benchmark-suite studies as a practitioner would run them.
-* [Results map](docs/results-map.md): every paper result and the function that implements it.
-* [Supplementary results](docs/supplementary-results.md): two certificates the toolbox adds, with proofs.
-* [Development](docs/development.md): the local environment, VS Code, tests and rebuilding the notebooks.
-
-## Citing results of the paper
-
-The toolbox cites results by the titles the paper gives them, never by statement or section numbers, so a new
-revision of the paper does not change the documentation. All citations go through one registry,
-[`bpg/paper.py`](bpg/paper.py): `cite("fixed_price", "ii")` returns
-`paper, 'Fixed price of failure risk' (price-risk law)`, and `bpg.PAPER["checked_against"]` records the revision
-against which the toolbox was last checked.
+[`campaigns/`](campaigns) holds the definitions, scripts and records of the four problems' training campaigns: one
+command trains a configuration (`python campaigns/run.py retailer lump-5000 --seed 1`), and every record keeps the
+training traces and the per-episode evaluation from which the notebooks rebuild their results.
 
 ## Citing
 

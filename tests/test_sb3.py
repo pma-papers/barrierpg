@@ -11,9 +11,10 @@ def test_wrapper_reproduces_fuellander():
         import Box2D  # noqa: F401
     except ImportError:
         print("Box2D not installed; skipped"); return
-    root = Path(__file__).resolve().parents[2] / "barrier-policy-gradients" / "numerics" / "fuel-tank"
+    # the paper's own fuel-tank environment, from a sibling checkout of the replication repository
+    root = Path(__file__).resolve().parents[2] / "bpg-replication" / "fuel-tank"
     if not (root / "lunar.py").exists():
-        print("lunar.py not found; skipped"); return
+        print("lunar.py of the replication repository not found; skipped"); return
     sys.path.insert(0, str(root))
     from lunar import FuelLander, fuel_use, H
     for seed, m, budget in ((1, 0.5, 22.0), (2, 0.0, 20.0), (4, 0.5, 5.0)):

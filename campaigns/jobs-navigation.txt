@@ -1,0 +1,15 @@
+navigation unpriced 1
+navigation unpriced 2
+navigation unpriced 3
+navigation price-0.003 1
+navigation price-0.003 2
+navigation price-0.003 3
+navigation price-0.01 1
+navigation price-0.01 2
+navigation price-0.01 3
+navigation price-0.03 1
+navigation price-0.03 2
+navigation price-0.03 3
+navigation price-0.1 1
+navigation price-0.1 2
+navigation price-0.1 3

@@ -1,5 +1,42 @@
 # Changelog
 
+## 0.4.0 (2026-10-15): a toolbox for practitioners; the paper's examples as a separate track
+
+Structure
+- The toolbox is its own git repository, separate from the paper's working tree; the paper's studies are reproduced in
+  a separate replication repository, to which the walk-through of the paper's studies moved.
+- Two tracks. The primary track assumes no knowledge of the paper: four notebooks on RL-level problems and a rewritten
+  practitioner guide. The under-the-hood track keeps the paper's test problems, which have exact solutions
+  (notebooks T1 to T4, `docs/under-the-hood/`).
+
+New
+- `bpg.problems`: four problems as templates for mapping a task to a budget. `lander` (LunarLander with a fuel tank),
+  `inventory` (a retailer that finances its stock from cash; insolvency is the failure), `energy` (HalfCheetah on a
+  battery whose efficiency varies by mission), `navigation` (Safety-Gymnasium's PointGoal1 with a damage allowance).
+- `campaigns/`: definitions, a runner, launch scripts and the records of the training campaigns of the four problems,
+  read by the notebooks through `campaigns/records.py`.
+- `BudgetWrapper(observe_time=True)` appends the elapsed fraction of the horizon; with a fixed horizon the policy needs
+  it to pace a budget.
+- `Report.summary(resource, period)`: the verdict in plain words (failures on fresh episodes, the validated bound,
+  whether the requirement is met, utility, what the test does not show); `text()` keeps every bound.
+- The `problems` extra installs Box2D and MuJoCo.
+
+Fixed
+- With whole-unit costs the reserve can reach exactly zero without being exceeded, where the barrier is infinite;
+  under the unclipped form (`clip_utility=False`) the step's reward was then minus infinity. With no interior barrier
+  the unclipped form now charges only the failure, and with a barrier a zero reserve is charged as the clipped reward
+  charges it. No result with continuous costs is affected.
+
+Changed
+- The practitioner guide is rewritten for readers who have not read the paper, around the four problems; its advice
+  on prices, multipliers, anchors and validation rests on the campaigns (a fixed horizon needs a clock in the
+  observation; a price can trade one failure for another; a parameter anchor to a controller that violates the new
+  limit keeps the violation; a multiplier started with an untrained learner rises far past its level; compare
+  policies only after training has converged).
+- The theory-oriented guide is now `docs/under-the-hood/decisions-and-theory.md`, with the results map and the
+  supplementary results; the former notebooks 1 to 4 are T1 to T4, and notebook 5 is replaced by the four problems.
+- The landing page and its figure use the problems' campaigns; the former figure belongs to the under-the-hood track.
+
 ## 0.3.0 (2026-10-15): checked against the paper's revision 65; results cited by name
 
 Citations
