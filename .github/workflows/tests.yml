@@ -26,5 +26,5 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install torch --index-url https://download.pytorch.org/whl/cpu
-      - run: pip install -e ".[rl,test]"
+      - run: pip install -e ".[rl,problems,test]"   # Box2D and MuJoCo: the fuel-lander and robot tests run here
       - run: python tests/run_all.py --rl

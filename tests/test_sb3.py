@@ -1,4 +1,4 @@
-"""Needs gymnasium + stable_baselines3 (+ Box2D for the lunar reproduction): run with ~/.venvs/constrained-rl-numerics."""
+"""Needs gymnasium + stable_baselines3 (+ Box2D for the lunar reproduction): pip install -e ".[rl,problems,test]"."""
 import numpy as np
 
 
@@ -11,12 +11,9 @@ def test_wrapper_reproduces_fuellander():
         import Box2D  # noqa: F401
     except ImportError:
         print("Box2D not installed; skipped"); return
-    # the paper's own fuel-tank environment, from a sibling checkout of the replication repository
-    root = Path(__file__).resolve().parents[2] / "bpg-replication" / "fuel-tank"
-    if not (root / "lunar.py").exists():
-        print("lunar.py of the replication repository not found; skipped"); return
-    sys.path.insert(0, str(root))
-    from lunar import FuelLander, fuel_use, H
+    # the paper's own fuel-tank environment, copied verbatim from the replication repository (see its docstring)
+    sys.path.insert(0, str(Path(__file__).resolve().parent / "fixtures"))
+    from paper_fuel_lander import FuelLander, fuel_use, H
     for seed, m, budget in ((1, 0.5, 22.0), (2, 0.0, 20.0), (4, 0.5, 5.0)):
         ref = FuelLander(budget, "failure", m, 0.999)
         spec = BudgetSpec(budgets=[budget], beta=0.999, ubar=100.0, u_minus=100.0, horizon=H)

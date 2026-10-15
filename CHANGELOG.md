@@ -6,6 +6,10 @@
   `settotalmass` attribute, which MuJoCo 3 deprecates and warned about at every environment (and logged to
   MUJOCO_LOG.TXT); the total mass is set with `mujoco.mj_setTotalmass` instead. Masses, inertias and trajectories are
   identical to the stock environment's (a test checks it). The robot problem and notebook 3 use it.
+- The test that `BudgetWrapper` reproduces the paper's fuel-tank environment step by step no longer needs a checkout
+  of the replication repository: the environment's class is shipped as a test fixture
+  (`tests/fixtures/paper_fuel_lander.py`, copied verbatim, with the hash of its source file). The CI job with the
+  learners installs Box2D and MuJoCo, so this test and the robot's run there.
 
 ## 0.5.0 (2026-10-15): convergence monitoring; regularizers as examples
 
