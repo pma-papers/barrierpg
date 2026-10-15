@@ -18,7 +18,7 @@ def test_advice_by_condition():
     c = advise_regularizers(spec, Stage(m=1.0, eta=0.1, kappa=1.0), features=FeatureConstants.tanh_unit(1.0, 2.0), lambda_H=1.0)
     assert c.curvature is not None and any(r.mechanism == "joint effect" for r in c.recommendations)
     assert any(r.mechanism == "prior" and "centering" in r.setting for r in c.recommendations)
-    txt = c.explain(); assert "Theorem 4.3" in txt
+    txt = c.explain(); assert "Fixed-stage population convergence" in txt
     p = plan(spec, Requirement(T=19, alpha=0.05), sup_U=5.4, stage=Stage(m=1.0, kappa=1.0),
              regularizers=dict(incumbent_available=True, prior_sigma=0.5))
     assert p.regularizers is not None and "Regularizers" in p.explain()

@@ -3,7 +3,7 @@
 Runtime: a Python with gymnasium, stable-baselines3 and torch (pip install -e ".[rl]").
 Configurations: fixed price m (optionally with the interior barrier), adaptive multiplier at a tolerance,
 the fixed price with a parameter anchor toward the initial actor, and the anchor with injected parameter
-noise (the noise and pull roles of Section 6.5). The defaults are the paper's PPO settings (32 environments,
+noise (the noise and pull roles of the paper's study of the roles of the regularizers). The defaults are the paper's PPO settings (32 environments,
 minibatches of 1024, a linearly decaying learning rate) at a quarter of its budget: two million steps, about
 90 seconds per run on one CPU core.
 

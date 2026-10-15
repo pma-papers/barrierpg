@@ -1,6 +1,6 @@
 """Checks across runs at several prices: the price-risk law, monotonicity, the frontier of U - I_m against
 q_beta, the unused risk charged at the price, and whether a sequence of prices can reach a tolerance
-(Proposition 3.3, Theorem 3.2 and Online Proposition E.4 of the paper)."""
+(the fixed-price proposition, the matched-risk comparison and the price-sequence proposition of the paper)."""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -26,7 +26,7 @@ class Run:
 
     @property
     def net_utility(self) -> float:
-        """U - I_m: the quantity every fixed-price optimum is optimal in at its attained risk (Proposition 3.3(i))."""
+        """U - I_m: the quantity every fixed-price optimum is optimal in at its attained risk (the fixed-price proposition)."""
         return self.U - self.I_m
 
 
@@ -50,7 +50,7 @@ class FrontierCheck:
         if self.monotonicity_violations:
             lines += [f"monotonicity ({cite('fixed_price', 'iii')}) violated: " + v for v in self.monotonicity_violations]
         else:
-            lines.append(f"monotonicity in the price: consistent with {cite('fixed_price', 'iii')} within the stated optimization errors")
+            lines.append(f"monotonicity in the price: consistent within the stated optimization errors [{cite('fixed_price', 'iii')}]")
         if self.dominated:
             lines += ["dominated in (q_beta, U - I_m): " + d for d in self.dominated]
         lines.append("a fixed-price optimum lies on the frontier of U - I_m against q_beta; a point strictly below another with no greater risk "
@@ -106,7 +106,7 @@ def check_runs(runs: Sequence[Run], beta: float, sup_U: float, U0: float = 0.0, 
 
 def complementarity_gap(alpha: float, q_hat: float, m: float, beta: float) -> float:
     """m [alpha - q_hat] / (1 - beta): unused permitted risk charged at the price, the utility a fixed-price
-    policy may leave on the table against a policy at exactly the (geometric) tolerance (Theorem 3.2)."""
+    policy may leave on the table against a policy at exactly the (geometric) tolerance (the matched-risk comparison)."""
     return m * (alpha - q_hat) / (1.0 - beta)
 
 
@@ -142,7 +142,7 @@ class PriceSequenceCheck:
 
 def price_sequence_check(prices: Sequence[float], shortfalls: Sequence[float], *, interior_loss: Optional[Sequence[float]] = None,
                          regularization_cost: float = 0.0, ratio_tolerance: float = 0.8) -> PriceSequenceCheck:
-    """Can raising the price reach a tolerance? Online Proposition E.4: a sequence of prices m_k reaches it when some
+    """Can raising the price reach a tolerance? 'Price sequences reaching a tolerance': a sequence of prices m_k reaches it when some
     comparison policy has geometric risk strictly below the target and the charged terms, its interior loss, the
     regularization cost and the optimization error delta_k, grow slower than the price. This reads that condition on
     measured runs: shortfalls[k] is the optimization error at prices[k] (for example the gap to an exact optimum),

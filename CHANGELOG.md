@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.3.0 (2026-10-15): checked against the paper's revision 65; results cited by name
+
+Citations
+- The toolbox no longer cites statement, section, table or equation numbers of the paper, in code, printed output,
+  documentation or notebooks, since they change between revisions. Results are cited by the titles the paper gives
+  them: `cite("fixed_price", "ii")` returns `paper, 'Fixed price of failure risk' (price-risk law)`. The parts of that
+  statement are printed by name (optimality at the attained risk, price-risk law, monotonicity in the price, learning
+  form). `PAPER["checked_against"]` replaces `PAPER["revision"]`, and `paper.number()` is removed.
+- A test fails if a printed citation, plan or report contains a statement number. `docs/results-map.md` lists the
+  results by title.
+
+New
+- `certificates.earliest_failures_time`: the earliest eps-fraction of failures occurs on average no earlier than
+  log(eps/q_beta)/log(1/beta) periods (the paper's remark on the geometric risk as a risk measure of the failure time).
+- The benchmark-suite study in `docs/worked-examples.md`, with the use of a Safety-Gymnasium task through the wrapper.
+
+Changed
+- `planning.when_to_use_another_method` and `plan` state the cases of the paper's *Which formulation to prefer*: five
+  in which another method is the better choice (no failure permissible and a controlled-invariant set known; a
+  prescribed level attainable with slack and a tunable multiplier step; violations during training that matter; a
+  loss that grows with the excess consumption; a known small model) and two that concern the barrier (a price that
+  charges far more for a failure than an episode earns; an allowance error of known size). New keyword arguments
+  replace `violations_during_learning_acceptable`, `prescribed_tolerance_least_conservatism`,
+  `expected_cost_requirement`, `structured_solution_available` and `task_stakes` (now `episode_earnings`).
+- `convergence.multiplier_diagnosis` and `DualAscent.diagnose` apply the paper's two criteria for convergence; the
+  statuses are `stable`, `increasing`, `inactive`, `trending`, `off-target` and `short`.
+- `callbacks.dual_step_suggestion(expected_multiplier, rollouts_to_reach=...)` replaces `rollouts_to_settle`.
+- The value test is described as a necessary condition for certifying a tolerance, as in the paper.
+- Wording follows the paper: a multiplier converges or increases without bound; prices are compared by training at
+  several prices.
+
 ## 0.2.0 (2026-10-12): the paper's revision 62
 
 Citations

@@ -1,4 +1,4 @@
-"""An asset operated under a wear allowance (the running example, Sections 3.1 and 6.1 of the paper), numpy only.
+"""An asset operated under a wear allowance (the paper's running example and wear-allowance study), numpy only.
 
 Price index s' = 0.8 s + 0.2 w, w ~ Unif[-1, 1], s_0 = 0; operating rate a in [0, 1];
 utility u = (1 + s/2) a / (3/2) in [0, 1]; wear g = 0.1 a xi with xi gamma-distributed, mean one,
@@ -131,7 +131,7 @@ EXACT_FRONTIER = {0.0: (0.59187, 5.4343), 0.01: (0.55413, 5.429), 0.02: (0.43856
                   0.5: (0.02639, 4.7788), 1.0: (0.01453, 4.6131), 2.0: (0.00718, 4.4044), 3.0: (0.00452, 4.2751),
                   5.0: (0.00253, 4.123), 10.0: (0.00115, 3.9332), 20.0: (0.00053, 3.7629), 30.0: (0.00033, 3.6685)}
 EXACT_BARRIER = {0.3: (0.02417, 4.2441), 1.0: (0.00648, 3.9883), 3.0: (0.00175, 3.7352), 10.0: (0.00046, 3.5069)}
-INCUMBENT = dict(q_beta=0.0108, U=2.73)   # the incumbent rule (span 3, std 0.1), Table 1 of the manuscript
+INCUMBENT = dict(q_beta=0.0108, U=2.73)   # the incumbent rule (span 3, std 0.1), the paper's wear-allowance table
 
 __all__ = ["WearModel", "WearCore", "wear_cost", "make_wear_env", "idle_policy", "full_rate_policy", "IncumbentRule",
            "EXACT_FRONTIER", "EXACT_BARRIER", "INCUMBENT"]

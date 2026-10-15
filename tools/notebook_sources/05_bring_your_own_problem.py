@@ -7,8 +7,8 @@
 # 1. write the simulator as an ordinary Gymnasium environment,
 # 2. state the budget, the horizon and the requirement, and check the conditions under which another method is better,
 # 3. evaluate simple structured policies first, because they are candidates too,
-# 4. run a short pilot sweep of prices with PPO through the wrapper,
-# 5. read the sweep: frontier, price–risk law, and whether raising the price can reach the tolerance,
+# 4. run short pilot runs at a few prices with PPO through the wrapper,
+# 5. read the pilot runs: frontier, price–risk law, and whether raising the price can reach the tolerance,
 # 6. validate every inspected candidate with a shared error and write the report, without claiming optimality.
 #
 # **The task.** A fishery operates for a season of $H=52$ weeks under a seasonal **bycatch cap**. Each week the
@@ -83,13 +83,17 @@ spec = BudgetSpec(budgets=[1.2], beta=0.995, ubar=1.0, horizon=Fishery.H)
 S_H = (1 - spec.beta ** spec.horizon) / (1 - spec.beta)
 req = Requirement(T=51, alpha=0.05, zeta=0.05, family=12)       # twelve candidates will be inspected
 p = plan(spec, req, sup_U=spec.ubar * S_H, stage=Stage(m=2.0), failure_permissible_at_deployment=True,
-         prescribed_tolerance_least_conservatism=False, expected_cost_requirement=False, task_stakes=S_H / 2)
+         violations_during_training_matter=False, loss_grows_with_excess_consumption=False,
+         model_known_and_small=False,          # the simulator is treated as a black box
+         episode_earnings=S_H / 2)             # about half the largest possible revenue of a season
 print(p.explain())
 
 # %% [markdown]
-# None of the conditions of Section 1.2 applies, except that we do not know yet whether a simple structured policy
-# would do as well; we check that next. The conservative starting price from the price–risk law is very large here,
-# because the only bound on the utility at stake is the trivial one, $\bar u S_H$. We use a pilot sweep instead.
+# None of the cases of the paper's *Which formulation to prefer* applies as stated. We treat the simulator as a black
+# box, as one would a simulator one did not write; with a known model and a small state an exact dynamic program would
+# be the better choice. A simple structured policy may still do as well as the learner; we check that next. The
+# conservative starting price from the price–risk law is very large here, because the only bound on the utility at
+# stake is the trivial one, $\bar u S_H$. We use short pilot runs at a few prices instead.
 #
 # ## 3. Structured policies first
 #
@@ -122,7 +126,7 @@ for name, e in rule_evals.items():
     print(f"{name:15s} closure p_51 = {e.p_T:.4f}   revenue U = {e.U:.2f}   V_m (m = 2) = {e.V_m:.2f}")
 
 # %% [markdown]
-# ## 4. A pilot sweep of prices
+# ## 4. Pilot runs at a few prices
 #
 # Three prices, two seeds each, PPO with the settings of notebook 2 and discount $\beta$ (the episodes end at the
 # physical horizon, not by a geometric clock). The fishery's state includes the week: the wrapper appends the
@@ -152,9 +156,9 @@ for m_ in prices:
         print(f"m = {m_:<4g} seed {sd}: closure p_51 = {e.p_T:.4f}, revenue U = {e.U:.2f}, V_m = {e.V_m:.2f}")
 
 # %% [markdown]
-# ## 5. Reading the sweep
+# ## 5. Reading the pilot runs
 #
-# **The frontier.** Every fixed-price optimum lies on the frontier of utility against risk (Proposition 3.3(i)).
+# **The frontier.** Every fixed-price optimum lies on the frontier of utility against risk (*Fixed price of failure risk*).
 # With no exact frontier, the structured policies and the learned ones together trace what is attainable.
 
 # %%
@@ -182,7 +186,7 @@ chk = check_runs(runs, beta=spec.beta, sup_U=spec.ubar * S_H, U0=best_rule.U, q0
 print(chk.explain())
 
 # %% [markdown]
-# **Can raising the price reach the tolerance?** The condition of Online Proposition E.4 is that the charged errors
+# **Can raising the price reach the tolerance?** The condition of the paper's *Price sequences reaching a tolerance* is that the charged errors
 # grow slower than the price. Without an exact optimum, a **lower bound** on each run's optimization error is its
 # shortfall from the best structured policy at the same price (the optimum is at least as good). If even that lower
 # bound grows in proportion to the price, raising the price is not the remedy.
@@ -201,8 +205,8 @@ for m_ in prices:
 print(price_sequence_check(list(shortfall_lb), list(shortfall_lb.values())).explain())
 
 # %% [markdown]
-# Read this result as it comes out. If a structured rule beats the learner at every price, the fourth condition of
-# Section 1.2 applies: use the structure, and keep the toolbox for its certificates and validation, which apply to any
+# Read this result as it comes out. If a structured rule beats the learner at every price, use the structure, as
+# the paper advises for a known model, and keep the toolbox for its certificates and validation, which apply to any
 # policy. If the learner beats the rules, the shortfall lower bound is zero and the check reports that it says nothing
 # about $\delta$; the dominance flags above remain the evidence of optimization error.
 #
@@ -259,5 +263,5 @@ print(rep.text())
 #   candidates (including the same network with its dispersion removed), and convergence of the training run.
 #
 # If no candidate is certified: validate on more episodes (the resolution floor may be the limit), raise the price if
-# the pilot sweep shows that the learner's error does not grow with it, or deploy the structured policy if it is
+# the pilot runs show that the learner's error does not grow with it, or deploy the structured policy if it is
 # certified and the learner does not beat it.

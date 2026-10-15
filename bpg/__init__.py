@@ -27,7 +27,7 @@ from .spec import (BudgetSpec, Requirement, Stage, discounted_total, failure_tai
                    price_from_multiplier, price_from_multiplier_physical)
 from .wrapper import BudgetWrapper, RunningMaxCost
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 __all__ = ["Bound", "BudgetSpec", "Requirement", "Stage", "BudgetWrapper", "RunningMaxCost", "LogBarrier", "Evaluation", "evaluate",
            "evaluation_from_episodes", "sb3_policy", "stopped_action_relative_entropy", "Plan", "plan", "when_to_use_another_method",
            "Report", "interpret", "RegularizerAdvice", "RegularizerEffects", "advise_regularizers", "regularizer_effects",

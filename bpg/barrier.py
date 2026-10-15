@@ -20,7 +20,7 @@ class LogBarrier:
     def __call__(self, z) -> float:
         z = np.asarray(z, dtype=float).reshape(-1)
         if np.any(z <= 0.0):          # infinite outside the open positive orthant, also when theta = 0:
-            return math.inf           # at zero reserve the reward is clipped to -m (Section 2.2 of the paper)
+            return math.inf           # at zero reserve the reward is clipped to -m (as the paper's clipped reward specifies)
         if self.theta == 0.0:
             return 0.0
         return float(self.theta * np.sum(np.log1p(self.budgets / z)))

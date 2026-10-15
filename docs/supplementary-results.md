@@ -1,7 +1,7 @@
 # Supplementary results
 
-Two certificates in the toolbox are not stated in revision 62 of the paper. Both use only the definitions of
-Section 2 of the paper; their proofs are short and given here. Notation: reserves $z_{t+1,k}=(z_{t,k}-c_k)/\gamma_k$
+Two certificates in the toolbox are not stated in the paper. Both use only the paper's definitions of budgets,
+failure and the clipped barrier; their proofs are short and given here. Notation: reserves $z_{t+1,k}=(z_{t,k}-c_k)/\gamma_k$
 with $z_{0,k}=b_k$; failure at $\tau=\inf\{t:\min_kz_{t+1,k}<0\}$; clipped reward $r_m=\max\{-m,u-B(z_{t+1})\}$ with
 $-m\le r_m\le\bar u$, equal to $-m$ from failure onward; $V_m=\mathbb E\sum_t\beta^tr_m$.
 
@@ -35,6 +35,6 @@ $z_{T+1,k}\ge c_k^\star$, hence $\tau=\infty$. Therefore $\{\tau<\infty\}\subset
 
 **Reading.** Both events on the right are observable from $T+1$ actions, so the bound can be validated directly on
 fresh episodes. Without such cost-tail structure, a small geometric risk or a certificate at one horizon does not
-bound the eventual risk (Online Example E.3 of the paper). If no positive mass sits exactly at the threshold, the
+bound the eventual risk (the paper's example *Delay without eventual feasibility*). If no positive mass sits exactly at the threshold, the
 unresolved mass $\mathbb P(E_T)$ tends to zero as $T$ grows, so the bound approaches the true eventual risk; it does
 not make that risk small.

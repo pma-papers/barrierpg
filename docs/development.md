@@ -67,8 +67,16 @@ python tools/make_readme_figures.py      # the figure on the landing page
 
 ## Following a new revision of the paper
 
-1. Update the numbers in `bpg/paper.py` (`RESULTS` and `PAPER`); every printed citation follows.
-2. Update `docs/results-map.md`.
-3. Search for hard-coded section numbers in docstrings: `grep -rn "Section [0-9]\|Proposition\|Theorem" bpg docs`.
-4. Run the tests and rebuild the notebooks.
+The toolbox cites results by the titles the paper gives them and never by statement, section, table or equation
+numbers, so a renumbering needs no change. A new revision is checked for content instead.
+
+1. Check that every title in `RESULTS` of `bpg/paper.py` still names a statement of the paper; rename a key's title
+   if the paper renamed the result.
+2. Check what changed in substance (statements, the cases of *Which formulation to prefer*, the studies' tables) and
+   update the functions, `docs/` and the notebook sources that use it.
+3. Set `PAPER["checked_against"]` to the revision checked.
+4. Run the tests (`test_no_statement_numbers_in_printed_text` fails on any number in printed citations or reports),
+   search the documentation for numbers with
+   `grep -rnE "(Proposition|Theorem|Corollary|Remark|Lemma|Table|Section|Appendix) [A-Z]?\.?[0-9]" bpg docs examples tools README.md`,
+   and rebuild the notebooks.
 5. Record the changes in `CHANGELOG.md`.

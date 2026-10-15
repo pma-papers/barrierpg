@@ -1,6 +1,6 @@
 """After training: in what sense does the candidate solve the problem, and what is not established.
 
-The report assembles, for one deployed candidate, the fixed-price reading (Proposition 3.3), the
+The report assembles, for one deployed candidate, the fixed-price reading (the fixed-price proposition), the
 certificates that apply to its measured quantities, the validation at the specified horizon (the
 deployment decision), the measured effects of the regularizers, and the explicit non-claims the paper
 draws (eventual risk, almost-sure feasibility, other horizons, other candidates, discrete stochastic
@@ -80,8 +80,8 @@ def interpret(spec: BudgetSpec, requirement: Requirement, stage: Stage, evaluati
                    None means unknown and the optimality statements are stated conditionally.
     sup_U          upper bound on the stopped utility over the class (price-risk law).
     comparator     dict(U0=, I0=, q0=) of a comparison policy (idle by default) for the price-risk law;
-                   optionally also C_B= and R= for the learning form of Proposition 3.3(iv).
-    action_entropy, reference_risk   A of the candidate and the risk of the action reference (Proposition 3.4).
+                   optionally also C_B= and R= for the learning form of the fixed-price proposition.
+    action_entropy, reference_risk   A of the candidate and the risk of the action reference (the action-risk proposition).
     lower_barrier  underline B(eps) at a chosen reserve threshold (near-exhaustion certificate).
     multiplier     diagnosis of a dual-ascent trace (adaptive configurations).
     trends         BudgetMonitor.diagnostics() of the training run.
@@ -137,18 +137,18 @@ def interpret(spec: BudgetSpec, requirement: Requirement, stage: Stage, evaluati
     elif stage.penalty == "multiplier":
         if spec.horizon is not None:
             reading.append(f"Frozen-multiplier reading: the flat penalty nu = {stage.multiplier:g} is charged once at the failing action (a lump sanction "
-                           f"under the physical horizon H = {spec.horizon}); the objective is U - nu E[beta^tau], and {cite('fixed_price')} applies with "
-                           "I_m = 0: among the policies of its class with no greater discounted failure probability it maximizes U"
+                           f"under the physical horizon H = {spec.horizon}); the objective is U - nu E[beta^tau], and the fixed-price results apply with "
+                           f"I_m = 0 [{cite('fixed_price')}]: among the policies of its class with no greater discounted failure probability it maximizes U"
                            + (f" up to the optimization error delta = {delta:.3g}" if delta is not None else " up to its (unmeasured) optimization error") + ".")
         else:
-            reading.append(f"Frozen-multiplier reading: a multiplier settled at nu returns the fixed-price optimum for m = (1-beta) nu = "
+            reading.append(f"Frozen-multiplier reading: a multiplier that has converged to nu returns the fixed-price optimum for m = (1-beta) nu = "
                            f"{m:.4g} ({cite('fixed_price')} with I_m = 0): among the policies of its class with no greater geometric risk it maximizes U"
                            + (f" up to the optimization error delta = {delta:.3g}" if delta is not None else " up to its (unmeasured) optimization error")
                            + f"; it is optimal at the risk it attains, q_beta = {evaluation.q_beta:.4g}. The certificates below use the price-equivalent m.")
         if multiplier is not None:
             evidence.append(f"multiplier diagnosis: {multiplier.status}; {multiplier.explanation}")
-            if multiplier.status != "settled":
-                missing.append("the multiplier has not settled, so the candidate is not a fixed-price optimum at any identified price")
+            if multiplier.status != "stable":
+                missing.append("the multiplier has not converged, so the candidate is not a fixed-price optimum at any identified price")
     else:
         reading.append("Unpriced learner (m = 0): no risk is priced; the candidate maximizes utility and has no risk bound from the formulation.")
     if stage.theta > 0:
@@ -176,14 +176,14 @@ def interpret(spec: BudgetSpec, requirement: Requirement, stage: Stage, evaluati
             bounds.append(near_exhaustion_bound(V_low, m, ubar, beta, T, lower_barrier))
     if action_entropy is not None and reference_risk is not None:
         bounds.append(action_risk_bound(action_entropy, reference_risk, beta))
-        evidence.append(f"action relative entropy A = {action_entropy:.4g} to the action reference (risk {reference_risk:.4g}): the departure bound of "
-                        f"{cite('action_risk')} is {'informative' if bounds[-1].informative else 'uninformative'} at this A")
+        evidence.append(f"action relative entropy A = {action_entropy:.4g} to the action reference (risk {reference_risk:.4g}): the departure bound "
+                        f"is {'informative' if bounds[-1].informative else 'uninformative'} at this A [{cite('action_risk')}]")
     # --- convergence evidence -----------------------------------------------------------
     if trends:
         for k, t in trends.items():
             evidence.append("training trace, " + t.explain(k))
         if any(t.trend_detected for t in trends.values()):
-            missing.append("the training run had not settled in every monitored quantity; the candidate is the policy at the end of the run, not a converged one")
+            missing.append("some monitored quantities of the training run were still changing; the candidate is the policy at the end of the run, not a converged one")
     if seeds:
         for k, sdp in seeds.items():
             evidence.append(sdp.explain(k))
@@ -197,9 +197,9 @@ def interpret(spec: BudgetSpec, requirement: Requirement, stage: Stage, evaluati
         f"eventual risk: a small q_beta or a certificate at T does not bound P(tau < inf) ({cite('delay_example')}); a hard almost-sure budget is the case alpha = 0 of that requirement",
         f"other horizons: certification at T = {T} does not certify a longer horizon; the finite-horizon bounds carry the factor beta^-T",
         "other candidates: the mean-action policy, a policy with reduced dispersion, or a retrained one is a different candidate and needs its own validation",
-        f"convergence of this training run: {cite('flow')} concerns the exact population flow, and {cite('finite_training')} covers continuous-time "
-        "training of a finite network under a potential; discrete steps with PPO's or SAC's estimators are outside both, so the trace diagnostics are "
-        f"evidence about this run, not a convergence theorem [{cite('scope')}]",
+        f"convergence of this training run: the convergence theorem concerns the exact population flow [{cite('flow')}], and continuous-time "
+        f"training of a finite network under a potential is that flow [{cite('finite_training')}]; discrete steps with PPO's or SAC's estimators are "
+        f"outside both, so the trace diagnostics are evidence about this run, not a convergence theorem [{cite('scope')}]",
         "model error: every certificate and validation is conditional on the simulator",
     ]
     if stage.kappa > 0:

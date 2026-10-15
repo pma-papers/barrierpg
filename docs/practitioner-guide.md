@@ -1,9 +1,10 @@
 # A practitioner's guide to the bounded barrier
 
 This guide accompanies the paper *The Price of Failure Risk: Clipped Barrier Policy Gradients with Convex
-Regularization* (Malo, Viitasaari, Suominen, Vilkkumaa, Tahvonen; revision 62) and the `bpg` toolbox. The paper's
-Section 7.1 summarizes the workflow in one paragraph per decision; this guide gives the detailed prescriptions behind
-each paragraph, organized by the decision a practitioner faces, and names the toolbox functions that implement them.
+Regularization* (Malo, Viitasaari, Suominen, Vilkkumaa, Tahvonen) and the `bpg` toolbox. The paper's section
+*Using the bounded barrier* summarizes the workflow in one paragraph per step; this guide gives the detailed
+prescriptions behind each paragraph, organized by the decision a practitioner faces, and names the toolbox functions
+that implement them.
 [`worked-examples.md`](worked-examples.md) runs the paper's studies end to end, and the
 [tutorial notebooks](../notebooks/) run the workflow with outputs.
 
@@ -12,9 +13,8 @@ does this guide. Its purpose is to say what the bounded barrier delivers, what c
 certified about the policy it returns, what each regularizer does, and when another method is the
 better choice.
 
-Results are cited by name and section (Section 3: risk certificates and the fixed price; Section 4: convergence
-under general convex regularization, the prior and the particle form; Section 5: finite-network deployment and
-validation; Section 6: the experiments). [`results-map.md`](results-map.md) gives the statement numbers of revision 62.
+Results are cited by the titles the paper gives them, which do not change with its numbering;
+[`results-map.md`](results-map.md) lists them with the functions that implement them.
 
 ## Vocabulary
 
@@ -43,8 +43,8 @@ stochastic policy and its mean-action policy are different candidates.
 ## The workflow at a glance
 
 1. **Specify the requirement**: `BudgetSpec`, `Requirement`.
-2. **Check whether another method is the better choice** (the five conditions below; `plan` states them
-   for your problem).
+2. **Check whether another method is the better choice** (the cases below; `plan` states them for your
+   problem).
 3. **Fix the price, then certify**: `plan` derives the conservative price and the validation budget;
    train any learner on `BudgetWrapper`; `frontier.check_runs` checks runs at several prices.
 4. **Buy margin deliberately**: `Stage(theta=...)` for the interior barrier, or a tightened budget when
@@ -102,58 +102,65 @@ mechanism. The choice of mechanism follows from the requirement, not the other w
   the cumulative use, whose first crossing of the budget is the first crossing of the cumulative use.
 * **For a chance requirement** the bounded barrier is a surrogate, not the constraint. The
   requirement is met by a certificate when it is informative and by validation of the deployed
-  candidate otherwise (Section 6 of this guide).
-* `plan(..., violations_during_learning_acceptable=False)` and a zero tolerance trigger warnings: both
-  are conditions under which another method is the better choice.
+  candidate otherwise (section 6 of this guide).
+* `plan(..., violations_during_training_matter=True)` and a zero tolerance trigger warnings: both point
+  to another method.
 
 ## 2. When to use another method
 
-The paper's Section 1.2 lists five conditions under which another approach should be preferred. They
-are repeated here so that this guide can be read on its own; each rests on a result or a measurement
-of the paper. `planning.when_to_use_another_method` returns them, and `plan` states them for your problem.
+The paper's section *Which formulation to prefer* states when the clipped barrier is the choice and when another
+method is the better one. The cases are repeated here so that this guide can be read on its own; each rests on a
+result or a measurement of the paper. `planning.when_to_use_another_method` returns them, and `plan` states them for
+your problem.
 
-1. **No deployment failure, or no failure during physical learning, is permissible.** A finite price
-   prices failure risk; it does not prohibit failure. If the action reference can exhaust a budget with
-   positive probability, so can every represented policy: bounded scores impose a risk floor,
-   `p_T(pi_mu) >= exp(-2 L0 (T+1)) p_T(rho)` (Section 2.3; `certificates.risk_floor`), and no price
-   removes it. The almost-sure formulation of Saute RL with an infinite penalty, model-based
-   control-barrier safety layers, and methods that learn which actions can satisfy probability-one
-   budget constraints address this specification under their own assumptions. The bounded barrier is
-   trained where failures are permitted, in a simulator. `plan` flags `alpha = 0` and
-   `violations_during_learning_acceptable=False`: a positive price never prohibits failure, no multiplier
-   settles when every policy of the class has positive risk, and a failure-free validation certifies only
-   the resolution floor.
-2. **A prescribed tolerance is to be met with the least conservatism.** A fixed price leaves the
-   attained risk to the optimizer, and unused risk costs utility (the matched-risk theorem of
-   Section 3). A prescribed-level method, such as a Lagrangian chance-constrained or CVaR policy
-   gradient, targets the tolerance directly when it lies above the risk floor of the class. Its
-   multiplier must be tuned: a plain dual ascent started from an infeasible policy winds up (the
+The clipped barrier is the choice when failures can be permitted in simulation and deployment tolerates a positive
+failure probability or carries a finite failure cost; when the tolerance is uncertain or may be unattainable, since
+a fixed price does not change during training and the attained risk is monotone in it, so the tolerance is
+approached by training at several prices and validating each; when the failure cost is known (a lump sum or an
+overage tariff), which sets the price directly, a lump sum `F` charged once at failure giving `m = (1-beta) F`; and
+when a reserve margin before exhaustion is worth its cost. Another method is the better choice in five cases.
+
+1. **No failure is permissible and a controlled-invariant set is known.** A finite price prices failure
+   risk; it does not prohibit failure. If the action reference can exhaust a budget with positive
+   probability, so can every represented policy: bounded scores impose a risk floor,
+   `p_T(pi_mu) >= exp(-2 L0 (T+1)) p_T(rho)` (*The represented class*; `certificates.risk_floor`), and
+   no price removes it. An almost-sure method (an infinite failure penalty, a control-barrier safety
+   layer, or a method that learns which actions keep probability-one budget constraints) addresses this
+   specification when a controlled-invariant set is known. `plan` flags `alpha = 0`: a positive price
+   never prohibits failure, no multiplier converges when every policy of the class has positive risk,
+   and a failure-free validation certifies only the resolution floor.
+2. **A prescribed level is attainable with slack and the multiplier's step can be tuned.** A fixed price
+   leaves the attained risk to the optimizer, and unused risk costs utility (*Matched-risk performance
+   comparison*). An adaptive multiplier, as in a Lagrangian chance-constrained policy gradient, targets
+   the level directly when it lies above the risk floor of the class. Its step must be tuned: with too
+   large a step, and an initial policy that fails often, the multiplier increases without bound (the
    fuel-tank study). The toolbox's own prescribed-level option is `Stage(penalty="multiplier")` with
-   `DualAscent`; see Section 3 of this guide for its step and diagnosis.
-3. **The constraint is on an expected cumulative cost.** Constrained policy optimization and
-   Lagrangian methods for constrained Markov decision processes are built for that specification; the
-   bounded barrier addresses the probability of exhausting a budget.
-4. **The problem can be solved exactly or by a structured approximation.** In the emissions
-   application the exact dynamic program, and a re-planning rule tuned for each sanction, were better
-   than either learner (PPO and SAC). The certificates and the validation apply to such policies as
-   well, since they hold for whatever policy is deployed: evaluate the structured policy through
-   `BudgetWrapper`, validate it with `Evaluation.validate` or `validation.validate_direct`, and read it
-   with `interpret`.
-5. **The price must be far above the stakes of the task.** A large price degraded the learned policies
-   of the fuel-tank study, consistent with a reward-scale effect that the study did not test; reward
-   normalization or a prescribed-level formulation are the alternatives to try.
-   `plan(..., task_stakes=...)` warns when the discounted total of the price exceeds ten times the
-   utility at stake in an episode.
+   `DualAscent`; see section 3 of this guide for its step and diagnosis.
+3. **Violations during training matter.** Constrained policy optimization keeps the iterates near the
+   constraint; the bounded barrier is trained where failures are permitted, in a simulator.
+4. **The loss grows with the amount by which the consumption exceeds the budget.** A failure price
+   charges the event of exhaustion, not its size; the CVaR constraint on the cumulative consumption
+   charges the size.
+5. **The model is known and small.** In the emissions application the exact dynamic program, and a
+   re-planning rule tuned for each sanction, were better than either learner (PPO and SAC). The
+   certificates and the validation apply to such policies as well, since they hold for whatever policy
+   is deployed: evaluate the policy through `BudgetWrapper`, validate it with `Evaluation.validate` or
+   `validation.validate_direct`, and read it with `interpret`.
 
-Where none of these conditions holds, and in particular when failure has a finite price in the
-application or a tolerance is to be met with certificates rather than exactly, the bounded barrier is
-a reasonable first method to try.
+Two further cases concern the barrier itself.
+
+* **The required price charges far more for a failure than an episode earns.** A large price degraded
+  the controllers of the fuel-tank study; reward normalization or a prescribed-level formulation is the
+  alternative. `plan(..., episode_earnings=...)` warns when the discounted total of the price exceeds
+  ten times what an episode earns.
+* **The size of a possible allowance error is known.** Tightening the allowance is then cheaper than the
+  interior margin (section 4 of this guide).
 
 ## 3. Fix the price, then certify
 
-The fixed-price results of Section 3 (optimality at the attained risk, the price-risk law,
-monotonicity in the price) and the matched-risk theorem hold at a fixed price `m`, so retraining over
-many prices is not required.
+The parts of *Fixed price of failure risk* (optimality at the attained risk, the price-risk law,
+monotonicity in the price, the learning form) and *Matched-risk performance comparison* hold at a fixed
+price `m`, so training at many prices is not required.
 
 * **Start from the conservative price.** When the class contains a policy that never fails at finite
   barrier cost (the idle policy, for example), the price-risk law
@@ -165,16 +172,19 @@ many prices is not required.
   start, not the price to aim for.
 * **Let the certificates and validation bound the attained risk.** After training, the value
   certificates (`certificates.risk_from_value`, `validation.risk_from_validation_value`,
-  `validation.physical_horizon_risk`) and direct validation (Section 6 of this guide) bound the risk of
-  the candidate.
+  `validation.physical_horizon_risk`) and direct validation (section 6 of this guide) bound the risk of
+  the candidate. A bound on `q_beta` also bounds when failures occur: the earliest `eps`-fraction of
+  failures occurs on average no earlier than `log(eps/q_beta)/log(1/beta)` periods
+  (`certificates.earliest_failures_time`; *The geometric risk as a risk measure of the failure time*).
 * **Retrain at a higher price only if the tolerance is missed.** `certificates.price_monotonicity`
   bounds how much the attained risk can rise between two prices, given the optimization errors.
   `frontier.check_runs(runs, beta, sup_U, U0, I0, q0, delta)` checks runs at several prices against the
   price-risk law, monotonicity and dominance.
 * **Check that raising the price can work.** A sequence of prices reaches a tolerance when some policy
   has risk to spare and the charged errors (the comparison policy's interior loss, the regularization
-  cost and the optimization error) grow slower than the price (Online Proposition E.4). In the emissions
-  study PPO failed this condition: its shortfall grew in proportion to the sanction. On a pilot sweep,
+  cost and the optimization error) grow slower than the price (*Price sequences reaching a tolerance*). In
+  the emissions study PPO failed this condition: its shortfall grew in proportion to the sanction. On short
+  pilot runs at a few prices,
   `frontier.price_sequence_check(prices, shortfalls)` reads the condition from measured shortfalls; on a
   new problem, the shortfall from the best structured policy at the same price is a lower bound on the
   optimization error. A rising shortfall or crash rate is the signal to stop raising the price.
@@ -182,18 +192,21 @@ many prices is not required.
   risk it attains, but risk left unused against a tolerance costs utility at the price;
   `certificates.matched_risk_utility_gap` bounds the shortfall.
 * **An adaptive multiplier targets a tolerance directly** when the tolerance lies above the risk floor
-  of the class; no multiplier settles below it. Use `Stage(penalty="multiplier")` and `DualAscent(alpha,
+  of the class; no multiplier converges below it. Use `Stage(penalty="multiplier")` and `DualAscent(alpha,
   step)`. Take the step from `callbacks.dual_step_suggestion(expected_multiplier)`: the multiplier
   should move by a small fraction of its eventual level per rollout (the toolbox's rule is a twentieth
   of the penalty at which a fixed-price run attains about the tolerance). Read the trace with
-  `DualAscent.diagnose(beta)`: *settled*, *runaway* (every episode fails, the flat penalty carries no
-  gradient: lower the step, raise a fixed price, or start from a controller that sometimes survives),
-  *slack* (the tolerance does not bind), or *drifting*. A multiplier that settles at the tolerance
-  itself does not pass validation at that tolerance: set the prescribed level below the tolerance by
-  the width of the confidence bound, just as a fixed price has to be chosen with one.
+  `DualAscent.diagnose(beta)`, which applies the paper's two criteria for convergence: the multiplier
+  stops moving, and the attained risk lies within the confidence bound of the tolerance. The status is
+  *stable* (both hold), *increasing* (every episode fails and the flat penalty carries no gradient:
+  lower the step, raise a fixed price, or start from a controller that sometimes survives), *inactive*
+  (the tolerance does not bind), *trending*, *off-target* (the multiplier is stable but the risk misses
+  the tolerance), or *short* (too few rollouts). A multiplier that converges at the tolerance itself
+  does not pass validation at that tolerance: set the prescribed level below the tolerance by the width
+  of the confidence bound, just as a fixed price has to be chosen with one.
 * **Price and conditioning.** A higher price raises the curvature that a convergence argument requires
   and can worsen the conditioning of the learner (the reward scale). Reward normalization helps; a
-  price far above the stakes of the task is condition 6 of Section 2.
+  price that charges far more for a failure than an episode earns is one of the cases of section 2.
 * **Clipping and utilities below `-m`.** Clipping at `-m` truncates utility values below `-m`, such as a
   crash penalty. Choose `m >= u_minus`, or charge the price at failure alone: the frozen-multiplier
   form `U - nu q_beta`, `Stage(clip_utility=False)`, to which the fixed-price results apply verbatim.
@@ -235,7 +248,7 @@ that its target lacks.
   `ActionAnchor` charges it at every decision up to and including the failing one, as the paper's `A`
   does (`include_failing_action=False` charges the steps before failure only).
   It holds the policy near the action reference and bounds the departure of the trajectory risk from
-  the reference's: `kl(q || q_rho) <= A` (Section 3; `certificates.action_risk_bound`,
+  the reference's: `kl(q || q_rho) <= A` (*Action regularization and trajectory risk*; `certificates.action_risk_bound`,
   `kl_upper_inverse`). The bound is informative only for small `A`, that is, when the learned policy
   stays close to the reference and gains little. Use the action relative entropy when the action
   reference is trusted and the price or the model is not; otherwise a correctly chosen price dominates
@@ -246,12 +259,12 @@ that its target lacks.
   `evaluate.stopped_action_relative_entropy`.
 * **The parameter regularizer** (strength `kappa`, toward a prior law `Gamma` of the network's units)
   supplies the curvature that makes the population learning problem converge, equally for every
-  admissible regularizer (Section 4). The policy-wise certificates do not need it, and its bias is never
+  admissible regularizer (*Fixed-stage population convergence*). The policy-wise certificates do not need it, and its bias is never
   silent, since the certificates and validation are evaluated on the learned policy.
 
 ### 5.2 The roles: noise, pull and spread
 
-In the particle form of the population flow (Section 4.2) each unit's parameters move by the policy
+In the particle form of the population flow (*The prior and the particle form of the flow*) each unit's parameters move by the policy
 gradient, a pull toward the prior and any reference, and noise:
 
 ```
@@ -265,23 +278,23 @@ dx_i = [policy gradient] dl - [kappa1 grad W(x_i) + kappa1 omega grad G'(rho_n)(
 * **Pull.** The prior's potential pulls toward its center (for `N(x0, sigma^2 I)`, weight decay of weight
   `kappa1/sigma^2`), and a potential `P` with strength `kappa2` pulls toward a reference of one's choice
   with no noise attached (`ParameterAnchor`). A potential alone collapses the population to a single
-  point in the certified regime (Online Remark F.2).
+  point in the certified regime (*Collapse under a potential alone*).
 * **Spread.** An integrand of faster growth limits how far the law crowds relative to the prior. It needs
   a density, so it has no finite-network form without a density estimate.
 
 Relative entropy alone ties noise and pull to one strength; the general class unties them, and every
 combination converges by the same argument. Under a plain gradient pull the stationary spread is
 `sqrt(kappa1/(kappa1/sigma^2 + kappa2 lambda_P))` (`roles.stationary_spread`, `kappa1_for_spread`). In
-the paper's PPO study (Section 6.5) Adam normalized the pull, and the measured spread was proportional
+the paper's PPO study of the roles Adam normalized the pull, and the measured spread was proportional
 to `kappa1` instead, about `sqrt(2) kappa1`: the roles survived the finite network, the formula did not.
 Risk and utility stayed at the anchored values while the spread was small against the policy's
 dispersion and then moved, with seeds splitting; noise without a pull acted as exploration and abandoned
-the prior. Treat `kappa1` as a knob to sweep and measure. `RegularizerMix(kappa1, kappa2).explain()`
+the prior. Treat `kappa1` as a knob to vary and measure. `RegularizerMix(kappa1, kappa2).explain()`
 describes a combination.
 
 ### 5.3 The prior is a policy
 
-* The regularized solution inherits the prior policy's risk and utility (Section 4, the prior). Specify
+* The regularized solution inherits the prior policy's risk and utility (*Improvement over the prior policy*). Specify
   the prior as the policy the application accepts when learning gains nothing:
   * a **risk-free or hard-feasible policy** when one exists (the idle policy of the wear study); the
     bias then lowers risk outright, and learning improves on that policy within the risk slack;
@@ -335,7 +348,7 @@ states the corresponding recommendation with its reason.
   Gaussian prior that a finite network can carry; `kappa_p` is `kappa/sigma^2` in the paper's notation.
   `ParameterAnchor` implements it. Under a potential, noiseless continuous-time training of a network of
   any width is the population flow from the network's own empirical law, with the same contraction and
-  rate (Proposition 4.7; `convergence.finite_training_transfer`). Discrete steps and PPO's or SAC's
+  rate (*Finite-network training under a potential*; `convergence.finite_training_transfer`). Discrete steps and PPO's or SAC's
   estimators are outside that result.
 * **Set `kappa` for conditioning, not at the certified threshold.** The threshold of the convergence
   theorem is sufficient, not necessary, and grows with the price; in the solvable flow every flow
@@ -344,7 +357,7 @@ states the corresponding recommendation with its reason.
   `convergence.curvature_budget(constants, beta, m, ubar, kappa, lambda_H, eta)` and
   `convergence.certified_kappa` report what the theorem says for a stage, as a diagnostic. The deficits
   come from bounds on how fast the policy kernel and its relative entropy change when the units move
-  (Proposition B.1): `convergence.KernelConstants(B1, B2, K0, K1, K2)` states them for any actor class,
+  (*Value and action-law curvature*): `convergence.KernelConstants(B1, B2, K0, K1, K2)` states them for any actor class,
   and `FeatureConstants(L0, L1, L2)` is the softmax instance.
 * Treat a failed certificate as the signal to lower `kappa` or to raise the price, not to raise
   `kappa`.
@@ -389,7 +402,7 @@ print(interpret(spec, req, stage, ev, effects=eff).text())
 * **What a small objective gap does not give.** It removes neither representation bias nor a poor
   action reference. An uninformative sufficient bound does not establish failure; direct validation or
   additional cost-tail structure may still certify the requirement.
-* **Finite networks.** The population-to-network transfer (Section 5) gives widths
+* **Finite networks.** *Population-to-network transfer* gives widths
   (`certificates.width_for_target`, `width_for_direct_target`, `finite_network_transfer`) that are
   typically far above the networks used, which is why deployed candidates are validated directly.
 * **The report.** `interpret(spec, req, stage, ev, ...)` states in what sense the candidate solves the
@@ -405,7 +418,7 @@ print(interpret(spec, req, stage, ev, effects=eff).text())
 
 | Decision | Functions |
 |---|---|
-| Specify the requirement | `BudgetSpec`, `Requirement`, `certificates.finite_from_geometric`, `certificates.eventual_risk_structural` |
+| Specify the requirement | `BudgetSpec`, `Requirement`, `certificates.finite_from_geometric`, `certificates.earliest_failures_time`, `certificates.eventual_risk_structural` |
 | Detect conditions for another method | `planning.when_to_use_another_method`, `plan`, `certificates.risk_floor`, `certificates.prescribed_level_attainable` |
 | Fix the price | `plan`, `certificates.conservative_price`, `certificates.conservative_multiplier`, `certificates.price_risk_law`, `certificates.price_monotonicity`, `frontier.check_runs`, `frontier.price_sequence_check`, `certificates.matched_risk_utility_gap`, `certificates.matched_risk_signed` |
 | Run any learner | `BudgetWrapper`, `RunningMaxCost`, `Stage`, `bpg.spec.failure_tail`, `BudgetMonitor` |

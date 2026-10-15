@@ -1,9 +1,9 @@
 """Before training: turn a requirement into a configuration and a validation budget, with reasons.
 
-The plan follows Section 7.1 of the paper: specify the requirement first; fix the price, then certify;
+The plan follows the paper's 'Using the bounded barrier': specify the requirement first; fix the price, then certify;
 buy margin deliberately; choose regularizers for their role and the prior from the problem; validate the
 deployed candidate. It recommends by conditions and states, before anything else, the conditions of
-Section 1.2 under which another method is the better choice.
+the paper's 'Which formulation to prefer' under which another method is the better choice.
 """
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ from .validation import episodes_for_tolerance, resolution_floor, value_resoluti
 
 
 # ---------------------------------------------------------------------------------------------
-# When another method is the better choice (Section 1.2)
+# When another method is the better choice ('Which formulation to prefer')
 # ---------------------------------------------------------------------------------------------
 @dataclass
 class Condition:
@@ -32,38 +32,58 @@ class Condition:
 
     def line(self) -> str:
         status = {True: "APPLIES", False: "does not apply", None: "not stated"}[self.applies]
-        return f"[{status}] {self.name}: {self.better_tool}. {self.reason}"
+        return f"[{status}] {self.name}: {self.better_tool}. Reason: {self.reason}."
+
+
+def _both(a: Optional[bool], b: Optional[bool]) -> Optional[bool]:
+    if a is False or b is False:
+        return False
+    if a is True and b is True:
+        return True
+    return None
 
 
 def when_to_use_another_method(*, failure_permissible_at_deployment: Optional[bool] = None,
-                               violations_during_learning_acceptable: Optional[bool] = None,
-                               prescribed_tolerance_least_conservatism: Optional[bool] = None,
-                               expected_cost_requirement: Optional[bool] = None,
-                               structured_solution_available: Optional[bool] = None,
-                               price_far_above_stakes: Optional[bool] = None) -> List[Condition]:
-    """The five conditions of Section 1.2 under which another approach is preferable. The bounded barrier is a
-    reasonable first method when failures can be permitted in simulation and deployment has a positive tolerance or
-    a finite failure cost; the results quantify these choices rather than assert an advantage over other methods."""
-    no_failure = None
-    if failure_permissible_at_deployment is not None or violations_during_learning_acceptable is not None:
-        no_failure = (failure_permissible_at_deployment is False) or (violations_during_learning_acceptable is False)
+                               controlled_invariant_set_known: Optional[bool] = None,
+                               prescribed_level_attainable_with_slack: Optional[bool] = None,
+                               multiplier_step_tunable: Optional[bool] = None,
+                               violations_during_training_matter: Optional[bool] = None,
+                               loss_grows_with_excess_consumption: Optional[bool] = None,
+                               model_known_and_small: Optional[bool] = None,
+                               price_exceeds_episode_earnings: Optional[bool] = None,
+                               allowance_error_known: Optional[bool] = None) -> List[Condition]:
+    """The cases of the paper's 'Which formulation to prefer' in which another method is the better choice: five
+    that concern the requirement and the problem, and two that concern the barrier itself. The clipped barrier is the
+    choice when failures can be permitted in simulation and deployment tolerates a positive failure probability or
+    carries a finite failure cost, when the tolerance is uncertain or may be unattainable, when the failure cost is
+    known, and when a reserve margin is worth its cost. The paper quantifies these choices; it does not assert an
+    advantage over other methods."""
+    no_failure = None if failure_permissible_at_deployment is None else (not failure_permissible_at_deployment)
     return [
-        Condition("no deployment failure, or no failure during physical learning, is permissible", no_failure,
-                  "an almost-sure formulation (Saute RL with an infinite penalty), a model-based control-barrier safety layer, or a method "
-                  "that learns which actions can satisfy probability-one budget constraints",
-                  "a finite price prices failure risk; it does not prohibit failure, and a full-support class can have a positive risk floor"),
-        Condition("a prescribed tolerance is to be met with the least conservatism", prescribed_tolerance_least_conservatism,
-                  "a Lagrangian chance-constrained policy gradient that targets the level directly (when it lies above the risk floor)",
-                  "a fixed price leaves the attained risk to the optimizer and unused risk costs utility; the multiplier and learning errors still need control"),
-        Condition("the requirement is an expected cumulative cost", expected_cost_requirement,
-                  "constrained policy optimization or constrained Markov decision process methods",
-                  "a chance requirement concerns a failure event instead"),
-        Condition("the problem can be solved by a dynamic program or a structured approximation", structured_solution_available,
-                  "use that structure; the toolbox's certificates and validation apply to such policies too",
-                  "in the emissions study the exact dynamic program, and a tuned re-planning rule, were better than either learner"),
-        Condition("the required price is far above the stakes of the task", price_far_above_stakes,
+        Condition("no failure is permissible and a controlled-invariant set is known", _both(no_failure, controlled_invariant_set_known),
+                  "an almost-sure method (an infinite failure penalty, a control-barrier safety layer, or a method that learns which actions keep "
+                  "probability-one budget constraints)",
+                  "a finite price prices failure risk and does not prohibit failure; a class of full-support policies can have a positive risk floor"),
+        Condition("a prescribed level is attainable with slack and the multiplier's step can be tuned",
+                  _both(prescribed_level_attainable_with_slack, multiplier_step_tunable),
+                  "an adaptive multiplier (a Lagrangian chance-constrained policy gradient)",
+                  "a fixed price leaves the attained risk to the optimizer, and unused risk costs utility; with too large a step the multiplier "
+                  "increases without bound when the initial policy fails often, as in the fuel-tank study"),
+        Condition("violations during training matter", violations_during_training_matter,
+                  "constrained policy optimization",
+                  "the clipped barrier is trained where failures are permitted, in a simulator"),
+        Condition("the loss grows with the amount by which the consumption exceeds the budget", loss_grows_with_excess_consumption,
+                  "the CVaR constraint on the cumulative consumption",
+                  "a failure price charges the event of exhaustion, not its size"),
+        Condition("the model is known and small", model_known_and_small,
+                  "an exact dynamic program (or a structured policy, when one is available); the toolbox's certificates and validation apply to it too",
+                  "in the emissions application the exact dynamic program, and a re-planning rule tuned for each sanction, were better than either learner"),
+        Condition("the required price charges far more for a failure than an episode earns", price_exceeds_episode_earnings,
                   "reward normalization or a prescribed-level formulation",
                   "a large price degraded the controllers of the fuel-tank study; increasing the price is not an optimization guarantee"),
+        Condition("the size of a possible allowance error is known", allowance_error_known,
+                  "a correspondingly tightened allowance instead of the interior margin",
+                  "the interior barrier is the graded margin for an error of unknown size; a known error is covered more cheaply by tightening"),
     ]
 
 
@@ -114,7 +134,7 @@ class Plan:
                          f"{failure_tail(s.m, sp.beta, 0, sp.horizon):.4g} at t = 0. A flat penalty nu matches it only at one failure time "
                          "(spec.price_from_multiplier_physical).")
         else:
-            lines.append(f"Failure tail charged at a failure: {discounted_total(s.m, sp.beta):.4g} (absorbing). A multiplier method settling at "
+            lines.append(f"Failure tail charged at a failure: {discounted_total(s.m, sp.beta):.4g} (absorbing). A multiplier method that converges to "
                          f"nu = {self.multiplier_equivalent:.4g} returns the same optimum.")
         if self.dual_step is not None:
             lines.append(f"Dual-ascent step for an adaptive multiplier at tolerance {r.alpha:g}: about {self.dual_step:.4g} per rollout "
@@ -124,9 +144,11 @@ class Plan:
                      f"(resolution floor of that many failure-free episodes: {self.direct_floor:.3g}).")
         if self.value_check is not None:
             vc = self.value_check
-            lines.append(("The value-based test can" if vc["attainable"] else "The value-based test cannot") +
-                         f" attain the tolerance with the stated N and H: its floor is {vc['floor']:.3g} "
-                         f"(tail term {vc['tail_term']:.3g}, statistical term {vc['statistical_term']:.3g}). Increasing m cannot repair this.")
+            lines.append(("The necessary condition for the value-based test to certify the tolerance holds"
+                          if vc["attainable"] else "The value-based test cannot certify the tolerance")
+                         + f" with the stated N and H: the condition's left side is {vc['floor']:.3g} against alpha = {r.alpha:g} "
+                         f"(tail term {vc['tail_term']:.3g}, statistical term {vc['statistical_term']:.3g})."
+                         + ("" if vc["attainable"] else " Increasing m cannot repair this; longer validation or the direct test can."))
         if self.regularizers is not None:
             lines.append(self.regularizers.explain())
         elif self.curvature is not None:
@@ -142,10 +164,11 @@ def plan(spec: BudgetSpec, requirement: Requirement, *, sup_U: Optional[float] =
          delta: float = 0.0, stage: Optional[Stage] = None, expected_failure_rate: float = 0.0,
          validation_H: Optional[int] = None, validation_N: Optional[int] = None,
          features=None, lambda_H: Optional[float] = None,
-         allowance_error_known: Optional[bool] = None, violations_during_learning_acceptable: bool = True,
-         failure_permissible_at_deployment: Optional[bool] = None, prescribed_tolerance_least_conservatism: Optional[bool] = None,
-         expected_cost_requirement: Optional[bool] = None, structured_solution_available: Optional[bool] = None,
-         task_stakes: Optional[float] = None, regularizers: Optional[dict] = None) -> Plan:
+         allowance_error_known: Optional[bool] = None, failure_permissible_at_deployment: Optional[bool] = None,
+         controlled_invariant_set_known: Optional[bool] = None, prescribed_level_attainable_with_slack: Optional[bool] = None,
+         multiplier_step_tunable: Optional[bool] = None, violations_during_training_matter: Optional[bool] = None,
+         loss_grows_with_excess_consumption: Optional[bool] = None, model_known_and_small: Optional[bool] = None,
+         episode_earnings: Optional[float] = None, regularizers: Optional[dict] = None) -> Plan:
     """Build a Plan.
 
     sup_U         an upper bound on the stopped utility over the class (for example the unpriced optimum's utility, or
@@ -158,9 +181,11 @@ def plan(spec: BudgetSpec, requirement: Requirement, *, sup_U: Optional[float] =
     validation_H, validation_N  for the value-based test's resolution check.
     features, lambda_H  FeatureConstants or KernelConstants and the regularizer's curvature, for the curvature budget.
     allowance_error_known  whether the size of a possible allowance error is known (margin advice).
-    violations_during_learning_acceptable, failure_permissible_at_deployment, prescribed_tolerance_least_conservatism,
-    expected_cost_requirement, structured_solution_available, task_stakes
-                  the conditions of Section 1.2; task_stakes is the utility at stake in one episode (for example a landing
+    failure_permissible_at_deployment, controlled_invariant_set_known, prescribed_level_attainable_with_slack,
+    multiplier_step_tunable, violations_during_training_matter, loss_grows_with_excess_consumption, model_known_and_small,
+    episode_earnings
+                  the cases of 'Which formulation to prefer' (when_to_use_another_method); episode_earnings is the utility an
+                  episode earns (for example a landing bonus), against which the discounted total of the price is compared.
                   bonus), against which the discounted total of the price is compared.
     regularizers  keyword arguments of bpg.regularizers.advise_regularizers (conditions of the application).
     """
@@ -182,36 +207,40 @@ def plan(spec: BudgetSpec, requirement: Requirement, *, sup_U: Optional[float] =
             stage = Stage(m=price_bound.value if math.isfinite(price_bound.value) else 0.0)
     if stage is None:
         stage = Stage(m=0.0)
-        warnings.append("no price given and no sup_U to derive one: the stage is the unpriced learner, which has no risk bound")
-    # --- the conditions of Section 1.2 ------------------------------------------------------------
-    far_above = None
-    if task_stakes is not None and task_stakes > 0:
-        charge = stage.multiplier if stage.penalty == "multiplier" else (failure_tail(stage.m, beta, 0, spec.horizon))
-        far_above = charge > 10.0 * task_stakes
+        warnings.append("no price given and no sup_U to derive one: the stage is the unpriced policy, which has no risk bound")
+    # --- the cases of 'Which formulation to prefer' -----------------------------------------------
+    exceeds = None
+    if episode_earnings is not None and episode_earnings > 0:
+        charge = stage.multiplier if stage.penalty == "multiplier" else failure_tail(stage.m, beta, 0, spec.horizon)
+        exceeds = charge > 10.0 * episode_earnings
+    no_failure = requirement.alpha == 0.0 or failure_permissible_at_deployment is False
     conditions = when_to_use_another_method(
-        failure_permissible_at_deployment=(False if requirement.alpha == 0.0 else failure_permissible_at_deployment),
-        violations_during_learning_acceptable=violations_during_learning_acceptable,
-        prescribed_tolerance_least_conservatism=prescribed_tolerance_least_conservatism,
-        expected_cost_requirement=expected_cost_requirement, structured_solution_available=structured_solution_available,
-        price_far_above_stakes=far_above)
-    if not violations_during_learning_acceptable:
-        warnings.append("violations during learning are unacceptable: this framework permits exploratory violations in simulation and is unsuitable "
-                        "without an external certified mechanism")
+        failure_permissible_at_deployment=(False if no_failure else failure_permissible_at_deployment),
+        controlled_invariant_set_known=controlled_invariant_set_known,
+        prescribed_level_attainable_with_slack=prescribed_level_attainable_with_slack, multiplier_step_tunable=multiplier_step_tunable,
+        violations_during_training_matter=violations_during_training_matter,
+        loss_grows_with_excess_consumption=loss_grows_with_excess_consumption, model_known_and_small=model_known_and_small,
+        price_exceeds_episode_earnings=exceeds, allowance_error_known=allowance_error_known)
+    if violations_during_training_matter:
+        warnings.append("violations during training matter: the clipped barrier is trained where failures are permitted, in a simulator; "
+                        "constrained policy optimization addresses violations during training")
     if requirement.kind == "eventual":
         warnings.append("an eventual requirement P(tau < inf) <= alpha is not certified by a small q_beta or by a finite-horizon test "
                         f"[{cite('delay_example')}]; it needs cost-tail structure ({cite('eventual_risk')}) or almost-sure feasibility")
-    if requirement.alpha == 0.0:
-        warnings.append("a zero tolerance is a hard almost-sure requirement; a positive price never prohibits failure, no multiplier settles "
-                        "when every policy of the class has positive risk, and a zero-failure validation certifies only the resolution floor")
-    if far_above:
-        warnings.append("the discounted total of the price is more than ten times the utility at stake in an episode: in the fuel-tank study such a "
-                        "price degraded the learned controllers; try reward normalization or a prescribed-level formulation")
+    if no_failure:
+        warnings.append("no failure is permissible: a positive price never prohibits failure, no multiplier converges when every policy of the "
+                        "class has positive risk, and a zero-failure validation certifies only the resolution floor"
+                        + ("; with a known controlled-invariant set an almost-sure method is the better choice" if controlled_invariant_set_known else
+                           "; an almost-sure method needs a known controlled-invariant set"))
+    if exceeds:
+        warnings.append("the discounted total of the price is more than ten times what an episode earns: in the fuel-tank study such a price "
+                        "degraded the learned controllers; try reward normalization or a prescribed-level formulation")
     if stage.penalty == "price" and stage.m < u_minus and stage.clip_utility:
         warnings.append(f"m = {stage.m:g} is below u_minus = {u_minus:g}: clipping at -m erases utility values below -m (for example a crash penalty); "
                         "choose m >= u_minus or use the frozen-multiplier form (clip_utility=False)")
     if stage.theta > 0:
         notes.append("the interior barrier buys graded protection against a misjudged allowance at a utility cost bounded by its interior loss; "
-                     f"{cite('fixed_price')} applies net of that loss")
+                     f"the fixed-price results apply net of that loss [{cite('fixed_price')}]")
         if allowance_error_known:
             notes.append("the size of the allowance error is known: a correspondingly tightened allowance is the more economical margin")
     elif allowance_error_known is not None:
@@ -241,9 +270,9 @@ def plan(spec: BudgetSpec, requirement: Requirement, *, sup_U: Optional[float] =
     else:
         nu = discounted_total(stage.m, beta) if spec.horizon is None else failure_tail(stage.m, beta, 0, spec.horizon)
         dual_step = nu / 20.0 if stage.m > 0 else None
-    notes.append("a prescribed level has to be set below the tolerance by the width of the confidence bound (a multiplier settling at the tolerance "
+    notes.append("a prescribed level has to be set below the tolerance by the width of the confidence bound (a multiplier that converges at the tolerance "
                  "itself does not pass validation at that tolerance), just as a fixed price has to be chosen with one")
-    notes.append(f"a sequence of prices reaches a tolerance only when the learner's error grows slower than the price; check it on a pilot sweep "
+    notes.append(f"a sequence of prices reaches a tolerance only when the learner's error grows slower than the price; check it on short pilot runs at a few prices "
                  f"with frontier.price_sequence_check [{cite('price_sequence')}]")
     # --- curvature -----------------------------------------------------------------------------------
     curv = None

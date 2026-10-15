@@ -29,7 +29,7 @@ def test_comparison_and_matched_risk():
 def test_learning_form():
     # with zero regularization cost and no reward error the learning form is the (m+ubar) variant / the law
     b = C.learning_form_risk(m=1.0, beta=0.95, ubar=1.0, q_bar=0.0, U_bar=0.0, I_bar=0.0, R_bar=0.0, delta=0.0, sup_U=5.35)
-    assert abs(b.value - 0.05 * 5.35) < 1e-12 and "3.3(iv)" in b.source
+    assert abs(b.value - 0.05 * 5.35) < 1e-12 and "learning form" in b.source
     b2 = C.learning_form_risk(m=1.0, beta=0.95, ubar=1.0, q_bar=0.0, U_bar=0.0, I_bar=0.0, R_bar=2.0, delta=0.5, eps_r=0.1, sup_U=5.35)
     assert abs(b2.inputs["delta_prime"] - (0.5 + 2.0 + 4.0)) < 1e-12 and b2.value >= b.value
     # the unclipped comparison-law form is never tighter than the learning form with I_bar <= C_B-based cost

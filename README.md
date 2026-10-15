@@ -4,7 +4,6 @@
 
 ![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-3776ab)
 ![License: MIT](https://img.shields.io/badge/license-MIT-2e9e5b)
-![Paper revision](https://img.shields.io/badge/paper-revision%2062-e07b28)
 ![Core: numpy + scipy](https://img.shields.io/badge/core-numpy%20%2B%20scipy-8a8a8a)
 
 `bpg` is the companion toolbox of the paper *The Price of Failure Risk: Clipped Barrier Policy Gradients with
@@ -43,7 +42,7 @@ flag when it is uninformative.
 git clone <this repository> bpg-toolbox && cd bpg-toolbox
 python -m venv ~/.venvs/bpg-toolbox && source ~/.venvs/bpg-toolbox/bin/activate
 pip install -e ".[all]"      # core + Gymnasium, Stable-Baselines3, PyTorch, Jupyter, pytest
-python tests/run_all.py --rl # 41 checks
+python tests/run_all.py --rl # 43 checks
 ```
 
 The core needs only `numpy` and `scipy` (`pip install -e .`). The wrapper uses Gymnasium when it is installed, and
@@ -120,28 +119,33 @@ Executed notebooks with their outputs, in [`notebooks/`](notebooks/) (times on o
 | Notebook | What it shows | Needs | Time |
 |---|---|---|---|
 | [1. Quickstart](notebooks/01_quickstart.ipynb) | The clipped reward and the identity behind every result; a plan; candidates against the exact frontier; validation; the report | numpy | 20 s |
-| [2. Training with PPO](notebooks/02_training_with_ppo.ipynb) | Training through the wrapper; stochastic versus mean-action candidates; a price sweep and its optimization error; an adaptive multiplier; the margin bought by the barrier | RL extras | 11 min |
+| [2. Training with PPO](notebooks/02_training_with_ppo.ipynb) | Training through the wrapper; stochastic versus mean-action candidates; training at several prices and the optimization error; an adaptive multiplier; the margin bought by the barrier | RL extras | 11 min |
 | [3. Regularizers and their roles](notebooks/03_regularizers_and_roles.ipynb) | Action versus parameter regularization; noise, pull and spread on the solvable flow; convergence versus bias; the prior is a policy; parameter noise on PPO; joint use | RL extras | 12 min |
 | [4. Validation and reporting](notebooks/04_validation_and_reporting.ipynb) | Resolution floors; why the error is allocated before selecting; the geometric clock versus a fixed horizon; when value certificates are informative; a lump sanction with your own vectorized evaluator | numpy | 1 min |
-| [5. Bring your own problem](notebooks/05_bring_your_own_problem.ipynb) | A new task written from scratch, with no exact benchmark: structured policies first, a pilot price sweep, what can and cannot be claimed | RL extras | 13 min |
+| [5. Bring your own problem](notebooks/05_bring_your_own_problem.ipynb) | A new task written from scratch, with no exact benchmark: structured policies first, pilot runs at several prices, what can and cannot be claimed | RL extras | 13 min |
 
 The scripts in [`examples/`](examples/) cover the same ground from the command line.
 
 ## When to use another method
 
 The bounded barrier is a reasonable first method when failures can be permitted in simulation and deployment has a
-positive tolerance or a finite failure cost. The paper does not claim that it outperforms methods built for
-particular constraint structures. Another approach is preferable when
+positive tolerance or a finite failure cost. The paper quantifies this choice; it does not claim that the method
+outperforms methods built for particular constraint structures. Another approach is the better choice when
 
-1. **no failure is permissible** at deployment or during physical learning (almost-sure formulations, control-barrier
-   safety layers, methods that learn which actions can satisfy probability-one constraints);
-2. **a prescribed tolerance must be met with the least conservatism** (a Lagrangian chance-constrained policy gradient);
-3. **the requirement is an expected cumulative cost** (constrained policy optimization, constrained MDP methods);
-4. **the problem can be solved by a dynamic program or a structured approximation** (use the structure; the toolbox's
-   certificates and validation apply to such policies too);
-5. **the required price is far above the stakes of the task** (reward normalization or a prescribed-level formulation).
+1. **no failure is permissible and a controlled-invariant set is known** (an almost-sure method: an infinite failure
+   penalty, a control-barrier safety layer, or a method that learns which actions keep probability-one constraints);
+2. **a prescribed level is attainable with slack and the multiplier's step can be tuned** (an adaptive multiplier, as
+   in a Lagrangian chance-constrained policy gradient);
+3. **violations during training matter** (constrained policy optimization);
+4. **the loss grows with the amount by which the consumption exceeds the budget** (a CVaR constraint on the
+   cumulative consumption);
+5. **the model is known and small** (an exact dynamic program; the toolbox's certificates and validation apply to its
+   policy too).
 
-`plan` states these conditions for your problem before anything is trained.
+Two further cases concern the barrier itself: a required price that charges far more for a failure than an episode
+earns (reward normalization or a prescribed-level formulation), and an allowance error of known size (tighten the
+allowance instead of adding an interior margin). `plan` states these conditions for your problem before anything is
+trained.
 
 ## What the evidence means
 
@@ -163,16 +167,18 @@ mean-action policy is a different candidate), and behavior under a different sim
 ## Documentation
 
 * [Practitioner's guide](docs/practitioner-guide.md): one section per decision, with the functions that implement it.
-* [Worked examples](docs/worked-examples.md): the paper's wear-allowance, fuel-tank, roles and emissions studies as a practitioner would run them.
+* [Worked examples](docs/worked-examples.md): the paper's wear-allowance, fuel-tank, roles, emissions and benchmark-suite studies as a practitioner would run them.
 * [Results map](docs/results-map.md): every paper result and the function that implements it.
 * [Supplementary results](docs/supplementary-results.md): two certificates the toolbox adds, with proofs.
 * [Development](docs/development.md): the local environment, VS Code, tests and rebuilding the notebooks.
 
-## The paper and its numbering
+## Citing results of the paper
 
-Citations inside the toolbox go through one registry, [`bpg/paper.py`](bpg/paper.py), keyed by stable names
-(`cite("fixed_price", "ii")` returns `Proposition 3.3(ii) (Fixed price of failure risk: price-risk law)`). The current
-numbers refer to revision 62 of the paper; a renumbering is a one-file edit.
+The toolbox cites results by the titles the paper gives them, never by statement or section numbers, so a new
+revision of the paper does not change the documentation. All citations go through one registry,
+[`bpg/paper.py`](bpg/paper.py): `cite("fixed_price", "ii")` returns
+`paper, 'Fixed price of failure risk' (price-risk law)`, and `bpg.PAPER["checked_against"]` records the revision
+against which the toolbox was last checked.
 
 ## Citing
 

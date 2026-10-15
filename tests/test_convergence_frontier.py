@@ -5,7 +5,7 @@ from bpg import frontier as F
 
 
 def test_curvature_constants_reproduce_the_paper():
-    # Solvable flow of Section 7.3: beta = 0.9, m = 1, ubar = 1, plateau feature with the suprema of
+    # The paper's solvable flow: beta = 0.9, m = 1, ubar = 1, plateau feature with the suprema of
     # chi' and chi''; the paper reports C_m = 1940 and kappa = 1.05 C_m = 2037 (lambda_W = 1).
     # Reconstruct c_psi from C_m: c_psi = C_m / (m + ubar) = 970 = L2/0.01 + L1^2/0.001.
     fc = K.FeatureConstants(L0=1.0, L1=0.3, L2=2.0)
@@ -42,13 +42,13 @@ def test_trace_diagnostics():
     assert K.trend_test(rising, 40).trend_detected
     # multiplier traces
     settled = [dict(multiplier=5.0 + 0.1 * rng.standard_normal(), failure_rate=0.05 + 0.01 * rng.standard_normal(), episodes=400) for _ in range(60)]
-    assert K.multiplier_diagnosis(settled, 0.05, 0.95).status == "settled"
+    assert K.multiplier_diagnosis(settled, 0.05, 0.95).status == "stable"
     runaway = [dict(multiplier=10.0 * k, failure_rate=1.0, episodes=50) for k in range(60)]
-    assert K.multiplier_diagnosis(runaway, 0.05, 0.95).status == "runaway"
+    assert K.multiplier_diagnosis(runaway, 0.05, 0.95).status == "increasing"
     slack = [dict(multiplier=0.0, failure_rate=0.01, episodes=400) for _ in range(60)]
-    assert K.multiplier_diagnosis(slack, 0.05, 0.95).status == "slack"
+    assert K.multiplier_diagnosis(slack, 0.05, 0.95).status == "inactive"
     drifting = [dict(multiplier=k * 0.2, failure_rate=0.3, episodes=400) for k in range(60)]
-    assert K.multiplier_diagnosis(drifting, 0.05, 0.95).status == "drifting"
+    assert K.multiplier_diagnosis(drifting, 0.05, 0.95).status == "trending"
     assert K.multiplier_diagnosis(settled[:3], 0.05, 0.95).status == "short"
     sd = K.seed_dispersion([1.0, 2.0, 3.0]); assert sd.mean == 2.0 and sd.n == 3
 

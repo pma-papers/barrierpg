@@ -1,4 +1,4 @@
-"""Risk certificates and performance comparisons (Sections 2, 3 and 5 of the paper).
+"""Risk certificates and performance comparisons (the paper's model, risk-certificate and deployment sections).
 
 Every function returns a `Bound` (value, source, hypotheses, inputs, note) or a plain number where
 the quantity is an identity rather than a bound. Inputs are the quantities of the paper:
@@ -36,21 +36,37 @@ def clipped_value_identity(U: float, I_m: float, q_beta: float, m: float, beta: 
 
 def geometric_from_finite(p_T: float, beta: float, T: int) -> Bound:
     """beta^T p_T <= q_beta: a finite-horizon risk gives a lower bound on the geometric risk."""
-    return Bound("q_beta lower bound", beta ** T * p_T, "beta^T p_T <= q_beta (Section 1.1)",
+    return Bound("q_beta lower bound", beta ** T * p_T, "beta^T p_T <= q_beta, since beta^tau >= beta^T on tau <= T",
                  note="a small q_beta is not an eventual-risk guarantee")
 
 
 def finite_from_geometric(q_beta: float, beta: float, T: int) -> Bound:
     """p_T <= min{1, q_beta / beta^T}: valid, and uninformative once beta^-T is large."""
-    return Bound(f"p_{T} upper bound", clip01(q_beta / beta ** T), "p_T <= q_beta / beta^T (Section 1.1)",
+    return Bound(f"p_{T} upper bound", clip01(q_beta / beta ** T), "p_T <= q_beta / beta^T, since beta^tau >= beta^T on tau <= T",
                  inputs=dict(q_beta=q_beta, beta=beta, T=T),
                  note="beta^-T can make this uninformative while valid; validate p_T directly when it is")
+
+
+def earliest_failures_time(q_beta: float, beta: float, eps: float) -> Bound:
+    """What a geometric risk says about when failures happen: with theta = log(1/beta), q_beta = E exp(-theta tau) is
+    the exponential risk measure of the failure time, and for every eps in (0, 1] the earliest eps-fraction of failures
+    occurs on average no earlier than log(eps / q_beta) / theta periods. A smaller q_beta pushes this bound up without
+    limit, whereas a bound on p_T at one horizon never says more than T + 1. Pass a validated upper bound on q_beta to
+    obtain a valid lower bound on the time."""
+    if not 0.0 < eps <= 1.0:
+        raise ValueError("eps must lie in (0, 1]")
+    theta = math.log(1.0 / beta)
+    t = max(0.0, math.log(eps / max(q_beta, 1e-300)) / theta)
+    return Bound("average time of the earliest failures, lower bound", float(t), cite("failure_time"),
+                 ["q_beta is the geometric risk of the policy, or a valid upper bound on it"],
+                 dict(q_beta=q_beta, beta=beta, eps=eps, theta=theta),
+                 note=f"the earliest {eps:.0%} of failures occur on average no earlier than this many periods")
 
 
 def risk_floor(p_T_reference: float, L0: float, T: int) -> Bound:
     """p_T(pi_mu) >= e^{-2 L0 (T+1)} p_T(rho) for every softmax policy with |psi| <= L0: bounded scores
     cannot remove a dangerous action sequence that the action reference can draw. A target below
-    this floor is unattainable within the class, whatever the price (Section 2.3)."""
+    this floor is unattainable within the class, whatever the price (the paper's represented class)."""
     return Bound(f"p_{T} lower bound (risk floor of the class)", float(math.exp(-2.0 * L0 * (T + 1)) * p_T_reference),
                  cite("risk_floor"), ["softmax class with |psi| <= L0 and action reference rho"],
                  dict(p_T_reference=p_T_reference, L0=L0, T=T),
@@ -59,17 +75,17 @@ def risk_floor(p_T_reference: float, L0: float, T: int) -> Bound:
 
 def prescribed_level_attainable(alpha: float, risk_floor_value: float) -> dict:
     """A prescribed level below the risk floor of the class is unattainable, and the dual of the
-    prescribed-level problem is unbounded below: a multiplier iteration cannot settle (Section 3.4),
+    prescribed-level problem is unbounded below: a multiplier iteration cannot converge (the paper's fixed-price section),
     whereas a fixed price stays well posed at every m."""
     ok = alpha > risk_floor_value
     return dict(attainable=ok, alpha=alpha, floor=risk_floor_value,
                 explanation=("the tolerance lies above the risk floor of the class" if ok else
-                             "the tolerance lies below the risk floor: no multiplier settles; a fixed price stays well posed "
-                             "and its certificates bound the risk it attains [" + cite("dual_unbounded") + "]"))
+                             "the tolerance lies below the risk floor: no multiplier converges; a fixed price stays well posed "
+                             "and its certificates bound the risk it attains [" + cite("fixed_price_section") + "]"))
 
 
 # ---------------------------------------------------------------------------------------------
-# Proposition 3.1: value and objective certificates
+# Value and objective certificates
 # ---------------------------------------------------------------------------------------------
 def risk_from_value(V_m: float, m: float, ubar: float, beta: float, T: Optional[int] = None) -> Bound:
     """q_beta <= (ubar - (1-beta) V_m) / (m + ubar); with T, p_T <= min{1, that / beta^T}.
@@ -96,7 +112,7 @@ def risk_from_objective(J: float, m: float, ubar: float, beta: float, eps_r: flo
 
 
 # ---------------------------------------------------------------------------------------------
-# Theorem 3.2: utility at the attained risk
+# Matched-risk performance comparison: utility at the attained risk
 # ---------------------------------------------------------------------------------------------
 def matched_risk_utility_gap(I_bar: float, R_bar: float, delta: float, m: float, beta: float, alpha: float, q_hat: float,
                              eps_r: float = 0.0, continuing: bool = False, ubar: float = 0.0, u_minus: float = 0.0) -> Bound:
@@ -120,7 +136,7 @@ def matched_risk_utility_gap(I_bar: float, R_bar: float, delta: float, m: float,
 
 def matched_risk_signed(U_bar: float, I_bar: float, R_bar: float, delta: float, m: float, beta: float, q_hat: float, q_bar: float,
                         eps_r: float = 0.0) -> Bound:
-    """The signed form of Theorem 3.2: U(mu_hat) >= U(mu_bar) - I_m(mu_bar) - R(mu_bar) - delta - 2 eps_r/(1-beta)
+    """The signed form of the matched-risk comparison: U(mu_hat) >= U(mu_bar) - I_m(mu_bar) - R(mu_bar) - delta - 2 eps_r/(1-beta)
     + m[q_hat - q_bar]/(1-beta). With the prior as comparison law (H(Gamma) = 0) the risk-price term remains:
     it is negative when the learned policy has less risk than the prior, so an improved clipped value
     does not by itself preserve the utility of a positive-risk prior."""
@@ -134,7 +150,7 @@ def matched_risk_signed(U_bar: float, I_bar: float, R_bar: float, delta: float, 
 
 
 # ---------------------------------------------------------------------------------------------
-# Proposition 3.3: the fixed-price reading
+# Fixed price of failure risk
 # ---------------------------------------------------------------------------------------------
 def price_risk_law(m: float, beta: float, sup_U: float, U0: float = 0.0, I0: float = 0.0, q0: float = 0.0,
                    delta: float = 0.0, ubar: Optional[float] = None) -> Bound:
@@ -162,7 +178,7 @@ def conservative_price(alpha: float, beta: float, sup_U: float, U0: float = 0.0,
                        delta: float = 0.0, u_minus: float = 0.0) -> Bound:
     """The price at which the price-risk law certifies q_beta <= alpha with the comparison policy
     (U0, I0, q0): m >= (1-beta)[sup U - U0 + I0 + delta] / (alpha - q0), and m >= u_minus. Infinite if
-    alpha <= q0. The paper's suggested starting price (Section 7.1): a safe start, not the price to aim for."""
+    alpha <= q0. The paper's suggested starting price ('Using the bounded barrier'): a safe start, not the price to aim for."""
     if alpha <= q0:
         return Bound("price m certifying alpha", math.inf, cite("fixed_price", "ii") + " inverted", [_H_SIGN],
                      note="the comparison policy's own risk exceeds the tolerance; no price is certified by this law")
@@ -198,13 +214,13 @@ def price_monotonicity(q1: float, m1: float, m2: float, beta: float, Delta: floa
 
 
 def frozen_multiplier_value(U: float, q_beta: float, nu: float) -> float:
-    """U - nu q_beta: the frozen-multiplier objective, to which Proposition 3.3 applies verbatim with I_m = 0."""
+    """U - nu q_beta: the frozen-multiplier objective, to which the fixed-price proposition applies verbatim with I_m = 0."""
     return float(U - nu * q_beta)
 
 
 def learning_form_risk(m: float, beta: float, ubar: float, q_bar: float, U_bar: float, I_bar: float, R_bar: float, delta: float,
                        eps_r: float = 0.0, sup_U: Optional[float] = None, T: Optional[int] = None) -> Bound:
-    """Proposition 3.3(iv), the learning form: both bounds of (ii) for a delta-minimizer of the regularized
+    """The learning form of the fixed-price proposition: both bounds of (ii) for a delta-minimizer of the regularized
     objective, with a comparison law's own quantities and delta' = delta + R(mu_bar) + 2 eps_r/(1-beta):
       q_hat <= q_bar + (1-beta)[ubar (1 - q_bar)/(1-beta) - U_bar + I_bar + delta'] / (m + ubar),
       q_hat <= q_bar + (1-beta)[sup U - U_bar + I_bar + delta'] / m          (when sup_U is given).
@@ -226,7 +242,7 @@ def comparison_law_risk(q_bar: float, C_B: float, R_bar: float, delta: float, m:
                         eps_r: float = 0.0, T: Optional[int] = None) -> Bound:
     """q(mu_hat) <= q(mu_bar) + ((1-beta)[C_B + R(mu_bar) + delta] + 2 eps_r) / (m + ubar), with the unclipped
     pre-failure cost C_B = E sum_{t<tau} beta^t [ubar - u + B]. It follows from the second bound of
-    Proposition 3.3(iv), since ubar (1 - q_bar)/(1-beta) - U_bar + I_bar <= C_B; learning_form_risk is never looser."""
+    the learning form, since ubar (1 - q_bar)/(1-beta) - U_bar + I_bar <= C_B; learning_form_risk is never looser."""
     q = clip01(q_bar + ((1.0 - beta) * (C_B + R_bar + delta) + 2.0 * eps_r) / (m + ubar))
     hyp = [_H_UBAR, "mu_hat is a delta-minimizer of the regularized objective (or beats the comparison law by delta)",
            "C_B(mu_bar) < inf: the comparison law has finite pre-failure barrier cost",
@@ -242,7 +258,7 @@ def comparison_law_risk(q_bar: float, C_B: float, R_bar: float, delta: float, m:
 
 def learning_slack(m: float, ubar: float, beta: float, alpha: float, T: int, q_bar: float, U_bar: float, I_bar: float,
                    R_bar: float, sup_U: Optional[float] = None) -> float:
-    """The optimization error that Corollary 4.4 can absorb while still certifying p_T <= alpha with this
+    """The optimization error that the learning-error bound can absorb while still certifying p_T <= alpha with this
     comparison law: the larger of
       D  = m (alpha beta^T - q_bar)/(1-beta) - [sup U - U_bar + I_bar + R_bar]                    (sup_U given),
       D' = (m+ubar)(alpha beta^T - q_bar)/(1-beta) - [ubar (1-q_bar)/(1-beta) - U_bar + I_bar + R_bar].
@@ -263,7 +279,7 @@ def comparison_law_slack(m: float, ubar: float, beta: float, alpha: float, T: in
 
 
 # ---------------------------------------------------------------------------------------------
-# Proposition 3.4: action regularization and reference risk
+# Action regularization and trajectory risk
 # ---------------------------------------------------------------------------------------------
 def kl_bernoulli(p: float, q: float) -> float:
     """kl(p || q) with the conventions 0 log(0/q) = 0 and p log(p/0) = +inf for p > 0."""
@@ -277,7 +293,7 @@ def kl_bernoulli(p: float, q: float) -> float:
 
 
 def kl_upper_inverse(q_ref: float, A: float) -> float:
-    """Largest p in [q_ref, 1] with kl(p || q_ref) <= A (the inverted bound of Proposition 3.4)."""
+    """Largest p in [q_ref, 1] with kl(p || q_ref) <= A (the inverted bound of the action-risk proposition)."""
     if A == math.inf or q_ref >= 1.0:
         return 1.0
     lo, hi = float(q_ref), 1.0
@@ -353,7 +369,7 @@ def eventual_risk_structural(p_T: float, P_unresolved: float) -> Bound:
 
 
 # ---------------------------------------------------------------------------------------------
-# Theorem 5.1: from a learned law to one finite network
+# Population-to-network transfer: from a learned law to one finite network
 # ---------------------------------------------------------------------------------------------
 def finite_network_transfer(n: int, L0: float, beta: float, zeta: float, m: float, ubar: float, u_minus: float = 0.0,
                             T: Optional[int] = None) -> dict:
@@ -370,7 +386,7 @@ def finite_network_transfer(n: int, L0: float, beta: float, zeta: float, m: floa
 
 
 def width_for_target(L0: float, beta: float, zeta: float, Delta: float) -> int:
-    """n >= L0^2 / (4 (1-beta) zeta Delta^2) makes q_beta(pi_n) within Delta of the population law's (Theorem 5.1);
+    """n >= L0^2 / (4 (1-beta) zeta Delta^2) makes q_beta(pi_n) within Delta of the population law's (the population-to-network transfer);
     with a population bound of slack Delta = alpha beta^T - R_l > 0 this certifies p_T(pi_n) <= alpha.
     With L0 = 1, beta = 0.95, zeta = 0.05 a transfer error of one percent needs about a million units."""
     if Delta <= 0:
@@ -385,7 +401,7 @@ def width_for_direct_target(L0: float, T: int, zeta: float, Delta_T: float) -> i
     return int(math.ceil(L0 ** 2 * (T + 1) / (4.0 * zeta * Delta_T ** 2)))
 
 
-__all__ = ["clipped_value_identity", "geometric_from_finite", "finite_from_geometric", "risk_floor", "prescribed_level_attainable",
+__all__ = ["clipped_value_identity", "geometric_from_finite", "finite_from_geometric", "earliest_failures_time", "risk_floor", "prescribed_level_attainable",
            "risk_from_value", "risk_from_objective", "matched_risk_utility_gap", "matched_risk_signed",
            "price_risk_law", "conservative_price", "conservative_multiplier", "price_monotonicity", "frozen_multiplier_value",
            "learning_form_risk", "comparison_law_risk", "learning_slack", "comparison_law_slack",

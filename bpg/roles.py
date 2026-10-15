@@ -1,4 +1,5 @@
-"""What each parameter regularizer does to one unit: the particle form of the flow (Section 4.2).
+"""What each parameter regularizer does to one unit: the particle form of the flow (the paper's 'The prior and the
+particle form of the flow').
 
 Take the admissible regularizer
 
@@ -26,7 +27,7 @@ Relative entropy alone (omega = 0, kappa2 = 0) ties noise and pull to one streng
 them: kappa1 sets the noise, kappa2 the pull, the integrand the spread, and all add to the curvature budget,
 kappa1 lambda_W + kappa2 lambda_P. On the solvable flow a potential alone collapses the units to the prior's
 center and never leaves the plateau; relative entropy escapes; the sum escapes once its stationary spread is
-comparable to the plateau's width (Section 6.5).
+comparable to the plateau's width (the paper's study of the roles of the regularizers).
 
 Finite networks. The anchor (callbacks.ParameterAnchor) is the potential term; injected Gaussian noise of
 variance 2 kappa1 times the learning rate after each optimizer step (callbacks.ParameterNoise) is the noise term.
@@ -72,7 +73,7 @@ class RegularizerMix:
 
     @property
     def curvature(self) -> float:
-        """kappa1 lambda_W + kappa2 lambda_P, the curvature the mix supplies to the budget of Theorem 4.3."""
+        """kappa1 lambda_W + kappa2 lambda_P, the curvature the mix supplies to the curvature budget of the convergence theorem."""
         return self.kappa1 / self.sigma ** 2 + self.kappa2 * self.lambda_P
 
     def stationary_spread(self) -> float:
@@ -91,7 +92,7 @@ class RegularizerMix:
     @property
     def collapses(self) -> bool:
         """A potential alone (no noise, no divergence) moves the population to a single point mass in the certified
-        regime: all units at one parameter, whatever the width (Online Remark F.2)."""
+        regime: all units at one parameter, whatever the width ('Collapse under a potential alone')."""
         return self.kappa1 == 0.0 and self.kappa2 > 0.0
 
     def finite_network_form(self) -> List[str]:

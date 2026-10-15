@@ -6,10 +6,10 @@
 # PPO (Stable-Baselines3) on the wear-allowance problem of notebook 1 and supplies the evidence a practitioner
 # needs afterwards:
 #
-# * training traces that show whether the run has settled,
+# * training traces that show whether the run has converged,
 # * the deployed candidates (stochastic and mean-action) evaluated separately,
 # * the optimization error, measured against the exact frontier that this problem happens to have,
-# * a sweep of prices, checked against the price–risk law and the price-sequence condition,
+# * training at several prices, checked against the price–risk law and the price-sequence condition,
 # * an adaptive multiplier toward a prescribed level, with a diagnosis of its trace,
 # * the margin bought by the interior barrier under a misjudged allowance,
 # * the report.
@@ -68,7 +68,7 @@ def exact_value(m):
 #
 # `BudgetMonitor` records per rollout the failure rate, the stopped utility, the clipped value and the action
 # dispersion, and tests the last rollouts for a remaining trend. A trend means the candidate is the policy at the
-# end of the run, not a settled one.
+# end of the run, not one at which training has converged.
 
 # %%
 stage = Stage(m=1.0)
@@ -88,7 +88,7 @@ plt.tight_layout(); plt.show()
 # The stochastic policy and its **mean-action** policy (the same network without its dispersion) are different
 # candidates; each needs its own evaluation and validation. Because this problem has an exact solution, we can
 # also measure the **optimization error**: the shortfall of the learned clipped value from the exact optimum at the
-# same price. Proposition 3.3 charges exactly this quantity, written $\delta$.
+# same price. The paper's fixed-price results charge exactly this quantity, written $\delta$.
 
 # %%
 env = lambda: make_wear_env(stage, model)
@@ -101,7 +101,7 @@ for name, e in (("stochastic", ev_s), ("mean-action", ev_d)):
 print(f"exact optimum at m = 1: q_beta = {EXACT_FRONTIER[1.0][0]:.4f}, U = {EXACT_FRONTIER[1.0][1]:.3f}, V_m = {exact_value(1.0):.3f}")
 
 # %% [markdown]
-# ## A sweep of prices
+# ## Training at several prices
 #
 # The price selects a point on the frontier; it does not prescribe a risk level. Training at three prices, with a
 # second seed at $m=1$, shows the price–risk trade-off on the learned policies. `check_runs` compares them with the
@@ -110,18 +110,18 @@ print(f"exact optimum at m = 1: q_beta = {EXACT_FRONTIER[1.0][0]:.4f}, U = {EXAC
 
 # %%
 prices = (0.3, 1.0, 3.0)
-sweep = {(1.0, 0): ev_s}                                   # the run above
+by_price = {(1.0, 0): ev_s}                                   # the run above
 for mm, sd in ((0.3, 0), (3.0, 0), (1.0, 1)):
     st = Stage(m=mm)
     pol = train(st, seed=sd)
-    sweep[(mm, sd)] = evaluate(lambda: make_wear_env(st, model), sb3_policy(pol), 10_000, spec=spec, stage=st, seed=100 + sd, T=19)
-for (mm, sd), e in sorted(sweep.items()):
+    by_price[(mm, sd)] = evaluate(lambda: make_wear_env(st, model), sb3_policy(pol), 10_000, spec=spec, stage=st, seed=100 + sd, T=19)
+for (mm, sd), e in sorted(by_price.items()):
     print(f"m = {mm:<4g} seed {sd}: q_beta = {e.q_beta:.4f} (exact {EXACT_FRONTIER[mm][0]:.4f}), U = {e.U:.3f} "
           f"(exact {EXACT_FRONTIER[mm][1]:.3f}), delta = {exact_value(mm) - e.V_m:+.3f}")
 
 # %%
-runs = [Run(m=mm, q_beta=e.q_beta, U=e.U, label=f"seed {sd}") for (mm, sd), e in sweep.items()]
-deltas = {mm: max(0.0, max(exact_value(mm) - e.V_m for (k, sd), e in sweep.items() if k == mm)) for mm in prices}
+runs = [Run(m=mm, q_beta=e.q_beta, U=e.U, label=f"seed {sd}") for (mm, sd), e in by_price.items()]
+deltas = {mm: max(0.0, max(exact_value(mm) - e.V_m for (k, sd), e in by_price.items() if k == mm)) for mm in prices}
 chk = check_runs(runs, beta=spec.beta, sup_U=EXACT_FRONTIER[0.0][1], delta=max(deltas.values()), tol=0.005)
 print(chk.explain())
 
@@ -129,7 +129,7 @@ qf = np.array([v[0] for v in EXACT_FRONTIER.values()]); Uf = np.array([v[1] for 
 fig, ax = plt.subplots(figsize=(6, 3.6))
 ax.plot(qf[o], Uf[o], color="0.2", label="exact frontier")
 for i, mm in enumerate(prices):
-    pts = [e for (k, sd), e in sweep.items() if k == mm]
+    pts = [e for (k, sd), e in by_price.items() if k == mm]
     ax.plot([e.q_beta for e in pts], [e.U for e in pts], "o", color=f"C{i}", label=f"PPO, m = {mm:g}")
     ax.plot(*EXACT_FRONTIER[mm], "x", color=f"C{i}", ms=8)
 ax.axvline(0.05, color="C3", ls=":", lw=1)
@@ -141,7 +141,7 @@ plt.tight_layout(); plt.show()
 # breakdown probability at a utility cost. Each lies short of the exact point at its price by its optimization
 # error $\delta$, which this problem lets us measure.
 #
-# **Can raising the price reach a tolerance?** Online Proposition E.4 says a sequence of prices reaches a tolerance
+# **Can raising the price reach a tolerance?** By the paper's *Price sequences reaching a tolerance*, a sequence of prices reaches a tolerance
 # when some policy has risk to spare and the charged errors grow slower than the price. `price_sequence_check` reads
 # that condition from the measured shortfalls. In the paper's emissions study PPO failed it: its shortfall grew in
 # proportion to the price.
@@ -151,23 +151,23 @@ print(price_sequence_check(list(deltas), list(deltas.values())).explain())
 
 # %% [markdown]
 # With three prices and one or two seeds this is a rough reading of one learner at one training budget. The check is
-# most useful in a pilot sweep before committing to a large price: a shortfall that grows in proportion to the
+# most useful on short pilot runs at a few prices before committing to a large price: a shortfall that grows in proportion to the
 # price says that raising the price will not reach a smaller tolerance with this learner.
 #
 # ## A prescribed level: the adaptive multiplier
 #
 # A multiplier method charges a flat penalty $\nu$ at failure and updates it after each rollout,
-# $\nu\leftarrow\max\{0,\nu+c(\hat q-\alpha)\}$. If it settles at $\nu$, it returns the fixed-price optimum at
-# $m=(1-\beta)\nu$ (Section 3.4). The step $c$ must respect two time scales: the multiplier should move by a small
-# fraction of its eventual level per rollout. We take the expected level from the sweep: a price near $0.5$ attains
+# $\nu\leftarrow\max\{0,\nu+c(\hat q-\alpha)\}$. If it converges to $\nu$, it returns the fixed-price optimum at
+# $m=(1-\beta)\nu$ (the paper's section *The fixed price of failure risk*). The step $c$ must respect two time scales: the multiplier should move by a small
+# fraction of its eventual level per rollout. We take the expected level from the runs at several prices: a price near $0.5$ attains
 # about three percent, so $\nu\approx0.5/(1-\beta)=10$.
 #
-# The prescribed level is set **below** the tolerance: a multiplier settled at the tolerance itself does not pass
+# The prescribed level is set **below** the tolerance: a multiplier that converges at the tolerance itself does not pass
 # validation at that tolerance.
 
 # %%
 alpha_level = 0.02
-dual = DualAscent(alpha=alpha_level, step=dual_step_suggestion(discounted_total(0.5, spec.beta), rollouts_to_settle=5))
+dual = DualAscent(alpha=alpha_level, step=dual_step_suggestion(discounted_total(0.5, spec.beta), rollouts_to_reach=5))
 adaptive_stage = Stage(m=0.0, penalty="multiplier")
 mon_a = BudgetMonitor(spec.beta, 0.0, penalty="multiplier", dual=dual)
 ppo_a = train(adaptive_stage, seed=0, callbacks=[dual, mon_a])
@@ -187,10 +187,13 @@ print(f"adaptive candidate: q_beta = {ev_a.q_beta:.4f}, U = {ev_a.U:.3f}, final 
       f"(price-equivalent m = {price_from_multiplier(dual.multiplier, spec.beta):.3f})")
 
 # %% [markdown]
-# Read the diagnosis printed above. *Settled* means the candidate is the fixed-price optimum at the price-equivalent
-# $m=(1-\beta)\nu$, up to its optimization error. *Drifting* means the multiplier was still moving when training
-# stopped: the candidate is not a fixed-price optimum at any identified price, and longer training or a different
-# step is needed. *Runaway* means every episode fails and the flat penalty carries no gradient (the fuel-tank study).
+# Read the diagnosis printed above. It applies the paper's two criteria for convergence: the multiplier stops moving,
+# and the attained risk lies within the confidence bound of the tolerance. *Stable* means both hold, and the
+# candidate is the fixed-price optimum at the price-equivalent $m=(1-\beta)\nu$, up to its optimization error.
+# *Trending* means the multiplier was still moving when training stopped: the candidate is not a fixed-price optimum
+# at any identified price, and longer training or a different step is needed. *Increasing* means the multiplier rose
+# while every episode failed, so the flat penalty carried no gradient (the fuel-tank study). *Off-target* means the
+# multiplier stopped moving away from the tolerance, as when the tolerance lies below the risk floor of the class.
 #
 # ## Buying a margin: the interior barrier under a misjudged allowance
 #
@@ -227,7 +230,7 @@ for r in rows:
 # %%
 delta_s = max(0.0, exact_value(1.0) - ev_s.V_m)
 gap = (interpolate_frontier([Run(m=k, q_beta=q, U=U) for k, (q, U) in EXACT_FRONTIER.items()], ev_s.q_beta) - ev_s.U) / ev_s.U
-seeds_q = seed_dispersion([sweep[(1.0, 0)].q_beta, sweep[(1.0, 1)].q_beta])
+seeds_q = seed_dispersion([by_price[(1.0, 0)].q_beta, by_price[(1.0, 1)].q_beta])
 rep = interpret(spec, req, stage, ev_s, sup_U=EXACT_FRONTIER[0.0][1], delta=delta_s, trends=mon.diagnostics(window=40),
                 seeds={"q_beta at m = 1": seeds_q}, exact_frontier_gap=gap)
 print(rep.text())

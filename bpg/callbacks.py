@@ -47,8 +47,8 @@ class DualAscent(BaseCallback):
 
     The step must respect the two time scales of the method: the multiplier should move by a small
     fraction of its eventual level per rollout (dual_step_suggestion). With too large a step the
-    multiplier runs away when every episode fails, because the flat penalty then carries no gradient.
-    A tolerance below the risk floor of the class makes the multiplier grow without settling.
+    multiplier increases without bound when every episode fails, because the flat penalty then carries no gradient.
+    A tolerance below the risk floor of the class makes the multiplier increase without bound.
     """
 
     def __init__(self, alpha: float, step: float, multiplier0: float = 0.0, verbose: int = 0):
@@ -79,11 +79,11 @@ class DualAscent(BaseCallback):
         return multiplier_diagnosis(self.trace, self.alpha, beta, window)
 
 
-def dual_step_suggestion(expected_multiplier: float, rollouts_to_settle: int = 20) -> float:
-    """A step c such that one rollout at failure rate one moves nu by expected_multiplier / rollouts_to_settle.
+def dual_step_suggestion(expected_multiplier: float, rollouts_to_reach: int = 20) -> float:
+    """A step c such that one rollout at failure rate one moves nu by expected_multiplier / rollouts_to_reach.
     expected_multiplier is the price-equivalent penalty m/(1-beta) (absorbing) or the price's tail at the
     typical failure time (physical horizon); take it from the fixed-price run that attains about the tolerance."""
-    return float(expected_multiplier) / float(rollouts_to_settle)
+    return float(expected_multiplier) / float(rollouts_to_reach)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -95,12 +95,12 @@ class ActionAnchor(BaseCallback):
 
     log_reference(obs_batch, action_batch) -> log densities of rho in the same (pre-clipping) action variable as
     the learner's log-probabilities. include_failing_action=True (default) charges every decision up to and
-    including the failing one, as the paper's A does (Section 3.2); False charges the steps before failure only.
+    including the failing one, as the paper's A does; False charges the steps before failure only.
     If the VecEnv is a VecNormalize with reward normalization, the charge is divided by the running return scale
     so that it is applied in the learner's reward units (the convention of the wear-allowance study).
 
     What it does: holds the policy near the action reference and keeps its trajectory risk within
-    kl(q || q_rho) <= A of the reference's (Proposition 3.4). It adds no curvature to the learning problem and
+    kl(q || q_rho) <= A of the reference's ('Action regularization and trajectory risk'). It adds no curvature to the learning problem and
     is charged the deficit eta C_A in the convergence budget; an entropy bonus is the case of a uniform reference.
     """
 
@@ -153,12 +153,12 @@ class ParameterAnchor:
     """The pull of the particle form on a finite actor: adds kappa_p (theta - theta_0) to the actor's gradient after
     gradient clipping and before every optimizer step. This is weight decay toward theta_0, the potential
     regularizer (kappa_p/2) |theta - theta_0|^2, which is the part of a Gaussian prior N(theta_0, sigma^2 I) a finite
-    network can carry (kappa_p = kappa/sigma^2; Remark 4.8). Under a potential, noiseless continuous-time training
-    is the population flow from the network's own empirical law (Proposition 4.7).
+    network can carry (kappa_p = kappa/sigma^2; 'The Gaussian prior as entropy, weight decay, and a policy'). Under a potential, noiseless continuous-time training
+    is the population flow from the network's own empirical law ('Finite-network training under a potential').
 
     The prior must cover every parameter that shapes the policy, including the dispersion (log_std): anchoring the
     mean network alone leaves the dispersion free and the learner can move the whole distance between the prior
-    policy and the optimum through that one parameter (Section 6.4). The learner inherits the prior policy, the
+    policy and the optimum through that one parameter (the paper's parameter-anchor study). The learner inherits the prior policy, the
     actor at theta_0 with its dispersion; evaluate it as a candidate before training.
 
     Usage: anchor = ParameterAnchor(model, kappa_p).install()  before model.learn(...).
@@ -199,11 +199,11 @@ class ParameterAnchor:
             return float(self.torch.sqrt(sum(((p - p0) ** 2).sum() for p, p0 in zip(self.params, self.theta0))))
 
     def spread(self) -> float:
-        """Per-parameter spread ||theta - theta_0|| / sqrt(d), the quantity of Section 6.5."""
+        """Per-parameter spread ||theta - theta_0|| / sqrt(d), the quantity of the paper's roles study."""
         return self.distance() / math.sqrt(max(self.n_parameters, 1))
 
     def regularizer_value(self) -> float:
-        """kappa_p/2 ||theta - theta_0||^2, the potential regularizer's value (Online Remark F.1)."""
+        """kappa_p/2 ||theta - theta_0||^2, the potential regularizer's value ('Potential regularizers and weight decay')."""
         return 0.5 * self.kappa_p * self.distance() ** 2
 
     def dispersion(self) -> Optional[float]:
@@ -223,13 +223,13 @@ class ParameterNoise:
     independent Gaussian noise of variance 2 kappa1 x lr, lr the current learning rate (the step of flow time,
     clipped at zero because SB3's linear schedule dips below zero on the last iteration). This is the
     finite-network counterpart of the entropy term of relative entropy, which no standard learner injects
-    (Section 4.2). Combined with a ParameterAnchor of strength kappa2, kappa2 sets where the units are held and
-    kappa1 how far they spread (Section 6.5).
+    (the paper's particle form of the flow). Combined with a ParameterAnchor of strength kappa2, kappa2 sets where the units are held and
+    kappa1 how far they spread (the paper's roles study).
 
     What the paper measured with PPO and Adam: the per-parameter spread grows with kappa1 but in proportion to it
     (about sqrt(2) kappa1), not as sqrt(kappa1/(kappa1+kappa2)); risk and utility stay at the anchored values while
     the spread is small against the policy's dispersion and then move, with seeds splitting; noise alone acted as
-    exploration and abandoned the prior. Treat kappa1 as a knob to sweep and measure, not one to set from the formula.
+    exploration and abandoned the prior. Treat kappa1 as a setting to vary and measure, not one to set from the formula.
 
     Usage: noise = ParameterNoise(model, kappa1, seed=0).install()  before model.learn(...); install it together
     with a ParameterAnchor in either order.

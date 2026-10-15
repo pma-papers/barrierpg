@@ -9,7 +9,7 @@ from typing import Dict, List, Optional
 class Bound:
     name: str                     # what is bounded, e.g. 'q_beta upper bound'
     value: float                  # the numerical bound
-    source: str                   # the manuscript result, e.g. 'Proposition 3.1 (value certificate)'
+    source: str                   # the result, e.g. "paper, 'Value and objective certificates'"
     hypotheses: List[str] = field(default_factory=list)   # what must hold for the bound to be valid
     inputs: Dict[str, float] = field(default_factory=dict)
     note: Optional[str] = None    # how to read it, including when it is uninformative

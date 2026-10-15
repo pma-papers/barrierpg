@@ -1,11 +1,11 @@
-"""Validation of the deployed candidate (Section 5.2 and Algorithm 1 of the paper).
+"""Validation of the deployed candidate (the paper's validation section and its learning-and-validation algorithm).
 
 Two tests, both conditional on training and network construction, both on fresh trajectories of
 the fixed candidate:
   direct   the Bernoulli events {tau_i <= T}: one-sided exact binomial upper endpoint; at zero
            failures it is 1 - zeta^(1/N), never zero;
   value    a one-sided Hoeffding lower confidence bound on V_m from returns truncated after H
-           actions, inserted into the value certificate (Proposition 3.1).
+           actions, inserted into the value certificate.
 zeta is an estimation error probability; alpha is the tolerated failure probability; they are not
 interchangeable. Error probabilities are allocated across candidates, horizons and tests before
 taking minima or selecting a policy (a union bound, which needs no independence).
@@ -102,14 +102,14 @@ def validate_direct(failures: int, n: int, alpha: float, zeta: float, family: in
 # Value-based validation
 # ---------------------------------------------------------------------------------------------
 def hoeffding_value_lower(mean_return_H: float, H: int, N: int, zeta: float, m: float, ubar: float, beta: float) -> float:
-    """V_m >= V_hat_H - (m+ubar)(1-beta^H)/(1-beta) sqrt(log(1/zeta)/(2N)) - m beta^H/(1-beta)  (Section 5.2, Hoeffding lower bound):
+    """V_m >= V_hat_H - (m+ubar)(1-beta^H)/(1-beta) sqrt(log(1/zeta)/(2N)) - m beta^H/(1-beta)  (Hoeffding lower bound):
     the mean of N returns truncated after H actions, less the Hoeffding term and the omitted tail."""
     S_H = discounted_sum_to(beta, H)
     return float(mean_return_H - (m + ubar) * S_H * math.sqrt(math.log(1.0 / zeta) / (2.0 * N)) - m * beta ** H / (1.0 - beta))
 
 
 def risk_from_validation_value(mean_return_H: float, H: int, N: int, zeta: float, m: float, ubar: float, beta: float, T: int) -> Bound:
-    """p_T <= min{1, (ubar - (1-beta) V_lower) / ((m+ubar) beta^T)} with the Hoeffding lower bound (Section 5.2, value-based validation)."""
+    """p_T <= min{1, (ubar - (1-beta) V_lower) / ((m+ubar) beta^T)} with the Hoeffding lower bound (value-based validation)."""
     V_low = hoeffding_value_lower(mean_return_H, H, N, zeta, m, ubar, beta)
     b = risk_from_value(V_low, m, ubar, beta, T)
     b.source = cite("validation") + ", value-based test with " + cite("value_certificate")
@@ -121,7 +121,7 @@ def risk_from_validation_value(mean_return_H: float, H: int, N: int, zeta: float
 
 def value_resolution_check(beta: float, H: int, T: int, N: int, zeta: float, alpha: float) -> dict:
     """Before training: the value-based test can certify p_T <= alpha < 1 only if
-    beta^(H-T) + (1-beta^H)/beta^T sqrt(log(1/zeta)/(2N)) <= alpha  (Section 5.2, resolution floor).
+    beta^(H-T) + (1-beta^H)/beta^T sqrt(log(1/zeta)/(2N)) <= alpha  (a necessary condition).
     Increasing m cannot repair a failure of this check."""
     lhs = beta ** (H - T) + (1.0 - beta ** H) / beta ** T * math.sqrt(math.log(1.0 / zeta) / (2.0 * N))
     return dict(attainable=lhs <= alpha, floor=lhs, alpha=alpha,
@@ -131,7 +131,7 @@ def value_resolution_check(beta: float, H: int, T: int, N: int, zeta: float, alp
 def physical_horizon_risk(V_mH: float, H: int, m: float, ubar: float, beta: float, T: int,
                           N: Optional[int] = None, zeta: Optional[float] = None) -> Bound:
     """Task that ends after H actions, T < H:
-    p_T <= min{1, (ubar S_H - V_m^(H)) / ((m+ubar) beta^T (1-beta^(H-T))/(1-beta))}  (Section 5.2, physical horizon).
+    p_T <= min{1, (ubar S_H - V_m^(H)) / ((m+ubar) beta^T (1-beta^(H-T))/(1-beta))}  (physical horizon).
     With N and zeta, V_mH is the mean complete return and the Hoeffding term (m+ubar) S_H sqrt(log(1/zeta)/(2N))
     is subtracted first (no omitted tail)."""
     S_H = discounted_sum_to(beta, H)
@@ -154,7 +154,7 @@ def lump_sanction_risk(V_H: float, H: int, nu: float, ubar: float, beta: float, 
                        zeta: Optional[float] = None, u_minus: float = 0.0) -> Bound:
     """A task that ends after H actions with a flat penalty nu charged once at the failing action (a lump sanction, the
     frozen-multiplier form): since ubar S_H - V^(H) >= nu E[beta^tau 1{tau <= T}],
-        p_T <= min{1, (ubar S_H - V^(H)) / (nu beta^T)}   (Section 6.6).
+        p_T <= min{1, (ubar S_H - V^(H)) / (nu beta^T)}   (the emissions application).
     With N and zeta, V_H is the mean complete return and is first lowered by the Hoeffding term of the return's own range,
     (ubar + u_minus) S_H + nu: a penalty charged once widens the range by nu, not by a per-period price times S_H."""
     S_H = discounted_sum_to(beta, H)

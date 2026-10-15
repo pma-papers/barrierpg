@@ -159,8 +159,8 @@ def discounted_total(m: float, beta: float) -> float:
 
 
 def price_from_multiplier(nu: float, beta: float) -> float:
-    """A multiplier method that settles at a flat failure penalty nu returns the fixed-price optimum
-    for m = (1 - beta) nu (Proposition 3.3 and the text after it), in the absorbing form and without an interior barrier."""
+    """A multiplier method that converges to a flat failure penalty nu returns the fixed-price optimum
+    for m = (1 - beta) nu (the fixed-price proposition and the text after it), in the absorbing form and without an interior barrier."""
     return (1.0 - float(beta)) * float(nu)
 
 

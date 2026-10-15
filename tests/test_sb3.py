@@ -45,7 +45,7 @@ def test_ppo_smoke_with_callbacks():
     dual = DualAscent(alpha=0.05, step=1.0); mon = BudgetMonitor(spec.beta, stage.m, penalty="multiplier")
     sb3.learn(total_timesteps=64 * 4 * 6, callback=[dual, mon])
     assert len(dual.trace) == 6 and len(mon.trace) == 6 and anchor.distance() >= 0.0
-    d = dual.diagnose(spec.beta); assert d.status in ("short", "settled", "drifting", "runaway", "slack")
+    d = dual.diagnose(spec.beta); assert d.status in ("short", "stable", "trending", "off-target", "increasing", "inactive")
     print(mon.explain(6))
     ev = evaluate(lambda: make_wear_env(stage.with_(multiplier=dual.multiplier), model), sb3_policy(sb3), 50, spec=spec, stage=stage.with_(multiplier=dual.multiplier), seed=0)
     assert ev.n == 50

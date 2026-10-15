@@ -1,13 +1,14 @@
 # %% [markdown]
 # # 4. Validation and the report: what you can claim about a deployed policy
 #
-# The deployment decision rests on validation of the candidate that is deployed (Section 5.2 and Algorithm 1).
+# The deployment decision rests on validation of the candidate that is deployed (the paper's algorithm
+# *Fixed-stage learning and independent deployment validation*).
 # Certificates from the value are useful too, but they are informative only in some regimes. This notebook goes
 # through both, with numpy only:
 #
 # 1. the direct binomial test and its **resolution floor**,
 # 2. why the validation error is **allocated before** selecting among candidates,
-# 3. the geometric clock versus a fixed horizon,
+# 3. the geometric clock versus a fixed horizon, and what the geometric risk says about when failures occur,
 # 4. when the **value-based certificate** is informative,
 # 5. a task with a physical horizon and a **lump sanction**, evaluated by your own vectorized simulator,
 # 6. the anatomy of the report: what is established and what is not.
@@ -94,9 +95,22 @@ print(f"under the clock, {np.mean(geo.tau[geo.failed] > T):.0%} of the failures 
 # failures are late. The bound $p_T\le\beta^{-T}q_\beta$ is valid but loose here, and the direct test over the fixed
 # horizon certifies the requirement that the geometric route could not.
 #
+# **When failures occur.** The geometric risk also bounds the failure time. With $\theta=\log(1/\beta)$,
+# $q_\beta=\mathbb E\,e^{-\theta\tau}$, and for every $\varepsilon\in(0,1]$ the earliest $\varepsilon$-fraction of failures
+# occurs on average no earlier than $\log(\varepsilon/q_\beta)/\theta$ periods (the paper's *The geometric risk as a risk
+# measure of the failure time*). With the validated upper bound on $q_\beta$ the statement is validated too. A bound on
+# $p_T$ at one horizon never says more than $T+1$, since it says nothing about failures after $T$.
+
+# %%
+from bpg.certificates import earliest_failures_time
+for eps in (0.05, 0.1, 0.5):
+    print(earliest_failures_time(vg.upper, spec.beta, eps).statement())
+
+# %% [markdown]
 # ## 4. When is the value-based certificate informative?
 #
-# Proposition 3.1 bounds the risk by the clipped value: $p_T\le(\bar u-(1-\beta)V_m)/((m+\bar u)\beta^T)$. With validation
+# The value certificate (the paper's *Value and objective certificates*) bounds the risk by the clipped value:
+# $p_T\le(\bar u-(1-\beta)V_m)/((m+\bar u)\beta^T)$. With validation
 # data, $V_m$ is replaced by a Hoeffding lower bound from returns truncated after $H$ actions. The factor $\beta^{-T}$
 # makes the bound grow with the horizon: it is informative only when $T$ is not large against $1/(1-\beta)$, and $H$
 # must exceed $T$ by enough that the omitted tail $\beta^{H-T}$ lies below the tolerance. Increasing the price helps
@@ -126,8 +140,8 @@ print(V.value_resolution_check(beta=spec.beta, H=H, T=19, N=Nv, zeta=0.05, alpha
 #
 # ## 5. A physical horizon and a lump sanction, with your own evaluator
 #
-# Many tasks end after a fixed number of actions, and many sanctions are charged once. The paper's emissions study
-# (Section 6.6) is of this kind: 52 weeks, an annual allowance, and a sanction $F$ if the allowance turns negative.
+# Many tasks end after a fixed number of actions, and many sanctions are charged once. The paper's emissions
+# application is of this kind: 52 weeks, an annual allowance, and a sanction $F$ if the allowance turns negative.
 # The toolbox's form is a flat penalty $\nu=F$ at the failing week, `Stage(penalty="multiplier", multiplier=F)`, with
 # the pre-failure reward left unclipped; the value certificate is then $p_T\le(\bar uS_H-V^{(H)})/(F\beta^T)$.
 #
@@ -173,7 +187,7 @@ for buffer in (0.0, 1.0, 2.0):
 # `interpret` assembles three kinds of statements, as the paper separates them.
 #
 # * **The reading of the objective.** With a known optimization error $\delta$, the fixed-price reading
-#   (Proposition 3.3(i)): the candidate is optimal at the risk it attains, up to $\delta$. With `delta=None` the report
+#   (*Fixed price of failure risk*): the candidate is optimal at the risk it attains, up to $\delta$. With `delta=None` the report
 #   makes no optimality claim.
 # * **Certificates and validation.** Each bound carries its source and hypotheses. The direct test at the specified
 #   horizon is the deployment decision.
@@ -191,11 +205,11 @@ print(rep.text())
 # %% [markdown]
 # ## Two supplementary certificates
 #
-# Both are proved in `docs/supplementary-results.md` of the toolbox; neither is stated in the paper's current revision.
+# Both are proved in `docs/supplementary-results.md` of the toolbox; neither is stated in the paper.
 #
 # * **Near-exhaustion.** An interior barrier charges small reserves, so the clipped value also bounds the probability of
 #   coming within $\varepsilon$ of exhaustion: `certificates.near_exhaustion_bound` with `LogBarrier.lower_level`.
-# * **Eventual risk.** A small $q_\beta$ or a certificate at one $T$ does not bound $P(\tau<\infty)$ (Online Example E.3).
+# * **Eventual risk.** A small $q_\beta$ or a certificate at one $T$ does not bound $P(\tau<\infty)$ (the paper's example *Delay without eventual feasibility*).
 #   With bounded costs and cost discounts below one, a reserve above $\bar g_k/(1-\gamma_k)$ can never fail again, and
 #   $P(\tau<\infty)\le p_T+P(E_T)$ with both terms observable from $T+1$ actions: `certificates.eventual_risk_structural`.
 

@@ -1,4 +1,4 @@
-"""The solvable flow of the paper (Online Appendix E.1 and Sections 6.3, 6.5), numpy only.
+"""The solvable flow of the paper (its solvable-flow example, the convergence test and the roles study), numpy only.
 
 One physical state coordinate x uniform on [0, 1], action a in [0, 1] with a uniform action reference,
 utility u = a at the first action and zero after, a first cost g = 1 - a + eps x against the budget b = 1
@@ -165,7 +165,7 @@ def simulate_particles(model: PlateauModel, kappa1: float, kappa2: float, *, n: 
     return ParticleRun(np.array(T), np.array(V), np.array(Q), np.array(S), x)
 
 
-PAPER_ROLES_TABLE = [  # (regularizer, kappa1, kappa2, final V_m, final spread, predicted spread): Online Table K.1
+PAPER_ROLES_TABLE = [  # (regularizer, kappa1, kappa2, final V_m, final spread, predicted spread): the paper's roles table
     ("relative entropy", 0.1, 0.0, -1.9644, 2.288, 1.000),
     ("relative entropy", 1.0, 0.0, -2.2176, 1.071, 1.000),
     ("potential", 0.0, 1.0, -2.2533, 0.000, 0.000),

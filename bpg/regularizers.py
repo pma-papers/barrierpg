@@ -1,15 +1,15 @@
-"""Choosing regularizers and reading their effects (Sections 3.5, 4 and 6.4-6.5 of the paper).
+"""Choosing regularizers and reading their effects.
 
 Two regularizers act on different objects.
 
 The action relative entropy (weight eta) is a reward term on the action law. It holds the policy near an
 action reference rho and keeps the trajectory risk within kl(q || q_rho) <= A of the reference's
-(Proposition 3.4). It convexifies the action-law problem but not the network's, so the convergence budget
+('Action regularization and trajectory risk'). It convexifies the action-law problem but not the network's, so the convergence budget
 credits it with no curvature and charges it the deficit eta C_A.
 
 The parameter regularizer (strength kappa) acts on the law of the network's units. It supplies the
-curvature that makes the population flow converge (Theorem 4.3), and its bias is toward the prior policy,
-whose risk and utility the learner inherits (Section 4.2). In the particle form of the flow its parts play
+curvature that makes the population flow converge ('Fixed-stage population convergence'), and its bias is toward the prior policy,
+whose risk and utility the learner inherits ('The prior and the particle form of the flow'). In the particle form of the flow its parts play
 different roles: a divergence injects noise into every unit's parameters, the prior's potential and any
 added potential pull them toward a reference, and an integrand of faster growth limits how far the law
 spreads (bpg.roles). Relative entropy alone ties noise and pull to one strength; admissible regularizers
@@ -112,7 +112,7 @@ def advise_regularizers(spec: BudgetSpec, stage: Stage, *, action_reference_trus
                                 "(fit_actor_mean), covering every parameter that shapes the policy, the dispersion included (set_log_std)",
                                 "an incumbent is in operation: the anchor holds the learner near it in parameter space with the curvature the action anchor "
                                 "lacks; a prior on the mean network alone leaves the dispersion free and the learner escapes through it",
-                                f"Section 4.2; {cite('gaussian_prior')}; {cite('anchor_study')}"))
+                                f"{cite('particle')}; {cite('gaussian_prior')}; {cite('anchor_study')}"))
         C.append("the learner inherits the prior policy's risk and utility, not the incumbent rule's: the actor at theta_0 with the learner's default "
                  "dispersion is a different policy from the rule (several times the rule's breakdowns in the paper's study); match the dispersion and "
                  "evaluate the prior policy as a candidate before training")
@@ -120,15 +120,15 @@ def advise_regularizers(spec: BudgetSpec, stage: Stage, *, action_reference_trus
         R.append(Recommendation("prior", "a prior inducing the risk-free or hard-feasible policy (p_T(Gamma) = 0)",
                                 "a risk-free policy exists: the bias then lowers risk outright, and learning improves on that policy within a risk slack "
                                 "of order kappa^(-1/2)",
-                                f"Section 4.2; {cite('prior_improvement')}"))
+                                f"{cite('particle')}; {cite('prior_improvement')}"))
     else:
         R.append(Recommendation("prior", "the centering construction: center the feature at the prior so that the prior policy is the action reference rho",
                                 "nothing is trusted: the neutral prior toward which the parameter regularizer and the action relative entropy pull alike, "
                                 "differing only in geometry",
-                                f"{cite('centering')}; Section 4.2"))
+                                f"{cite('centering')}; {cite('particle')}"))
     R.append(Recommendation("prior policy", "evaluate the policy the prior induces as a candidate before training (its q_beta, U, near-exhaustion)",
                             "the regularized solution inherits the prior policy's risk and utility; specify the prior as the policy accepted when learning gains nothing",
-                            f"Section 4.2; {cite('prior_improvement')}"))
+                            f"{cite('particle')}; {cite('prior_improvement')}"))
     # --- strength ------------------------------------------------------------------------
     if optimizer_well_behaved_without_regularizer:
         R.append(Recommendation("strength kappa", "small or zero: the smallest kappa at which the optimizer is well behaved",
@@ -149,7 +149,7 @@ def advise_regularizers(spec: BudgetSpec, stage: Stage, *, action_reference_trus
     # --- roles: noise, pull, spread --------------------------------------------------------
     if stalls_where_gradient_vanishes:
         R.append(Recommendation("noise", "inject parameter noise of variance 2 kappa1 x lr after each optimizer step (ParameterNoise), with an anchor kappa2 "
-                                "holding the units; sweep kappa1 and measure the per-parameter spread",
+                                "holding the units; vary kappa1 and measure the per-parameter spread",
                                 "a regularizer without noise cannot move units off a region where the value gradient vanishes: a potential alone collapses the "
                                 "units to the prior's center and never leaves the plateau; noise lets them reach where the feature acts. Under Adam the measured "
                                 "spread was proportional to kappa1, and seeds split once it approached the policy's dispersion",
@@ -283,7 +283,7 @@ def regularizer_effects(spec: BudgetSpec, stage: Stage, candidate: Dict, *, acti
         E.lines.append(f"inheritance: candidate minus prior policy, q_beta {dq:+.4g} (se {se_q:.2g}), U {dU:+.4g} (se {se_U:.2g}); "
                        + ("the candidate sits at the prior policy within sampling error: the regularization returned the prior (no learning gain)"
                           if at_prior else "the candidate has moved from the prior policy toward the unregularized optimum")
-                       + f" [Section 4.2; {cite('prior_improvement')}]")
+                       + f" [{cite('particle')}; {cite('prior_improvement')}]")
         if "V_m" in candidate and "V_m" in prior_policy and candidate["V_m"] < prior_policy["V_m"] - 2 * np.hypot(candidate.get("V_se", 0.0), prior_policy.get("V_se", 0.0)):
             E.flags.append("the candidate's clipped value is below the prior policy's: for the population flow started at the prior the clipped value never falls "
                            f"below the prior's [{cite('prior_improvement')}]; check the price, the optimization and the candidate's dispersion")
@@ -313,7 +313,7 @@ def regularizer_effects(spec: BudgetSpec, stage: Stage, candidate: Dict, *, acti
     if stage.eta > 0 and stage.kappa > 0:
         E.joint = ("both anchors act: the action term pulls the action law toward rho, the parameter term pulls the unit law toward pi_Gamma"
                    + ("; under the centering construction these coincide, so the two pulls have one target and differ only in geometry" if centered else
-                      "; without centering the two targets differ and the learner settles between them")
+                      "; without centering the two targets differ and the learner ends between them")
                    + "; the biases add in every certificate and the action term adds eta C_A to the curvature the parameter term must supply")
         E.lines.append("joint effect: " + E.joint + f" [{cite('centering')}; {cite('flow')}]")
     return E

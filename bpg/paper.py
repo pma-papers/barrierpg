@@ -1,15 +1,18 @@
-"""Where each result lives in the paper: one registry, so a renumbering is a one-file edit.
+"""The paper's results, cited by name.
 
-The toolbox cites every bound it returns. Statement numbers change between revisions of a
-manuscript, so all citations go through `cite`, which joins the number of the current revision
-with the statement's name. `RESULTS` maps a stable key to (number, name); `PAPER` describes the
-revision the numbers refer to.
+The toolbox cites the result behind every bound it returns. Statement numbers change between revisions of a
+manuscript, so the toolbox never prints or documents them. It cites each result by the title the paper gives it
+(for example "Fixed price of failure risk"), which is searchable in any revision, and names parts of a statement
+by what they say (for example "price-risk law"). All citations go through `cite`:
 
     >>> cite("fixed_price", "ii")
-    'Proposition 3.3(ii) (Fixed price of failure risk: price-risk law)'
+    "paper, 'Fixed price of failure risk' (price-risk law)"
 
-Results marked `supplementary` are proved in `docs/supplementary-results.md` of the toolbox and
-are not stated in the paper's current revision.
+`RESULTS` maps a stable key to (kind, title). The kind (proposition, theorem, remark, ...) is kept for the results
+map only; it is never printed, since a revision may also change a statement's kind. `PAPER["checked_against"]`
+records the last revision of the paper against which the toolbox's statements were checked.
+
+Results marked "toolbox" are proved in `docs/supplementary-results.md` and are not stated in the paper.
 """
 from __future__ import annotations
 
@@ -18,63 +21,69 @@ from typing import Dict, Optional, Tuple
 PAPER = dict(
     title="The Price of Failure Risk: Clipped Barrier Policy Gradients with Convex Regularization",
     authors="Pekka Malo, Lauri Viitasaari, Antti Suominen, Eeva Vilkkumaa, Olli Tahvonen",
-    revision=62,
-    date="2026-10-12",
+    checked_against="revision 65 (2026-10-13)",
 )
 
-# key -> (number in the current revision, name of the statement)
+# key -> (kind, title in the paper)
 RESULTS: Dict[str, Tuple[str, str]] = {
-    # Section 1
-    "when_to_use": ("Section 1.2", "When to use the bounded barrier, and when another method"),
-    # Section 2
-    "model": ("Section 2", "Budgets and the clipped-barrier mechanism"),
-    "risk_floor": ("Section 2.3", "risk floor of a bounded-score class"),
-    # Section 3
-    "running_example": ("Section 3.1", "Running example: an operating rate and a wear allowance"),
-    "value_certificate": ("Proposition 3.1", "Value and objective certificates"),
-    "identity": ("Section 3.3", "clipping identity V_m = U - I_m - m q_beta/(1-beta)"),
-    "matched_risk": ("Theorem 3.2", "Matched-risk performance comparison"),
-    "fixed_price": ("Proposition 3.3", "Fixed price of failure risk"),
-    "dual_unbounded": ("Section 3.4", "a prescribed level below the risk floor is unattainable"),
-    "action_risk": ("Proposition 3.4", "Action regularization and trajectory risk"),
-    # Section 4
-    "admissible": ("Definition 4.1", "Admissible parameter regularizer"),
-    "admissible_families": ("Proposition 4.2", "Admissible families"),
-    "flow": ("Theorem 4.3", "Fixed-stage population convergence"),
-    "learning_error": ("Corollary 4.4", "Learning error and budget risk"),
-    "prior_improvement": ("Remark 4.5", "Improvement over the prior policy"),
-    "bias": ("Remark 4.6", "The regularization bias is priced and detected"),
-    "particle": ("Section 4.2", "particle form of the flow"),
-    "finite_training": ("Proposition 4.7", "Finite-network training under a potential"),
-    "gaussian_prior": ("Remark 4.8", "The Gaussian prior as entropy, weight decay, and a policy"),
-    "centering": ("Section 4.1", "centering the features at the prior"),
-    # Section 5
-    "transfer": ("Theorem 5.1", "Population-to-network transfer"),
-    "algorithm": ("Algorithm 1", "Fixed-stage learning and independent deployment validation"),
-    "validation": ("Section 5.2", "Validate the deployed candidate at its specified horizon"),
-    # Section 6
-    "wear_study": ("Section 6.1", "the wear-allowance study"),
-    "lunar_study": ("Section 6.2", "the fuel-tank study"),
-    "flow_test": ("Section 6.3", "the solvable flow"),
-    "anchor_study": ("Section 6.4", "The prior on a learned controller"),
-    "roles": ("Section 6.5", "The roles of the regularizers"),
-    "application": ("Section 6.6", "the emissions application"),
-    # Section 7
-    "guidance": ("Section 7.1", "Using the bounded barrier"),
-    "scope": ("Section 7.2", "Scope of the guarantees"),
-    # Appendix B
-    "curvature_constants": ("Proposition B.1", "Value and action-law curvature"),
-    # Online appendix
-    "weight_decay": ("Online Remark F.1", "Potential regularizers and weight decay"),
-    "collapse": ("Online Remark F.2", "Collapse under a potential alone"),
-    "action_slack": ("Online Proposition F.3", "second risk slack with the action relative entropy"),
-    "first_variations": ("Online Proposition E.2", "First variations"),
-    "delay_example": ("Online Example E.3", "Delay without eventual feasibility"),
-    "price_sequence": ("Online Proposition E.4", "Price sequences reaching a tolerance"),
-    "toolbox_appendix": ("Online Appendix M", "The companion toolbox"),
-    # Supplementary results of the toolbox, not in the current revision
-    "near_exhaustion": ("supplementary", "near-exhaustion certificate"),
-    "eventual_risk": ("supplementary", "structural certificate for eventual risk"),
+    # the problem and the model
+    "problem": ("section", "The problem"),
+    "related_requirements": ("section", "Related requirements, and what a price adds"),
+    "when_to_use": ("section", "Which formulation to prefer"),
+    "model": ("section", "Budgets and the clipped-barrier mechanism"),
+    "risk_floor": ("section", "The represented class"),
+    # risk certificates and performance comparisons
+    "running_example": ("section", "Running example: an operating rate and a wear allowance"),
+    "value_certificate": ("proposition", "Value and objective certificates"),
+    "failure_time": ("remark", "The geometric risk as a risk measure of the failure time"),
+    "identity": ("section", "Utility at the attained risk level"),
+    "matched_risk": ("theorem", "Matched-risk performance comparison"),
+    "fixed_price": ("proposition", "Fixed price of failure risk"),
+    "fixed_price_section": ("section", "The fixed price of failure risk"),
+    "action_risk": ("proposition", "Action regularization and trajectory risk"),
+    # convergence and the prior
+    "admissible": ("definition", "Admissible parameter regularizer"),
+    "admissible_families": ("proposition", "Admissible families"),
+    "flow": ("theorem", "Fixed-stage population convergence"),
+    "learning_error": ("corollary", "Learning error and budget risk"),
+    "prior_improvement": ("remark", "Improvement over the prior policy"),
+    "bias": ("remark", "The regularization bias is priced and detected"),
+    "particle": ("section", "The prior and the particle form of the flow"),
+    "finite_training": ("proposition", "Finite-network training under a potential"),
+    "gaussian_prior": ("remark", "The Gaussian prior as entropy, weight decay, and a policy"),
+    "centering": ("section", "Improvement relative to the prior policy"),
+    "curvature_constants": ("proposition", "Value and action-law curvature"),
+    "weight_decay": ("remark", "Potential regularizers and weight decay"),
+    "collapse": ("remark", "Collapse under a potential alone"),
+    "action_slack": ("proposition", "Improvement over the prior policy (its proof, with the action relative entropy)"),
+    "first_variations": ("proposition", "First variations"),
+    # deployment and validation
+    "transfer": ("theorem", "Population-to-network transfer"),
+    "algorithm": ("algorithm", "Fixed-stage learning and independent deployment validation"),
+    "validation": ("section", "Validate the deployed candidate at its specified horizon"),
+    # related formulations (online appendix)
+    "frontier_support": ("proposition", "The price supports the frontier"),
+    "one_shot": ("lemma", "The one-shot equivalent"),
+    "penalties": ("proposition", "Chance, time and overshoot penalties"),
+    "cvar_multiplier": ("proposition", "The price as a CVaR multiplier"),
+    "cvar_failure_time": ("proposition", "CVaR of the failure time"),
+    "delay_example": ("example", "Delay without eventual feasibility"),
+    "price_sequence": ("proposition", "Price sequences reaching a tolerance"),
+    # the studies
+    "wear_study": ("study", "the wear-allowance study"),
+    "lunar_study": ("study", "the fuel-tank study"),
+    "flow_test": ("study", "the solvable flow"),
+    "anchor_study": ("study", "the parameter-anchor study"),
+    "roles": ("study", "the roles of the regularizers"),
+    "application": ("study", "the emissions application"),
+    "benchmark_suite": ("study", "the benchmark-suite study"),
+    # practice
+    "guidance": ("section", "Using the bounded barrier"),
+    "scope": ("section", "Scope of the guarantees"),
+    "toolbox_appendix": ("section", "The companion toolbox"),
+    # supplementary results of the toolbox
+    "near_exhaustion": ("toolbox", "near-exhaustion certificate"),
+    "eventual_risk": ("toolbox", "structural certificate for eventual risk"),
 }
 
 FIXED_PRICE_PARTS = {"i": "optimality at the attained risk", "ii": "price-risk law",
@@ -82,26 +91,24 @@ FIXED_PRICE_PARTS = {"i": "optimality at the attained risk", "ii": "price-risk l
 
 
 def cite(key: str, part: Optional[str] = None) -> str:
-    """'Number(part) (Name: part name)' for a registered result; supplementary results say so."""
-    number, name = RESULTS[key]
-    if number == "supplementary":
-        return f"{name} (toolbox supplementary result, docs/supplementary-results.md)"
+    """The citation printed with a bound: the paper's title for the result, and the name of the part if given.
+    Parts of 'Fixed price of failure risk' may be given as i, ii, iii, iv; they are printed by name."""
+    kind, title = RESULTS[key]
+    if kind == "toolbox":
+        return f"toolbox, {title} (docs/supplementary-results.md)"
+    where = f"paper, {title}" if kind == "study" else f"paper, '{title}'"
     if part is None:
-        return f"{number} ({name})"
+        return where
     label = FIXED_PRICE_PARTS.get(part, part) if key == "fixed_price" else part
-    return f"{number}({part}) ({name}: {label})"
-
-
-def number(key: str) -> str:
-    return RESULTS[key][0]
+    return f"{where} ({label})"
 
 
 def results_table() -> str:
-    """Markdown table of every registered result, for the documentation."""
-    rows = ["| Key | Paper | Statement |", "|---|---|---|"]
-    for k, (n, name) in RESULTS.items():
-        rows.append(f"| `{k}` | {n} | {name} |")
+    """Markdown table of every registered result (key, kind, title), for the documentation."""
+    rows = ["| Key | Kind | Title in the paper |", "|---|---|---|"]
+    for k, (kind, title) in RESULTS.items():
+        rows.append(f"| `{k}` | {kind} | {title} |")
     return "\n".join(rows)
 
 
-__all__ = ["PAPER", "RESULTS", "cite", "number", "results_table"]
+__all__ = ["PAPER", "RESULTS", "FIXED_PRICE_PARTS", "cite", "results_table"]

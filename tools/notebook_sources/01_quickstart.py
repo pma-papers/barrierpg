@@ -21,7 +21,7 @@ from bpg import BudgetSpec, Requirement, Stage, plan, evaluate, interpret, LogBa
 from bpg.examples.wear import WearModel, make_wear_env, idle_policy, IncumbentRule, EXACT_FRONTIER, EXACT_BARRIER
 
 plt.rcParams.update({"figure.dpi": 110, "axes.spines.top": False, "axes.spines.right": False, "font.size": 10})
-print("bpg", bpg.__version__, "| paper revision", bpg.PAPER["revision"])
+print("bpg", bpg.__version__, "| checked against the paper's", bpg.PAPER["checked_against"])
 
 # %% [markdown]
 # ## The problem: an asset operated under a wear allowance
@@ -31,7 +31,7 @@ print("bpg", bpg.__version__, "| paper revision", bpg.PAPER["revision"])
 # before the next maintenance access is a **breakdown**. Maintenance access arrives with probability
 # $1-\beta=0.05$ per period, so the **geometric risk** $q_\beta=\mathbb E[\beta^\tau 1\{\tau<\infty\}]$ is
 # exactly the probability of a breakdown before access. Standing still never fails and earns nothing;
-# every positive rate can fail, because the wear shock is unbounded. This is the paper's running example (Section 3.1).
+# every positive rate can fail, because the wear shock is unbounded. This is the paper's running example.
 #
 # `BudgetSpec` states the budget, the utility discount $\beta$ and a valid upper bound $\bar u$ on the one-step
 # utility. Every certificate needs $\bar u$.
@@ -93,18 +93,22 @@ print("largest per-episode difference:", float(np.max(np.abs(ev.clipped_returns 
 # shared by a **family** of statements.
 #
 # `plan` turns this into a configuration with reasons. It derives a conservative starting price from the
-# **price–risk law** (Proposition 3.3(ii)), using a comparison policy that never fails (standing still) and an upper
-# bound on the utility at stake. It also sizes the validation sample and lists the conditions of Section 1.2
-# under which another method is the better choice.
+# **price–risk law** (a part of the paper's *Fixed price of failure risk*), using a comparison policy that never fails
+# (standing still) and an upper bound on the utility at stake. It also sizes the validation sample and states the
+# cases of the paper's *Which formulation to prefer* in which another method is the better choice.
 
 # %%
 req = Requirement(T=19, alpha=0.05, zeta=0.05, family=6)   # six candidates will be inspected
 sup_U = EXACT_FRONTIER[0.0][1]          # utility of the unpriced optimum: an upper bound on the utility at stake
 p = plan(spec, req, sup_U=sup_U, expected_failure_rate=0.01, validation_H=300, validation_N=20000,
-         allowance_error_known=False, failure_permissible_at_deployment=True, structured_solution_available=False)
+         allowance_error_known=False, failure_permissible_at_deployment=True, model_known_and_small=True)
 print(p.explain())
 
 # %% [markdown]
+# The plan flags one case honestly: this model is known and small, and the paper solves it exactly by dynamic
+# programming, so for this problem the exact program is the better choice. Here it serves as the benchmark against
+# which the candidates are measured; the workflow below is the one for problems without such a solution.
+#
 # The conservative price is large because the law charges the entire utility at stake to the risk. It is a safe
 # start, not the price to aim for: the certificates and validation bound the risk actually attained, and in the
 # wear study the law was conservative by a factor of twenty to thirty. Below we use the price $m=1$.
@@ -115,8 +119,8 @@ print(p.explain())
 # A **candidate** is one fixed policy that may be deployed. Here the candidates are hand-made rules: standing
 # still, and rules that run at a rate proportional to the remaining allowance, $a=\min\{1, z/(\text{span}\cdot b)\}$.
 # The **exact frontier** is the set of (risk, utility) pairs of the exact optima of the failure-only price as $m$
-# varies, computed by dynamic programming in the paper (Section 6.1). Proposition 3.3(i) says every fixed-price
-# optimum lies on it: it is optimal at the risk it attains.
+# varies, computed by dynamic programming in the paper. By *Fixed price of failure risk* every fixed-price optimum
+# lies on it: it is optimal at the risk it attains.
 
 # %%
 stage = Stage(m=1.0)
@@ -151,13 +155,13 @@ ax.legend(fontsize=8, loc="lower right"); plt.tight_layout(); plt.show()
 # ## The price–risk law on the exact solutions
 #
 # `frontier.check_runs` compares runs at several prices with the price–risk law and with monotonicity in the price
-# (Proposition 3.3(ii)–(iii)). With exact optimizers the optimization error is zero.
+# (the price–risk law and monotonicity in the price). With exact optimizers the optimization error is zero.
 
 # %%
 from bpg.frontier import Run, check_runs
 runs = [Run(m=mm, q_beta=q, U=U, label="exact") for mm, (q, U) in EXACT_FRONTIER.items() if mm > 0]
 chk = check_runs(runs, beta=spec.beta, sup_U=sup_U, delta=0.0)
-print("consistent with Proposition 3.3:", chk.consistent)
+print("consistent with the fixed-price results:", chk.consistent)
 ms = np.array([r["m"] for r in chk.table]); qs = np.array([r["q_beta"] for r in chk.table]); law = np.array([r["law_bound"] for r in chk.table])
 fig, ax = plt.subplots(figsize=(5, 3.2))
 ax.loglog(ms, qs, "o-", color="0.2", label="exact breakdown probability")

@@ -15,9 +15,9 @@ from bpg.examples.wear import WearModel, IncumbentRule, make_wear_env
 
 
 def test_registry():
-    assert cite("fixed_price", "ii").startswith("Proposition 3.3(ii)") and "price-risk law" in cite("fixed_price", "ii")
-    assert cite("flow").startswith("Theorem 4.3") and cite("finite_training").startswith("Proposition 4.7")
-    assert cite("action_risk").startswith("Proposition 3.4") and cite("learning_error").startswith("Corollary 4.4")
+    assert cite("fixed_price", "ii") == "paper, 'Fixed price of failure risk' (price-risk law)"
+    assert cite("flow") == "paper, 'Fixed-stage population convergence'" and "Finite-network training" in cite("finite_training")
+    assert "Action regularization and trajectory risk" in cite("action_risk") and "Learning error and budget risk" in cite("learning_error")
     assert "supplementary" in cite("near_exhaustion")
     assert results_table().count("\n") == len(RESULTS) + 1
 
@@ -65,7 +65,7 @@ def test_regularizer_mix():
         assert abs(kappa1_for_spread(s, 10.0) - k1) < 5e-4
     assert abs(adam_stationary_spread(0.1) - 0.1 * math.sqrt(2)) < 1e-12
     assert abs(mix.noise_std_per_step(3e-4) - math.sqrt(2 * 0.101 * 3e-4)) < 1e-15
-    assert "Online Remark F.2" in RegularizerMix(kappa2=1.0).explain()
+    assert "Collapse under a potential alone" in RegularizerMix(kappa2=1.0).explain()
 
 
 def test_new_certificates():
@@ -76,13 +76,13 @@ def test_new_certificates():
     fl = C.risk_floor(p_T_reference=0.1, L0=0.5, T=3)
     assert abs(fl.value - math.exp(-4.0) * 0.1) < 1e-15
     assert not C.prescribed_level_attainable(0.001, fl.value)["attainable"]
-    # Corollary 4.4 slack: the larger of the two forms
+    # the learning-error slack: the larger of the two forms
     d = C.learning_slack(m=1.0, ubar=1.0, beta=0.95, alpha=0.05, T=0, q_bar=0.0, U_bar=2.0, I_bar=0.1, R_bar=0.2, sup_U=5.0)
     d1 = 1.0 * 0.05 / 0.05 - (5.0 - 2.0 + 0.1 + 0.2); d2 = 2.0 * 0.05 / 0.05 - (1.0 / 0.05 - 2.0 + 0.1 + 0.2)
     assert abs(d - max(d1, d2)) < 1e-12
     lr = K.learning_risk_bound(0.5, m=1.0, beta=0.95, ubar=1.0, q_bar=0.0, U_bar=2.0, I_bar=0.1, R_bar=0.2, E0=3.0, Lambda=2.0, sup_U=5.0)
     lf = C.learning_form_risk(1.0, 0.95, 1.0, 0.0, 2.0, 0.1, 0.2, 3.0 * math.exp(-2.0), sup_U=5.0)
-    assert abs(lr.value - lf.value) < 1e-12 and lr.source.startswith("Corollary 4.4")
+    assert abs(lr.value - lf.value) < 1e-12 and "Learning error and budget risk" in lr.source
     ft = K.finite_training_transfer(0.3, Lambda=-1.0, ell=2.0, m=1.0, ubar=1.0, beta=0.9, B1=0.5)
     assert abs(ft["W2"] - 0.3 * math.exp(2.0)) < 1e-12 and abs(ft["risk"] - 0.5 / 0.2 * ft["W2"]) < 1e-12
     assert abs(ft["value"] - 2.0 * 0.5 / (2 * 0.01) * ft["W2"]) < 1e-9
@@ -103,7 +103,7 @@ def test_price_sequence_on_the_application():
     ppo = price_sequence_check(F, [0.79, 1.51, 3.77, 7.55, 12.07])         # the paper's PPO shortfalls
     sac = price_sequence_check(F, [0.93, 1.59, 1.35, 3.43, 2.78])          # and SAC's
     assert not ppo.shrinking and sac.shrinking and ppo.loglog_slope > 0.9
-    assert "not the remedy" in ppo.explanation and "Online Proposition E.4" in sac.explanation
+    assert "not the remedy" in ppo.explanation and "Price sequences reaching a tolerance" in sac.explanation
     empty = price_sequence_check([0.5, 2.0, 8.0], [0.0, 0.0, 0.0])
     assert not empty.informative and "says nothing" in empty.explanation
 
@@ -139,16 +139,18 @@ def test_plan_conditions_and_multiplier_stage():
     spec = BudgetSpec(budgets=[31.7], beta=1 - 1e-6, ubar=0.0, u_minus=4.78, horizon=52)
     req = Requirement(T=51, alpha=0.05, zeta=0.05, family=48)
     st = Stage(m=0.0, penalty="multiplier", multiplier=50.0, clip_utility=False)
-    p = plan(spec, req, sup_U=0.0, comparator=dict(U0=-5.27, I0=0.0, q0=0.0131), stage=st, structured_solution_available=True)
+    p = plan(spec, req, sup_U=0.0, comparator=dict(U0=-5.27, I0=0.0, q0=0.0131), stage=st, model_known_and_small=True)
     assert p.price_bound.name.startswith("flat penalty") and p.another_method_preferable
     txt = p.explain()
-    assert "flat failure penalty nu = 50" in txt and "charged once" in txt and "[APPLIES] the problem can be solved by a dynamic program" in txt
-    assert "Section 1.2" in txt
+    assert "flat failure penalty nu = 50" in txt and "charged once" in txt and "[APPLIES] the model is known and small" in txt
+    assert "Which formulation to prefer" in txt
     p2 = plan(BudgetSpec(budgets=[22.0], beta=0.999, ubar=100.0, u_minus=100.0, horizon=1000), Requirement(T=999, alpha=0.05),
-              stage=Stage(m=2.0, clip_utility=False), task_stakes=100.0)
+              stage=Stage(m=2.0, clip_utility=False), episode_earnings=100.0)
     assert any("ten times" in w for w in p2.warnings)
     p3 = plan(BudgetSpec(budgets=[1.0], beta=0.95, ubar=1.0), Requirement(T=19, alpha=0.0), sup_U=5.4)
-    assert p3.conditions[0].applies
+    assert p3.conditions[0].applies is None and any("needs a known controlled-invariant set" in w for w in p3.warnings)
+    p4 = plan(BudgetSpec(budgets=[1.0], beta=0.95, ubar=1.0), Requirement(T=19, alpha=0.0), sup_U=5.4, controlled_invariant_set_known=True)
+    assert p4.conditions[0].applies
 
 
 def test_effects_noise_and_inheritance():
@@ -162,4 +164,33 @@ def test_effects_noise_and_inheritance():
     e2 = regularizer_effects(spec, st, dict(q_beta=0.506, U=5.24), noise_kappa1=0.101, spread=1.5)
     assert any("abandons the prior" in f for f in e2.flags)
     a = advise_regularizers(spec, st, stalls_where_gradient_vanishes=True)
-    assert "noise" in a.mechanisms() and "Online Remark F.2" in a.explain()
+    assert "noise" in a.mechanisms() and "Collapse under a potential alone" in a.explain()
+
+
+NUMBERED = __import__("re").compile(r"(Proposition|Theorem|Corollary|Remark|Definition|Example|Lemma|Algorithm|Table|Figure|Appendix|Section)s? "
+                                    r"[A-Z]?\.?[0-9]|\(P[0-9]+\)|equation \(")
+
+
+def test_no_statement_numbers_in_printed_text():
+    """The toolbox cites results by name only: no printed citation, plan or report carries a statement number."""
+    from bpg.paper import RESULTS
+    texts = [cite(k) for k in RESULTS] + [cite("fixed_price", p) for p in ("i", "ii", "iii", "iv")]
+    spec = BudgetSpec(budgets=[1.0], beta=0.95, ubar=1.0)
+    p = plan(spec, Requirement(T=19, alpha=0.05), sup_U=5.4, stage=Stage(m=1.0, kappa=1.0, eta=0.1), allowance_error_known=False,
+             features=K.FeatureConstants.tanh_unit(1.0, 2.0), lambda_H=1.0,
+             regularizers=dict(incumbent_available=True, prior_sigma=1.0, stalls_where_gradient_vanishes=True))
+    texts.append(p.explain())
+    texts.append(RegularizerMix(kappa1=0.1, kappa2=1.0).explain())
+    model = WearModel(); st = Stage(m=1.0)
+    ev = evaluate(lambda: make_wear_env(st, model), IncumbentRule(seed=1), 300, spec=model.spec(), stage=st, seed=2, T=19)
+    from bpg import interpret
+    texts.append(interpret(model.spec(), Requirement(T=19, alpha=0.05), st, ev, sup_U=5.4, delta=0.1).text())
+    for t in texts:
+        hit = NUMBERED.search(t)
+        assert hit is None, (hit.group(0), t[max(0, hit.start() - 60):hit.end() + 40])
+
+
+def test_earliest_failures_time():
+    b = C.earliest_failures_time(q_beta=0.01, beta=0.95, eps=0.5)
+    assert abs(b.value - math.log(50.0) / math.log(1 / 0.95)) < 1e-12 and "risk measure of the failure time" in b.source
+    assert C.earliest_failures_time(0.6, 0.95, 0.5).value == 0.0

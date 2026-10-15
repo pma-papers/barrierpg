@@ -1,12 +1,12 @@
 """Convergence: the curvature budget of the population flow, and diagnostics for finite learners.
 
-Part 1 (population flow, Section 4 of the paper). The clipped value and the action relative entropy
+Part 1 (population flow; the paper's 'Convergence under general convex regularization'). The clipped value and the action relative entropy
 fall short of convex along transport by at most C_m + eta C_A, their curvature deficit; an admissible
 parameter regularizer supplies the curvature kappa lambda_H. The curvature budget is
 
     Lambda_m = kappa lambda_H - C_m - eta C_A,
 
-and when it is positive the population flow converges exponentially (Theorem 4.3): W2 at rate
+and when it is positive the population flow converges exponentially ('Fixed-stage population convergence'): W2 at rate
 Lambda_m, the objective gap at rate 2 Lambda_m. The deficits are computed from bounds on how fast the
 policy kernel and its relative entropy to the action reference change when the units move (Proposition
 B.1): B1, B2 for the kernel, K0, K1, K2 for the relative entropy. The softmax class has B1 = L1,
@@ -20,7 +20,7 @@ and at the threshold the minimizer lies close to the prior. Set the strength for
 theorem explains the mechanism (a curvature budget), it does not certify the strengths used in practice.
 
 Part 2 (finite learners). What a practitioner can measure: the decay of an objective gap, the absence
-of a trend in the last part of a trace, the settling or runaway of an adaptive multiplier, and the
+of a trend in the last part of a trace, whether an adaptive multiplier converges or increases without bound, and the
 dispersion across seeds. These are evidence about one optimizer run, not instances of the theorem.
 """
 from __future__ import annotations
@@ -40,7 +40,7 @@ from .spec import price_from_multiplier
 # ---------------------------------------------------------------------------------------------
 @dataclass(frozen=True)
 class KernelConstants:
-    """Bounds of Proposition B.1 along every coupling interpolation of the units, D the coupling distance:
+    """Bounds of 'Value and action-law curvature' along every coupling interpolation of the units, D the coupling distance:
     ||d/dt pi|| <= B1 D, ||d2/dt2 pi|| <= B2 D^2 (total variation, uniform over states), and for the
     statewise relative entropy k to the action reference: 0 <= k <= K0, |dk| <= K1 D, |d2k| <= K2 D^2.
     Any policy class with these bounds is covered by the convergence theorem after its own verification."""
@@ -52,14 +52,14 @@ class KernelConstants:
 
     @staticmethod
     def from_softmax(fc: "FeatureConstants") -> "KernelConstants":
-        """The softmax class (2.3) with feature bounds L0, L1, L2 (Assumption 1(a))."""
+        """The paper's softmax class with feature bounds L0, L1, L2 (the feature assumption)."""
         return KernelConstants(B1=fc.L1, B2=2.0 * (fc.L2 + fc.L1 ** 2), K0=2.0 * fc.L0, K1=fc.L0 * fc.L1,
                                K2=fc.L0 * fc.L2 + (1.0 + 2.0 * fc.L0) * fc.L1 ** 2)
 
 
 @dataclass(frozen=True)
 class FeatureConstants:
-    """Assumption 1(a) for the softmax class: |psi| <= L0, |grad_x psi| <= L1, ||hess_x psi|| <= L2."""
+    """The feature assumption for the softmax class: |psi| <= L0, |grad_x psi| <= L1, ||hess_x psi|| <= L2."""
     L0: float
     L1: float
     L2: float
@@ -85,7 +85,7 @@ Constants = Union[FeatureConstants, KernelConstants]
 
 
 def curvature_constants(constants: Constants, beta: float, m: float, ubar: float) -> Dict[str, float]:
-    """The deficits of Proposition B.1, with d = 1 - beta:
+    """The deficits of 'Value and action-law curvature', with d = 1 - beta:
         C_m = (m + ubar)/2 [B2/d^2 + 2 beta B1^2/d^3],
         C_A = K2/d + (beta B2 K0 + 2 beta B1 K1)/d^2 + 2 beta^2 B1^2 K0/d^3,
     and c_psi = C_m/(m + ubar). For softmax these are the closed forms in the module docstring."""
@@ -103,12 +103,12 @@ def curvature_constants(constants: Constants, beta: float, m: float, ubar: float
 def gaussian_prior_curvature(sigma: float) -> float:
     """lambda_W = sigma^-2 for the prior N(x0, sigma^2 I). Relative entropy to it is negative entropy of
     weight kappa plus weight decay toward x0 of weight kappa/sigma^2, so the rate depends on (kappa, sigma)
-    only through kappa/sigma^2 while the minimizer depends on both (Remark 4.8)."""
+    only through kappa/sigma^2 while the minimizer depends on both ('The Gaussian prior as entropy, weight decay, and a policy')."""
     return 1.0 / float(sigma) ** 2
 
 
 def supplied_curvature(kappa1: float = 0.0, lambda_W: float = 1.0, kappa2: float = 0.0, lambda_P: float = 1.0) -> float:
-    """kappa1 lambda_W + kappa2 lambda_P: a divergence of Proposition 4.2 with strength kappa1 plus a
+    """kappa1 lambda_W + kappa2 lambda_P: a divergence of the admissible families with strength kappa1 plus a
     lambda_P-convex potential with strength kappa2 is admissible with this curvature. The integrand of the
     divergence adds no curvature, so the rate and threshold are the same for every integrand."""
     return kappa1 * lambda_W + kappa2 * lambda_P
@@ -122,7 +122,7 @@ def tv_constant(kind: str = "kl", omega: float = 0.0) -> float:
 
 
 def rate(kappa: float, lambda_H: float, C_m: float, C_A: float = 0.0, eta: float = 0.0) -> float:
-    """Lambda_m = kappa lambda_H - C_m - eta C_A, the curvature budget (Theorem 4.3)."""
+    """Lambda_m = kappa lambda_H - C_m - eta C_A, the curvature budget of the convergence theorem."""
     return kappa * lambda_H - C_m - eta * C_A
 
 
@@ -140,7 +140,7 @@ def time_to_fraction(Lambda: float, fraction: float) -> float:
 
 @dataclass
 class CurvatureBudget:
-    """Everything Theorem 4.3 says for a given stage and actor class, in one place."""
+    """Everything the convergence theorem says for a given stage and actor class, in one place."""
     constants: Dict[str, float]
     supply: float
     kappa: float
@@ -158,7 +158,7 @@ class CurvatureBudget:
         lines = [f"curvature deficit: C_m = {c['C_m']:.4g} (clipped value), eta C_A = {self.eta * c['C_A']:.4g} (action relative entropy)",
                  f"curvature supplied by the parameter regularizer: {self.supply:.4g}",
                  f"budget Lambda_m = {self.Lambda:.4g}: " + ("certified; the objective gap decays like exp(-2 Lambda l), W2 like exp(-Lambda l)"
-                                                           if self.certified else "not certified by Theorem 4.3 (a sufficient condition; the flow may still converge)"),
+                                                           if self.certified else "not certified by the convergence theorem (a sufficient condition; the flow may still converge)"),
                  f"certified threshold (margin 1.05): kappa >= {self.kappa_certified:.4g} at curvature {self.lambda_H:.4g} per unit strength; "
                  "at that strength the minimizer lies close to the prior"]
         if self.certified:
@@ -179,15 +179,15 @@ def curvature_budget(constants: Constants, beta: float, m: float, ubar: float, k
 
 
 # ---------------------------------------------------------------------------------------------
-# Part 1: Corollary 4.4 (learning error and budget risk) and Proposition 4.7 (finite networks)
+# Part 1: learning error and budget risk; finite-network training under a potential
 # ---------------------------------------------------------------------------------------------
 def learning_risk_bound(ell: float, *, m: float, beta: float, ubar: float, q_bar: float, U_bar: float, I_bar: float,
                         R_bar: float, E0: float, Lambda: float, sup_U: Optional[float] = None, T: Optional[int] = None):
-    """Corollary 4.4: for the flow with Lambda_m > 0 at learning time ell, both bounds of Proposition 3.3(iv) hold
+    """'Learning error and budget risk': for the flow with Lambda_m > 0 at learning time ell, both bounds of the learning form hold
     with the learning error E0 exp(-2 Lambda ell) in place of delta and the comparison law's regularization cost R."""
     from .certificates import learning_form_risk
     if Lambda <= 0:
-        raise ValueError("Corollary 4.4 needs Lambda_m > 0")
+        raise ValueError("the learning-error bound needs Lambda_m > 0")
     b = learning_form_risk(m, beta, ubar, q_bar, U_bar, I_bar, R_bar, E0 * math.exp(-2.0 * Lambda * ell), sup_U=sup_U, T=T)
     b.source = cite("learning_error")
     b.inputs.update(ell=ell, E0=E0, Lambda=Lambda)
@@ -195,7 +195,7 @@ def learning_risk_bound(ell: float, *, m: float, beta: float, ubar: float, q_bar
 
 
 def learning_time_for_slack(E0: float, D: float, Lambda: float) -> float:
-    """Sufficient learning time ell >= [log(E0 / D)]_+ / (2 Lambda) for Corollary 4.4 to certify a target whose
+    """Sufficient learning time ell >= [log(E0 / D)]_+ / (2 Lambda) for the learning-error bound to certify a target whose
     slack is D > 0 (certificates.learning_slack); inf when D <= 0 or Lambda <= 0."""
     if D <= 0 or Lambda <= 0:
         return math.inf
@@ -211,7 +211,7 @@ def initial_gap_upper(J0: float, ubar: float, beta: float) -> float:
 
 def finite_training_transfer(W2_initial: float, Lambda: float, ell: float, *, m: float, ubar: float, beta: float,
                              B1: float) -> dict:
-    """Proposition 4.7: under a convex potential with Lipschitz gradient (weight decay, an anchor), noiseless
+    """'Finite-network training under a potential': under a convex potential with Lipschitz gradient (weight decay, an anchor), noiseless
     training of n units in continuous time IS the population flow from their empirical law, so
         W2(mu_n(ell), mu_ell) <= exp(-Lambda ell) W2(mu_n(0), mu_0)
     for every sign of Lambda, and the clipped values and geometric risks of the two laws differ by at most
@@ -226,18 +226,18 @@ def finite_training_transfer(W2_initial: float, Lambda: float, ell: float, *, m:
 
 
 # ---------------------------------------------------------------------------------------------
-# Part 1: improvement over the prior policy (Remark 4.5, Online Proposition F.3)
+# Part 1: improvement over the prior policy
 # ---------------------------------------------------------------------------------------------
 def risk_slack_from_prior(L0: float, T: int, c_H: float, R_Gamma: float, kappa: float) -> float:
     """p_T(mu_ell) <= p_T(Gamma) + (L0/2) sqrt((T+1) c_H R_Gamma / kappa) for the flow started at the prior, with
-    R_Gamma = ubar/(1-beta) - V_m(Gamma) (Remark 4.5; no sign condition on Lambda_m). The behavior lies far inside
+    R_Gamma = ubar/(1-beta) - V_m(Gamma) ('Improvement over the prior policy'; no sign condition on Lambda_m). The behavior lies far inside
     this slack (two to five orders of magnitude in the solvable flow): the learner inherits the prior policy's risk."""
     return 0.5 * L0 * math.sqrt((T + 1) * c_H * R_Gamma / kappa)
 
 
 def kappa_for_tolerance(L0: float, T: int, c_H: float, R_Gamma: float, alpha: float, alpha0: float) -> float:
     """kappa >= L0^2 (T+1) c_H R_Gamma / (4 (alpha - alpha0)^2) keeps every policy of the flow started at the prior
-    within p_T <= alpha when p_T(Gamma) = alpha0 < alpha (Online Proposition F.3)."""
+    within p_T <= alpha when p_T(Gamma) = alpha0 < alpha (the proof of 'Improvement over the prior policy')."""
     if alpha <= alpha0:
         return math.inf
     return L0 ** 2 * (T + 1) * c_H * R_Gamma / (4.0 * (alpha - alpha0) ** 2)
@@ -245,7 +245,7 @@ def kappa_for_tolerance(L0: float, T: int, c_H: float, R_Gamma: float, alpha: fl
 
 def action_slack_from_prior(R_Gamma: float, eta: float, beta: float, T: int) -> float:
     """|p_T(mu_ell) - p_T(Gamma)| <= sqrt(R_Gamma / (2 eta beta^T)) when eta > 0 and the action reference is the prior
-    policy (Online Proposition F.3); the smaller of the two slacks applies."""
+    policy (the same proof); the smaller of the two slacks applies."""
     if eta <= 0:
         return math.inf
     return math.sqrt(R_Gamma / (2.0 * eta * beta ** T))
@@ -281,13 +281,13 @@ class TrendTest:
     def explain(self, name: str = "quantity") -> str:
         if self.trend_detected:
             d = "rising" if self.slope_per_step > 0 else "falling"
-            return f"{name}: still {d} over the last {self.window} points (drift {self.relative_drift:.2%} of its level per window); not settled"
+            return f"{name}: still {d} over the last {self.window} points (drift {self.relative_drift:.2%} of its level per window)"
         return f"{name}: no trend detectable at two standard errors over the last {self.window} points (mean {self.mean:.4g}, noise sd {self.noise_sd:.3g})"
 
 
 def trend_test(values: Sequence[float], window: Optional[int] = None) -> TrendTest:
     """Ordinary least-squares slope over the last `window` points with its standard error; a trend is
-    'detected' when |slope| > 2 SE. Evidence that a run has settled, not proof of convergence."""
+    'detected' when |slope| > 2 SE. Evidence that a quantity has stopped changing, not proof of convergence."""
     y = np.asarray(values, dtype=float)
     y = y[np.isfinite(y)]
     n = len(y)
@@ -310,7 +310,7 @@ def trend_test(values: Sequence[float], window: Optional[int] = None) -> TrendTe
 
 @dataclass
 class MultiplierDiagnosis:
-    status: str                # 'settled', 'runaway', 'slack', 'drifting', 'short'
+    status: str                # 'stable', 'increasing', 'inactive', 'trending', 'off-target', 'short'
     final_multiplier: float
     equivalent_price: float    # (1 - beta) nu in the absorbing form
     window_failure_rate: float
@@ -319,18 +319,20 @@ class MultiplierDiagnosis:
 
 
 def multiplier_diagnosis(trace: Sequence[dict], alpha: float, beta: float, window: int = 20, tol: float = 0.25) -> MultiplierDiagnosis:
-    """Reads a dual-ascent trace (dicts with 'multiplier' and 'failure_rate').
+    """Reads a dual-ascent trace (dicts with 'multiplier' and 'failure_rate') by two criteria and their complements.
 
-    settled   the multiplier shows no trend over the last window and the failure rate is within
-              tol (relative, plus one rollout's sampling error) of the target;
-    runaway   the multiplier rose in nearly every rollout and the failure rate stayed far above the
-              target: the flat penalty carries no gradient when every episode fails (the lunar study
-              with the pre-registered step); lower the step, raise the price, or start from a
-              controller that sometimes survives;
-    slack     the multiplier is zero and the failure rate is below the target: the tolerance is not
-              binding, the unpriced optimum already meets it;
-    drifting  the multiplier still moves; train longer or reduce the step;
-    short     too few rollouts.
+    stable      the multiplier shows no trend over the last rollouts and the failure rate is near the tolerance
+                (within tol, relative, plus one rollout's sampling error);
+    increasing  the multiplier rose in nearly every rollout while the failure rate stayed far above the tolerance.
+                When every episode fails, the flat penalty carries no gradient (the fuel-tank study with its
+                pre-registered step); reduce the dual step, use a fixed price, or start from a controller that sometimes
+                survives;
+    inactive    the multiplier is zero and the failure rate is below the tolerance: the tolerance does not constrain
+                the unpriced optimum;
+    trending    the multiplier is still rising or falling: train longer or reduce the step;
+    off-target  no trend, but the failure rate is not near the tolerance: the tolerance may lie below the risk floor
+                of the class (then no multiplier converges), or the rollouts are too small to resolve it;
+    short       too few rollouts.
     """
     nu = np.array([t["multiplier"] for t in trace], dtype=float)
     fr = np.array([t.get("failure_rate", np.nan) for t in trace], dtype=float)
@@ -342,25 +344,26 @@ def multiplier_diagnosis(trace: Sequence[dict], alpha: float, beta: float, windo
     last, eq = float(nu[-1]), price_from_multiplier(float(nu[-1]), beta)
     increases = np.mean(np.diff(nu[-w:]) > 0) if w > 1 else 0.0
     if last == 0.0 and rate_w <= alpha:
-        return MultiplierDiagnosis("slack", last, eq, rate_w, alpha,
-                                   f"multiplier at zero with failure rate {rate_w:.3g} <= target {alpha:g}: the tolerance is not binding")
+        return MultiplierDiagnosis("inactive", last, eq, rate_w, alpha,
+                                   f"multiplier at zero with failure rate {rate_w:.3g} <= tolerance {alpha:g}: the tolerance does not constrain the unpriced optimum")
     if increases >= 0.9 and rate_w >= max(0.5, 5.0 * alpha):
-        return MultiplierDiagnosis("runaway", last, eq, rate_w, alpha,
-                                   f"multiplier rose in {increases:.0%} of the last {w} rollouts while the failure rate stayed at {rate_w:.2f}: "
-                                   "every episode fails, so the flat penalty carries no gradient; reduce the dual step, raise the fixed price, "
-                                   "or start from a controller that sometimes survives")
+        return MultiplierDiagnosis("increasing", last, eq, rate_w, alpha,
+                                   f"multiplier rose in {increases:.0%} of the last {w} rollouts while the failure rate stayed at {rate_w:.2f}, far above "
+                                   f"the tolerance {alpha:g}: when every episode fails the flat penalty carries no gradient; reduce the dual step, use a "
+                                   "fixed price, or start from a controller that sometimes survives")
     close = abs(rate_w - alpha) <= tol * alpha + 1.0 / math.sqrt(max(1, sum(t.get("episodes", 1) for t in trace[-w:])))
     if not tt.trend_detected and close:
-        return MultiplierDiagnosis("settled", last, eq, rate_w, alpha,
-                                   f"multiplier {last:.4g} (price-equivalent m = (1-beta) nu = {eq:.4g}) with no trend over the last {w} rollouts; "
-                                   f"failure rate {rate_w:.3g} against target {alpha:g}. A settled multiplier returns the fixed-price optimum at that price; "
-                                   "note that a level settled at the tolerance itself does not pass a validation test at that tolerance")
+        return MultiplierDiagnosis("stable", last, eq, rate_w, alpha,
+                                   f"multiplier {last:.4g} (price-equivalent m = (1-beta) nu = {eq:.4g}) shows no trend over the last {w} rollouts, and the "
+                                   f"failure rate {rate_w:.3g} is near the tolerance {alpha:g}. A multiplier that has converged returns the fixed-price "
+                                   "optimum at that price; a level reached at the tolerance itself does not pass a validation test at that tolerance")
     if not tt.trend_detected and not close:
-        return MultiplierDiagnosis("drifting", last, eq, rate_w, alpha,
-                                   f"multiplier shows no trend but the failure rate {rate_w:.3g} is not at the target {alpha:g}: the target may lie below "
-                                   "the risk floor of the class (then no multiplier settles) or the rollouts are too small to resolve it")
-    return MultiplierDiagnosis("drifting", last, eq, rate_w, alpha,
-                               f"multiplier still {'rising' if tt.slope_per_step > 0 else 'falling'} over the last {w} rollouts (failure rate {rate_w:.3g}, target {alpha:g})")
+        return MultiplierDiagnosis("off-target", last, eq, rate_w, alpha,
+                                   f"multiplier shows no trend but the failure rate {rate_w:.3g} is not near the tolerance {alpha:g}: the tolerance may lie "
+                                   "below the risk floor of the class (then no multiplier converges), or the rollouts are too small to resolve it")
+    return MultiplierDiagnosis("trending", last, eq, rate_w, alpha,
+                               f"multiplier still {'rising' if tt.slope_per_step > 0 else 'falling'} over the last {w} rollouts (failure rate {rate_w:.3g}, "
+                               f"tolerance {alpha:g}): it has not converged")
 
 
 @dataclass

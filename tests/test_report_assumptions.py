@@ -24,7 +24,7 @@ def test_unknown_error_does_not_generate_price_comparison():
                         comparator=dict(U0=0., I0=0., q0=0., C_B=0., R=0.))
         assert rep.certified  # a valid finite-horizon decision requires no optimizer theorem
         assert "no optimality or convergence claim" in rep.text()
-        assert not any("Proposition 3.3(ii)" in b.source for b in rep.bounds)
+        assert not any("price-risk law" in b.source for b in rep.bounds)
         assert not any("optimal at the risk it attains" in x for x in rep.reading)
 
 
@@ -32,5 +32,5 @@ def test_known_error_keeps_the_conditional_price_comparison():
     rep = interpret(BudgetSpec(budgets=[1.], beta=.9, ubar=1.),
                     Requirement(T=0, alpha=.05, zeta=.05), Stage(m=1.),
                     candidate(), sup_U=10., delta=.2)
-    assert any("Proposition 3.3(ii)" in b.source for b in rep.bounds)
+    assert any("price-risk law" in b.source for b in rep.bounds)
     assert any("delta = 0.2" in x for x in rep.reading)

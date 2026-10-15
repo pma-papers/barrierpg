@@ -5,12 +5,12 @@
 #
 # * The **action relative entropy** $\mathcal A$ (weight $\eta$) is a reward term on the *action law*. It holds the
 #   policy near an **action reference** $\rho$ and keeps the trajectory risk within $\mathrm{kl}(q\,\|\,q_\rho)\le\mathcal A$
-#   of the reference's risk (Proposition 3.4). It adds no curvature to the learning problem.
+#   of the reference's risk (*Action regularization and trajectory risk*). It adds no curvature to the learning problem.
 # * The **parameter regularizer** $\mathcal H$ (strength $\kappa$) acts on the *law of the network's units*. It supplies
-#   the curvature that makes the population learning problem converge (Theorem 4.3), and its bias is toward a
-#   **prior policy**, whose risk and utility the learner inherits (Section 4.2).
+#   the curvature that makes the population learning problem converge (*Fixed-stage population convergence*), and its
+#   bias is toward a **prior policy**, whose risk and utility the learner inherits (*Improvement over the prior policy*).
 #
-# In the particle form of the flow (Section 4.2) the parameter regularizer splits into **roles**: a divergence
+# In the particle form of the flow (*The prior and the particle form of the flow*) the parameter regularizer splits into **roles**: a divergence
 # injects **noise** into every unit's parameters, a potential **pulls** them toward a reference, and a
 # faster-growing integrand limits their **spread**. Relative entropy alone ties noise and pull to one strength;
 # the general class unties them.
@@ -57,14 +57,14 @@ print(advice.explain())
 # %% [markdown]
 # ## Part A. The roles on the solvable flow
 #
-# The paper's solvable flow (Online Appendix E.1) has one parameter per unit and a feature that is flat on
+# The paper's solvable flow (in its online appendix) has one parameter per unit and a feature that is flat on
 # $[-1,1]$: units there do not affect the policy, so the value gradient vanishes. Starting from the **plateau
 # initial law** (all units in $[-1/2,1/2]$), unregularized transport cannot move. Only the regularizers can.
 #
 # The particle form with relative entropy to $N(0,1)$ at strength $\kappa_1$ and the potential $x^2/2$ at strength
 # $\kappa_2$ moves each unit by
 # $$dx_i=\big[V_m'(c_n)\chi'(x_i)-(\kappa_1+\kappa_2)x_i\big]\,d\ell+\sqrt{2\kappa_1}\,dB_i .$$
-# Without noise ($\kappa_1=0$) the units collapse to the prior's center (Online Remark F.2). With noise they reach the
+# Without noise ($\kappa_1=0$) the units collapse to the prior's center (*Collapse under a potential alone*). With noise they reach the
 # region where the feature acts. Under the combined pull the stationary spread is $\sqrt{\kappa_1/(\kappa_1+\kappa_2)}$.
 
 # %%
@@ -89,23 +89,23 @@ print(f"plateau value: {plateau_value:.4f}")
 
 # %% [markdown]
 # The potential alone collapses the units and never leaves the plateau value; relative entropy escapes; the sum
-# escapes only once its stationary spread is comparable to the plateau's width. A sweep of the noise at a fixed pull
+# escapes only once its stationary spread is comparable to the plateau's width. Varying the noise at a fixed pull
 # shows the threshold.
 
 # %%
 k1s = [0.01, 0.03, 0.1, 0.3, 1.0, 3.0]
-sweep = [simulate_particles(flow, k1, 1.0, n=1000, seed=2) for k1 in k1s]
+flows = [simulate_particles(flow, k1, 1.0, n=1000, seed=2) for k1 in k1s]
 fig, ax = plt.subplots(figsize=(5.5, 3.2))
-ax.semilogx(k1s, [r.V_m[-1] for r in sweep], "o-", label="final $V_m$")
+ax.semilogx(k1s, [r.V_m[-1] for r in flows], "o-", label="final $V_m$")
 ax.set_xlabel("noise strength $\\kappa_1$ (pull $\\kappa_2=1$)"); ax.set_ylabel("final clipped value")
-ax2 = ax.twinx(); ax2.semilogx(k1s, [r.spread[-1] for r in sweep], "s:", color="0.5"); ax2.set_ylabel("final spread", color="0.5")
+ax2 = ax.twinx(); ax2.semilogx(k1s, [r.spread[-1] for r in flows], "s:", color="0.5"); ax2.set_ylabel("final spread", color="0.5")
 plt.tight_layout(); plt.show()
 print(RegularizerMix(kappa1=0.1, kappa2=1.0).explain())
 
 # %% [markdown]
 # ## Convergence versus bias on the same flow
 #
-# Theorem 4.3 certifies exponential convergence once the curvature $\kappa\lambda_W$ exceeds the deficit
+# The convergence theorem certifies exponential convergence once the curvature $\kappa\lambda_W$ exceeds the deficit
 # $C_m+\eta C_{\mathcal A}$. For this flow $C_m=1940$, so the certified strength is $\kappa=2037$. The price of the
 # certificate is the bias toward the prior: the stronger the regularizer, the closer the minimizer is to the prior
 # policy. Relative entropy alone, at strengths from far below the threshold to the threshold itself:
@@ -212,12 +212,12 @@ plt.tight_layout(); plt.show()
 # ## Part D. The parameter anchor: the prior is a policy
 #
 # A finite network carries the pull part of a Gaussian prior: weight decay toward parameters $\theta_0$
-# (`ParameterAnchor`, Remark 4.8). We fit the actor's mean to the incumbent rule (`fit_actor_mean`) and set its
+# (`ParameterAnchor`; the paper's *The Gaussian prior as entropy, weight decay, and a policy*). We fit the actor's mean to the incumbent rule (`fit_actor_mean`) and set its
 # dispersion to the incumbent's (`set_log_std`): the actor at $\theta_0$ is then the **prior policy**. The learner
 # inherits the prior policy's risk and utility, so we evaluate it as a candidate before training.
 #
 # The prior must cover every parameter that shapes the policy. Anchoring the mean network alone leaves the
-# dispersion free, and the learner can escape through that one parameter (Section 6.4).
+# dispersion free, and the learner can escape through that one parameter (the paper's parameter-anchor study).
 
 # %%
 obs_fit = np.column_stack([np.random.default_rng(0).uniform(-1, 1, 20_000), np.ones(20_000),
@@ -270,7 +270,7 @@ print(regularizer_effects(spec, low_price.with_(kappa=10.0), cand(param_runs["an
 #
 # The finite-network counterpart of the entropy term is Gaussian noise of variance $2\kappa_1$ times the learning
 # rate after each optimizer step (`ParameterNoise`). Under a plain gradient pull $\kappa_2$ the per-parameter
-# spread would settle at $\sqrt{\kappa_1/(\kappa_1+\kappa_2)}$. The paper measured, with Adam, a spread proportional to
+# spread would converge to $\sqrt{\kappa_1/(\kappa_1+\kappa_2)}$. The paper measured, with Adam, a spread proportional to
 # $\kappa_1$ instead (about $\sqrt2\,\kappa_1$): Adam normalizes the pull to a step of fixed size. The roles survived,
 # the formula did not. Here: the anchor $\kappa_2=10$ with noise $\kappa_1\in\{0.01,0.1\}$, and noise alone.
 
@@ -290,7 +290,7 @@ print("\n" + regularizer_effects(spec, low_price, cand(e), noise_kappa1=0.1, anc
 
 # %% [markdown]
 # The pull $\kappa_2$ sets where the units are held and the noise $\kappa_1$ how far they spread. Noise without a pull
-# abandons the prior and acts as exploration. Treat $\kappa_1$ as a knob to sweep and measure, not one to set from the formula.
+# abandons the prior and acts as exploration. Treat $\kappa_1$ as a knob to vary and measure, not one to set from the formula.
 #
 # ## Joint use
 #
