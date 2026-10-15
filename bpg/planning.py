@@ -185,8 +185,10 @@ def plan(spec: BudgetSpec, requirement: Requirement, *, sup_U: Optional[float] =
     multiplier_step_tunable, violations_during_training_matter, loss_grows_with_excess_consumption, model_known_and_small,
     episode_earnings
                   the cases of 'Which formulation to prefer' (when_to_use_another_method); episode_earnings is the utility an
-                  episode earns (for example a landing bonus), against which the discounted total of the price is compared.
-                  bonus), against which the discounted total of the price is compared.
+                  episode earns (for example a landing bonus), against which the failure charge at the start of an
+                  episode is compared: above three times, the case for another method applies; above once, a note asks
+                  to watch the return in pilot runs (the tutorial campaigns: a navigation robot's return collapsed at
+                  about four times, while a legged robot and a retailer did well at two to three times).
     regularizers  keyword arguments of bpg.regularizers.advise_regularizers (conditions of the application).
     """
     notes, warnings = [], []
@@ -212,7 +214,16 @@ def plan(spec: BudgetSpec, requirement: Requirement, *, sup_U: Optional[float] =
     exceeds = None
     if episode_earnings is not None and episode_earnings > 0:
         charge = stage.multiplier if stage.penalty == "multiplier" else failure_tail(stage.m, beta, 0, spec.horizon)
-        exceeds = charge > 10.0 * episode_earnings
+        ratio = charge / episode_earnings
+        exceeds = ratio > 3.0
+        if exceeds:
+            warnings.append(f"a failure at the start of an episode is charged {charge:.4g}, {ratio:.1f} times what an episode earns "
+                            f"({episode_earnings:.4g}): a learner may give up earning in order not to fail; normalize the reward, lower "
+                            "the price, or use a prescribed-level method")
+        elif ratio > 1.0:
+            notes.append(f"a failure at the start of an episode is charged {charge:.4g}, {ratio:.1f} times what an episode earns "
+                         f"({episode_earnings:.4g}); watch the return in pilot runs: a return that collapses as the price rises "
+                         "means the price charges too much")
     no_failure = requirement.alpha == 0.0 or failure_permissible_at_deployment is False
     conditions = when_to_use_another_method(
         failure_permissible_at_deployment=(False if no_failure else failure_permissible_at_deployment),
@@ -232,9 +243,6 @@ def plan(spec: BudgetSpec, requirement: Requirement, *, sup_U: Optional[float] =
                         "class has positive risk, and a zero-failure validation certifies only the resolution floor"
                         + ("; with a known controlled-invariant set an almost-sure method is the better choice" if controlled_invariant_set_known else
                            "; an almost-sure method needs a known controlled-invariant set"))
-    if exceeds:
-        warnings.append("the discounted total of the price is more than ten times what an episode earns: in the fuel-tank study such a price "
-                        "degraded the learned controllers; try reward normalization or a prescribed-level formulation")
     if stage.penalty == "price" and stage.m < u_minus and stage.clip_utility:
         warnings.append(f"m = {stage.m:g} is below u_minus = {u_minus:g}: clipping at -m erases utility values below -m (for example a crash penalty); "
                         "choose m >= u_minus or use the frozen-multiplier form (clip_utility=False)")

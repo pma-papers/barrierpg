@@ -146,7 +146,10 @@ def test_plan_conditions_and_multiplier_stage():
     assert "Which formulation to prefer" in txt
     p2 = plan(BudgetSpec(budgets=[22.0], beta=0.999, ubar=100.0, u_minus=100.0, horizon=1000), Requirement(T=999, alpha=0.05),
               stage=Stage(m=2.0, clip_utility=False), episode_earnings=100.0)
-    assert any("ten times" in w for w in p2.warnings)
+    assert any("times what an episode earns" in w for w in p2.warnings) and p2.another_method_preferable   # 1264 against 100
+    p2b = plan(BudgetSpec(budgets=[22.0], beta=0.999, ubar=100.0, u_minus=100.0, horizon=1000), Requirement(T=999, alpha=0.05),
+               stage=Stage(m=0.5, clip_utility=False), episode_earnings=240.0)                                 # 316 against 240
+    assert not p2b.another_method_preferable and any("watch the return" in n for n in p2b.notes)
     p3 = plan(BudgetSpec(budgets=[1.0], beta=0.95, ubar=1.0), Requirement(T=19, alpha=0.0), sup_U=5.4)
     assert p3.conditions[0].applies is None and any("needs a known controlled-invariant set" in w for w in p3.warnings)
     p4 = plan(BudgetSpec(budgets=[1.0], beta=0.95, ubar=1.0), Requirement(T=19, alpha=0.0), sup_U=5.4, controlled_invariant_set_known=True)

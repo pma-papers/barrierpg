@@ -126,8 +126,10 @@ paper's results and from the notebooks.
 * Compare the price with the other ways an episode can end badly. The price applies to running out only; if it makes
   running out costlier than, say, a crash, the learner may avoid running out by crashing. The lander did exactly
   that: higher prices barely changed how often it ran dry and made it crash more often.
-* A price that charges far more for a failure than an episode earns degrades the learner. Normalizing the reward
-  helps; `plan(..., episode_earnings=...)` warns.
+* A price that charges far more for a failure than an episode earns degrades the learner: it may give up earning in
+  order not to fail. The navigation robot almost stopped reaching goals at a price that charged about four times what
+  an episode earns, while the legged robot and the retailer did well at two to three times. Watch the return in pilot
+  runs; normalizing the reward helps; `plan(..., episode_earnings=...)` warns above three times.
 * A higher price lowers the risk only as far as the learner can follow. `frontier.price_sequence_check` reads from
   pilot runs whether the learner's shortfall grows with the price; if it does, a higher price is not the remedy.
 * A tolerance below what any policy of the network can reach is not reached by any price. Exploration noise alone

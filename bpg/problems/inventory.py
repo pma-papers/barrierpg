@@ -11,8 +11,8 @@ at the end of the year is sold off below cost. The firm starts with a cash balan
 week that ends with negative cash is insolvency, and the year ends there.
 
 A large pre-season buy captures a strong season and earns the most on average, but in a weak year it leaves the cash
-in unsold goods while the overhead keeps falling due. The more the retailer stakes on the season, the higher both its
-expected profit and its risk of insolvency: the trade-off that a price of failure risk settles.
+in unsold goods while the overhead keeps falling due. The more seasonal stock the retailer buys, the higher both its
+expected profit and its risk of insolvency; a price of failure risk decides that trade-off.
 
 Mapping to the budget problem. The budget is the starting cash. The resource use of a week is its net cash outflow
 (orders, holding and overhead minus revenue), which is negative in good weeks, so the cost passed to the wrapper is

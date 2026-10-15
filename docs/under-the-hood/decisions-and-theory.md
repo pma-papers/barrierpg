@@ -150,8 +150,8 @@ Two further cases concern the barrier itself.
 
 * **The required price charges far more for a failure than an episode earns.** A large price degraded
   the controllers of the fuel-tank study; reward normalization or a prescribed-level formulation is the
-  alternative. `plan(..., episode_earnings=...)` warns when the discounted total of the price exceeds
-  ten times what an episode earns.
+  alternative. `plan(..., episode_earnings=...)` warns when a failure at the start of an episode is charged more
+  than three times what an episode earns, and notes it above once.
 * **The size of a possible allowance error is known.** Tightening the allowance is then cheaper than the
   interior margin (section 4 of this guide).
 

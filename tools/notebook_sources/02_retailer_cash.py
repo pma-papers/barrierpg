@@ -8,8 +8,8 @@
 # 2,500 in cash (hundreds of dollars) and has no credit line: the first week that ends with negative cash is
 # insolvency.
 #
-# Staking more on the season earns more on average and makes insolvency more likely in a weak year. That trade-off is
-# what a price of failure risk settles. This notebook shows, on this problem:
+# Buying more seasonal stock earns more on average and makes insolvency more likely in a weak year. A price of failure
+# risk decides that trade-off. This notebook shows, on this problem:
 #
 # 1. how to state the requirement and the cost of failure;
 # 2. that a structured rule already in use is a candidate, and a strong one;
@@ -118,7 +118,7 @@ for name, e in rule_ev.items():
 
 # %% [markdown]
 # The cash reserve lowers the risk and does not cost profit, because an insolvent year forfeits the rest of its
-# profit. Staking more on the season raises the risk faster than the profit.
+# profit. More seasonal stock raises the risk faster than the profit.
 #
 # ## 4. Learned policies at several costs of failure
 #

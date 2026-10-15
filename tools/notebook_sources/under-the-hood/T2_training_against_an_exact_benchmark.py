@@ -137,7 +137,7 @@ ax.set_xscale("log"); ax.set_xlabel("breakdown probability $q_\\beta$"); ax.set_
 plt.tight_layout(); plt.show()
 
 # %% [markdown]
-# Crosses mark the exact optimum at each price. The learned policies follow the price: a higher price buys a lower
+# Crosses mark the exact optimum at each price. The learned policies follow the price: a higher price gives a lower
 # breakdown probability at a utility cost. Each lies short of the exact point at its price by its optimization
 # error $\delta$, which this problem lets us measure.
 #
@@ -273,6 +273,6 @@ print("\n".join(rep_fixed.text().split("\n")[:12]))
 # * The learned fixed-price policies follow the price and fall short of the exact optimum by an optimization error
 #   that this problem lets us measure. On a new problem there is no exact frontier: the four problem notebooks (01 to 04) show what can be said then.
 # * A multiplier method targets a level, needs a step that respects the time scales, and should aim below the tolerance.
-# * The barrier buys a measurable margin against a misjudged allowance.
+# * The barrier secures a measurable margin against a misjudged allowance.
 #
 # Next: **notebook T3** looks at the two regularizers and the roles of their parts.

@@ -50,7 +50,7 @@ print(spec)
 # with $z'$ the reserve after the action. An unbounded barrier gives every exploratory policy the value $-\infty$;
 # clipping at $-m$ keeps returns finite. From failure onward every reward is $-m$, so $m$ is a **price of failure
 # risk**: one unit of geometric risk costs $m/(1-\beta)$. Before failure, the barrier subtracts an **interior loss**
-# that buys a margin; a failure-only price ($\theta=0$) charges nothing before failure.
+# that keeps a reserve; a failure-only price ($\theta=0$) charges nothing before failure.
 
 # %%
 u, m, theta = 0.6, 1.0, 0.15
@@ -150,7 +150,7 @@ ax.legend(fontsize=8, loc="lower right"); plt.tight_layout(); plt.show()
 
 # %% [markdown]
 # The hand-made rules sit inside the frontier: at their risk, a fixed-price optimum earns more. The barrier optima
-# sit lower still at nominal conditions: their interior loss buys a margin against a misjudged allowance
+# sit lower still at nominal conditions: their interior loss keeps a reserve against a misjudged allowance
 # (notebook T2 measures that margin).
 #
 # ## The price–risk law on the exact solutions

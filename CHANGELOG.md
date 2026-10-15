@@ -33,6 +33,10 @@ Changed
   observation; a price can trade one failure for another; a parameter anchor to a controller that violates the new
   limit keeps the violation; a multiplier started with an untrained learner rises far past its level; compare
   policies only after training has converged).
+- `plan(..., episode_earnings=...)` compares the failure charge at the start of an episode with what an episode
+  earns: above three times it warns and the case for another method applies, above once it adds a note (it warned at
+  ten times before). In the campaigns, the navigation robot's return collapsed at about four times, while the legged
+  robot and the retailer did well at two to three times.
 - The theory-oriented guide is now `docs/under-the-hood/decisions-and-theory.md`, with the results map and the
   supplementary results; the former notebooks 1 to 4 are T1 to T4, and notebook 5 is replaced by the four problems.
 - The landing page and its figure use the problems' campaigns; the former figure belongs to the under-the-hood track.
