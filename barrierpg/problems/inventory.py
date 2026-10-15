@@ -16,7 +16,7 @@ expected profit and its risk of insolvency; a price of failure risk decides that
 
 Mapping to the budget problem. The budget is the starting cash. The resource use of a week is its net cash outflow
 (orders, holding and overhead minus revenue), which is negative in good weeks, so the cost passed to the wrapper is
-the increment of the running maximum of the cumulative outflow (`bpg.RunningMaxCost`): the first week in which the
+the increment of the running maximum of the cumulative outflow (`barrierpg.RunningMaxCost`): the first week in which the
 cumulative outflow exceeds the starting cash is the first week with negative cash. The utility is the week's
 accounting profit (margin on goods sold, minus holding, overhead and markdown losses), which lies in [-u_minus, ubar].
 The horizon is the physical year, H = 52.

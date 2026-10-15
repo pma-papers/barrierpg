@@ -1,6 +1,6 @@
-from bpg import BudgetSpec, Requirement, Stage, plan
-from bpg.regularizers import advise_regularizers, regularizer_effects
-from bpg.convergence import FeatureConstants
+from barrierpg import BudgetSpec, Requirement, Stage, plan
+from barrierpg.regularizers import advise_regularizers, regularizer_effects
+from barrierpg.convergence import FeatureConstants
 
 
 def test_advice_by_condition():

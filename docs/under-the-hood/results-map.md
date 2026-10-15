@@ -3,8 +3,8 @@
 Results of *The Price of Failure Risk: Clipped Barrier Policy Gradients with Convex Regularization* are listed by
 the titles the paper gives them, which can be searched in any revision. The toolbox never cites statement, section
 or equation numbers, since they change between revisions. Inside the code, every citation goes through the registry
-in [`bpg/paper.py`](../../bpg/paper.py); `bpg.paper.results_table()` prints it, and `bpg.PAPER["checked_against"]`
-records the last revision against which the toolbox's statements were checked.
+in [`barrierpg/paper.py`](../../barrierpg/paper.py); `barrierpg.paper.results_table()` prints it, and
+`barrierpg.PAPER["checked_against"]` records the last revision against which the toolbox's statements were checked.
 
 ## Risk certificates and the fixed price of failure risk
 

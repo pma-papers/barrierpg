@@ -16,8 +16,8 @@ import matplotlib.ticker
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from bpg import LogBarrier, Stage, evaluate                                  # noqa: E402
-from bpg.problems.inventory import Retailer, make_inventory_env, BaseStockRule  # noqa: E402
+from barrierpg import LogBarrier, Stage, evaluate                                  # noqa: E402
+from barrierpg.problems.inventory import Retailer, make_inventory_env, BaseStockRule  # noqa: E402
 
 RESULTS = ROOT / "campaigns" / "results"
 plt.rcParams.update({"font.size": 9, "axes.spines.top": False, "axes.spines.right": False, "axes.titlesize": 9.5,

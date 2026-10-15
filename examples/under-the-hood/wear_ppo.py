@@ -21,13 +21,13 @@ import numpy as np
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 
-from bpg import Requirement, Stage, evaluate, interpret, sb3_policy
-from bpg.callbacks import BudgetMonitor, DualAscent, ParameterAnchor, ParameterNoise, dual_step_suggestion
-from bpg.convergence import seed_dispersion
-from bpg.examples.wear import EXACT_FRONTIER, WearModel, make_wear_env
-from bpg.frontier import Run, interpolate_frontier
-from bpg.regularizers import regularizer_effects
-from bpg.spec import discounted_total
+from barrierpg import Requirement, Stage, evaluate, interpret, sb3_policy
+from barrierpg.callbacks import BudgetMonitor, DualAscent, ParameterAnchor, ParameterNoise, dual_step_suggestion
+from barrierpg.convergence import seed_dispersion
+from barrierpg.examples.wear import EXACT_FRONTIER, WearModel, make_wear_env
+from barrierpg.frontier import Run, interpolate_frontier
+from barrierpg.regularizers import regularizer_effects
+from barrierpg.spec import discounted_total
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--config", choices=["fixed", "adaptive", "anchored", "noise"], default="fixed")

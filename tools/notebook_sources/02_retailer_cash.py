@@ -33,9 +33,9 @@ import torch
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 
-from bpg import BudgetSpec, Requirement, Stage, BudgetWrapper, RunningMaxCost, evaluate, interpret, plan
-from bpg.callbacks import BudgetMonitor, DualAscent, ParameterAnchor, fit_actor_mean, set_log_std
-from bpg.problems.inventory import Retailer, InventoryCore, BaseStockRule
+from barrierpg import BudgetSpec, Requirement, Stage, BudgetWrapper, RunningMaxCost, evaluate, interpret, plan
+from barrierpg.callbacks import BudgetMonitor, DualAscent, ParameterAnchor, fit_actor_mean, set_log_std
+from barrierpg.problems.inventory import Retailer, InventoryCore, BaseStockRule
 
 sys.path.insert(0, str(Path("..").resolve() / "campaigns"))
 from records import Campaign                     # the records of the full campaign
@@ -124,7 +124,7 @@ class Shop:
                                                                          lost_sales=demand - sales)
 
 # %% [markdown]
-# The toolbox ships the same simulator as `bpg.problems.inventory.InventoryCore`, which the campaign used. A quick
+# The toolbox ships the same simulator as `barrierpg.problems.inventory.InventoryCore`, which the campaign used. A quick
 # check that the two agree on a year with random orders:
 
 # %%

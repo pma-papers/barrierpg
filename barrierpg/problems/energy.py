@@ -64,7 +64,7 @@ def half_cheetah(**make_kwargs):
     if found is None:
         return gym.make("HalfCheetah-v5", **make_kwargs)
     patched = re.sub(r'\s*settotalmass="[^"]*"', "", xml)
-    path = os.path.join(tempfile.gettempdir(), f"bpg-half_cheetah-{hashlib.sha1(patched.encode()).hexdigest()[:12]}.xml")
+    path = os.path.join(tempfile.gettempdir(), f"barrierpg-half_cheetah-{hashlib.sha1(patched.encode()).hexdigest()[:12]}.xml")
     if not os.path.exists(path):                       # written once, atomically (parallel runs may start together)
         fd, tmp = tempfile.mkstemp(suffix=".xml", dir=tempfile.gettempdir())
         with os.fdopen(fd, "w") as f:

@@ -1,15 +1,25 @@
 # Changelog
 
+## 0.6.0 (2026-10-15): the toolbox is called `barrierpg`; the fuel-tank test runs anywhere
+
+- The distribution and the package are renamed from `bpg` to `barrierpg`, because the name `bpg` is taken on PyPI by
+  an unrelated package. Code changes `import bpg` to `import barrierpg` and `from bpg...` to `from barrierpg...`;
+  nothing else changes. An environment with the old editable install needs `pip uninstall bpg` and
+  `pip install -e .` again. Code that must keep the old name can pin the tag `v0.5.1`. The run records in
+  `campaigns/results/`, written before the rename, keep the key `bpg` for the toolbox's version. The entries below
+  use the old name.
+- The test that `BudgetWrapper` reproduces the paper's fuel-tank environment step by step no longer needs a checkout
+  of the replication repository: the environment's class is shipped as a test fixture
+  (`tests/fixtures/paper_fuel_lander.py`, copied verbatim, with the hash of its source file). The CI job with the
+  learners installs Box2D and MuJoCo, so this test and the robot's run there.
+- Releases from 0.3.0 on carry git tags (`v0.3.0`, ...), so a version can be pinned.
+
 ## 0.5.1 (2026-10-15): HalfCheetah without MuJoCo's deprecation warning
 
 - `bpg.problems.energy.half_cheetah()` builds Gymnasium's HalfCheetah-v5 from a copy of its model file without the
   `settotalmass` attribute, which MuJoCo 3 deprecates and warned about at every environment (and logged to
   MUJOCO_LOG.TXT); the total mass is set with `mujoco.mj_setTotalmass` instead. Masses, inertias and trajectories are
   identical to the stock environment's (a test checks it). The robot problem and notebook 3 use it.
-- The test that `BudgetWrapper` reproduces the paper's fuel-tank environment step by step no longer needs a checkout
-  of the replication repository: the environment's class is shipped as a test fixture
-  (`tests/fixtures/paper_fuel_lander.py`, copied verbatim, with the hash of its source file). The CI job with the
-  learners installs Box2D and MuJoCo, so this test and the robot's run there.
 
 ## 0.5.0 (2026-10-15): convergence monitoring; regularizers as examples
 

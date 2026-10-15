@@ -28,9 +28,9 @@ import torch
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv
 
-from bpg import BudgetSpec, Requirement, Stage, BudgetWrapper, evaluate, interpret, plan
-from bpg.callbacks import BudgetMonitor, ParameterAnchor, ActionAnchor
-from bpg.spec import failure_tail
+from barrierpg import BudgetSpec, Requirement, Stage, BudgetWrapper, evaluate, interpret, plan
+from barrierpg.callbacks import BudgetMonitor, ParameterAnchor, ActionAnchor
+from barrierpg.spec import failure_tail
 
 sys.path.insert(0, str(Path("..").resolve() / "campaigns"))
 from records import Campaign                     # the records of the full campaign
@@ -391,7 +391,7 @@ for det in (False, True):
 # To add a budget to a task you already train, change these cells:
 #
 # 1. `fuel_burned`: the resource one step consumes (nonnegative; for a resource that is also replenished, wrap the
-#    signed use in `bpg.RunningMaxCost`);
+#    signed use in `barrierpg.RunningMaxCost`);
 # 2. `spec` and `req`: the budget, the horizon, the discount, bounds on the reward, and the requirement;
 # 3. `stage`: the price, or a lump sum if failure has a known cost (`Stage(penalty="multiplier", multiplier=F)`);
 # 4. `make_env`: your Gymnasium task inside `BudgetWrapper` (add `observe_time=True` if the horizon is fixed and the

@@ -16,7 +16,7 @@ uses algorithmic discount one (the convention of the wear-allowance study).
 
 info carries per step: failure, utility, interior_loss, cost, reserve, reserve_fraction, t; and at
 the end of an episode a 'budget_episode' record (the key 'episode' is reserved by Stable-Baselines3's Monitor) (U, I, tau, failed, length, min_reserve_fraction,
-clipped_return) that bpg.evaluate and the training monitor consume.
+clipped_return) that barrierpg.evaluate and the training monitor consume.
 
 true_budget_scale < 1 judges failure against a reduced true allowance while the observation shows
 the nominal reserve (the misjudged-allowance test of the wear study).

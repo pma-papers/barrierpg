@@ -12,7 +12,7 @@ curvature that makes the population flow converge ('Fixed-stage population conve
 whose risk and utility the learner inherits ('The prior and the particle form of the flow'). In the particle form of the flow its parts play
 different roles: a divergence injects noise into every unit's parameters, the prior's potential and any
 added potential pull them toward a reference, and an integrand of faster growth limits how far the law
-spreads (bpg.roles). Relative entropy alone ties noise and pull to one strength; admissible regularizers
+spreads (barrierpg.roles). Relative entropy alone ties noise and pull to one strength; admissible regularizers
 add, so the roles can be weighted separately with one convergence argument for all of them.
 
 Joint use: the action term pulls toward rho, the parameter term toward pi_Gamma; they coincide under the

@@ -3,7 +3,7 @@
     from records import Campaign
     c = Campaign("retailer")
     c.table(["unpriced", "lump-5000"])           # one row per configuration: failure rate and utility over seeds
-    ev = c.evaluation("lump-5000", seed=1)        # a bpg.Evaluation rebuilt from the record's episodes
+    ev = c.evaluation("lump-5000", seed=1)        # a barrierpg.Evaluation rebuilt from the record's episodes
     policy = c.policy("lump-5000", seed=1)        # obs -> action, the trained network (stochastic by default)
 """
 from __future__ import annotations
@@ -23,7 +23,7 @@ RESULTS = HERE / "results"
 if str(HERE) not in sys.path:
     sys.path.insert(0, str(HERE))
 
-from bpg import Stage, evaluation_from_episodes  # noqa: E402
+from barrierpg import Stage, evaluation_from_episodes  # noqa: E402
 
 
 def _stage(d: dict) -> Stage:
@@ -53,8 +53,8 @@ class Campaign:
 
     # --- convergence of the training runs --------------------------------------------------------------------------
     def convergence(self, config: str, seed: int, **kw):
-        """The toolbox's convergence check (bpg.convergence.training_convergence) on the run's per-batch record."""
-        from bpg.convergence import training_convergence
+        """The toolbox's convergence check (barrierpg.convergence.training_convergence) on the run's per-batch record."""
+        from barrierpg.convergence import training_convergence
         r = self.record(config, seed)
         trace = [dict(t) for t in r["monitor"]]
         if r.get("dual") and len(r["dual"]["trace"]) == len(trace):
@@ -75,7 +75,7 @@ class Campaign:
 
     # --- evaluations -----------------------------------------------------------------------------------------------
     def evaluation(self, config: str, seed: int, which: str = "evaluation", T: Optional[int] = None, extra: int = 0):
-        """The record's evaluation as a bpg.Evaluation. which: 'evaluation' (the trained policy), 'start_evaluation'
+        """The record's evaluation as a barrierpg.Evaluation. which: 'evaluation' (the trained policy), 'start_evaluation'
         (the policy before training), or 'extra' (the extra evaluation number `extra`)."""
         r = self.record(config, seed)
         ep = r["extra_evaluations"][extra]["episodes"] if which == "extra" else r[which]

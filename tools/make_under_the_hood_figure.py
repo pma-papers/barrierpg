@@ -9,9 +9,9 @@ import matplotlib.pyplot as plt
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from bpg import LogBarrier                                        # noqa: E402
-from bpg.examples.wear import EXACT_FRONTIER, EXACT_BARRIER       # noqa: E402
-from bpg.examples.plateau import PlateauModel, simulate_particles  # noqa: E402
+from barrierpg import LogBarrier                                        # noqa: E402
+from barrierpg.examples.wear import EXACT_FRONTIER, EXACT_BARRIER       # noqa: E402
+from barrierpg.examples.plateau import PlateauModel, simulate_particles  # noqa: E402
 
 plt.rcParams.update({"font.size": 9, "axes.spines.top": False, "axes.spines.right": False, "axes.titlesize": 9.5,
                      "axes.titleweight": "bold", "legend.frameon": False})

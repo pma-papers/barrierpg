@@ -12,8 +12,8 @@ import torch
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 
-from bpg import BudgetSpec, Requirement, Stage, BudgetWrapper, evaluate, interpret, plan
-from bpg.callbacks import ActionAnchor, BudgetMonitor, ParameterAnchor
+from barrierpg import BudgetSpec, Requirement, Stage, BudgetWrapper, evaluate, interpret, plan
+from barrierpg.callbacks import ActionAnchor, BudgetMonitor, ParameterAnchor
 
 STEPS = 300_000          # training steps; a lander needs a few million to land well
 
@@ -25,7 +25,7 @@ def make_task():
 
 def resource_used(obs, action, next_obs, reward, info):
     """Nonnegative consumption of each budget in one step (here: fuel). For a resource that is also replenished
-    (cash, a battery that recharges), return the signed use and wrap this function in bpg.RunningMaxCost."""
+    (cash, a battery that recharges), return the signed use and wrap this function in barrierpg.RunningMaxCost."""
     main, side = float(action[0]), float(action[1])
     main_power = (min(max(main, 0.0), 1.0) + 1.0) / 2.0 if main > 0.0 else 0.0
     side_power = min(max(abs(side), 0.5), 1.0) if abs(side) > 0.5 else 0.0

@@ -17,12 +17,12 @@
 # %%
 import numpy as np
 import matplotlib.pyplot as plt
-import bpg
-from bpg import BudgetSpec, Requirement, Stage, plan, evaluate, interpret, LogBarrier
-from bpg.examples.wear import WearModel, make_wear_env, idle_policy, IncumbentRule, EXACT_FRONTIER, EXACT_BARRIER
+import barrierpg
+from barrierpg import BudgetSpec, Requirement, Stage, plan, evaluate, interpret, LogBarrier
+from barrierpg.examples.wear import WearModel, make_wear_env, idle_policy, IncumbentRule, EXACT_FRONTIER, EXACT_BARRIER
 
 plt.rcParams.update({"figure.dpi": 110, "axes.spines.top": False, "axes.spines.right": False, "font.size": 10})
-print("bpg", bpg.__version__, "| checked against the paper's", bpg.PAPER["checked_against"])
+print("barrierpg", barrierpg.__version__, "| checked against the paper's", barrierpg.PAPER["checked_against"])
 
 # %% [markdown]
 # ## The problem: an asset operated under a wear allowance
@@ -159,7 +159,7 @@ ax.legend(fontsize=8, loc="lower right"); plt.tight_layout(); plt.show()
 # (the price–risk law and monotonicity in the price). With exact optimizers the optimization error is zero.
 
 # %%
-from bpg.frontier import Run, check_runs
+from barrierpg.frontier import Run, check_runs
 runs = [Run(m=mm, q_beta=q, U=U, label="exact") for mm, (q, U) in EXACT_FRONTIER.items() if mm > 0]
 chk = check_runs(runs, beta=spec.beta, sup_U=sup_U, delta=0.0)
 print("consistent with the fixed-price results:", chk.consistent)

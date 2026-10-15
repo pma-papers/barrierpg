@@ -9,10 +9,10 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from bpg import Requirement, Stage, evaluate, interpret, plan
-from bpg.convergence import FeatureConstants
-from bpg.frontier import Run, check_runs
-from bpg.examples.wear import EXACT_FRONTIER, INCUMBENT, IncumbentRule, WearModel, idle_policy, make_wear_env
+from barrierpg import Requirement, Stage, evaluate, interpret, plan
+from barrierpg.convergence import FeatureConstants
+from barrierpg.frontier import Run, check_runs
+from barrierpg.examples.wear import EXACT_FRONTIER, INCUMBENT, IncumbentRule, WearModel, idle_policy, make_wear_env
 
 model = WearModel()
 spec = model.spec(ubar=1.0)                              # b = 1, beta = 0.95, utility in [0, 1]

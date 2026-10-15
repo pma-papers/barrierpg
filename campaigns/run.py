@@ -6,7 +6,7 @@
 Writes results/<problem>/<configuration>/seed<seed>/ with model.zip, vecnormalize.pkl (when observations are
 normalized) and record.json: the configuration, the PPO settings, the training traces (per rollout), and the
 per-episode results of the evaluation on fresh episodes (failure, failure time, stopped utility, interior loss,
-length, lowest reserve, and the problem's own extras), from which bpg.evaluation_from_episodes rebuilds the
+length, lowest reserve, and the problem's own extras), from which barrierpg.evaluation_from_episodes rebuilds the
 evaluation without simulating again.
 """
 from __future__ import annotations
@@ -33,8 +33,8 @@ import problems as P  # noqa: E402
 from stable_baselines3 import PPO  # noqa: E402
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize  # noqa: E402
 
-import bpg  # noqa: E402
-from bpg.callbacks import ActionAnchor, BudgetMonitor, DualAscent, ParameterAnchor, ParameterNoise, fit_actor_mean, set_log_std  # noqa: E402
+import barrierpg  # noqa: E402
+from barrierpg.callbacks import ActionAnchor, BudgetMonitor, DualAscent, ParameterAnchor, ParameterNoise, fit_actor_mean, set_log_std  # noqa: E402
 
 torch.set_num_threads(1)
 LOAD_OBJECTS = {"learning_rate": 0.0, "lr_schedule": lambda _: 0.0, "clip_range": lambda _: 0.2}   # see records.py
@@ -81,7 +81,7 @@ def incumbent_observations(problem, config, n_episodes=400, seed=12345):
 
 
 def evaluate_policy(problem, config, policy, n, seed, normalizer=None, **env_kw):
-    """n fresh episodes; per-episode arrays for bpg.evaluation_from_episodes plus the problem's extras."""
+    """n fresh episodes; per-episode arrays for barrierpg.evaluation_from_episodes plus the problem's extras."""
     env = problem.make_env(config.stage, **{**config.env_kw, **env_kw})
     rows = []
     for i in range(n):
@@ -193,7 +193,7 @@ def main():
         action_log_ratio=None if action_anchor is None else action_anchor.mean_log_ratio,
         monitor=monitor.trace, T=problem.T, evaluation=episodes, start_evaluation=start_eval, extra_evaluations=extra_evals,
         train_wall=train_wall, total_wall=time.time() - t0,
-        versions=dict(bpg=bpg.__version__, python=platform.python_version(), torch=torch.__version__,
+        versions=dict(barrierpg=barrierpg.__version__, python=platform.python_version(), torch=torch.__version__,
                       sb3=__import__("stable_baselines3").__version__, gymnasium=__import__("gymnasium").__version__),
     )
     (out / "record.json").write_text(json.dumps(record, default=_jsonable))

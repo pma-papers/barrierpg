@@ -9,10 +9,10 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from bpg.convergence import (FeatureConstants, KernelConstants, curvature_budget, gaussian_prior_curvature,
+from barrierpg.convergence import (FeatureConstants, KernelConstants, curvature_budget, gaussian_prior_curvature,
                              kappa_for_tolerance, risk_slack_from_prior)
-from bpg.examples.plateau import feature_bounds
-from bpg.roles import RegularizerMix
+from barrierpg.examples.plateau import feature_bounds
+from barrierpg.roles import RegularizerMix
 
 # 1. A tanh unit psi = tanh(x . phi) with |phi| <= 2 and the prior N(0, 1): the deficit grows like (1-beta)^-3.
 for beta in (0.9, 0.95, 0.99):

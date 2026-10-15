@@ -17,10 +17,10 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy import stats
-import bpg
-from bpg import BudgetSpec, Requirement, Stage, BudgetWrapper, evaluate, evaluation_from_episodes, interpret
-from bpg import validation as V
-from bpg.examples.wear import WearModel, WearCore, wear_cost, make_wear_env, IncumbentRule
+import barrierpg
+from barrierpg import BudgetSpec, Requirement, Stage, BudgetWrapper, evaluate, evaluation_from_episodes, interpret
+from barrierpg import validation as V
+from barrierpg.examples.wear import WearModel, WearCore, wear_cost, make_wear_env, IncumbentRule
 
 plt.rcParams.update({"figure.dpi": 110, "axes.spines.top": False, "axes.spines.right": False, "font.size": 10})
 
@@ -102,7 +102,7 @@ print(f"under the clock, {np.mean(geo.tau[geo.failed] > T):.0%} of the failures 
 # $p_T$ at one horizon never says more than $T+1$, since it says nothing about failures after $T$.
 
 # %%
-from bpg.certificates import earliest_failures_time
+from barrierpg.certificates import earliest_failures_time
 for eps in (0.05, 0.1, 0.5):
     print(earliest_failures_time(vg.upper, spec.beta, eps).statement())
 
@@ -214,8 +214,8 @@ print(rep.text())
 #   $P(\tau<\infty)\le p_T+P(E_T)$ with both terms observable from $T+1$ actions: `certificates.eventual_risk_structural`.
 
 # %%
-from bpg import LogBarrier
-from bpg.certificates import near_exhaustion_bound, unresolved_threshold, eventual_risk_structural
+from barrierpg import LogBarrier
+from barrierpg.certificates import near_exhaustion_bound, unresolved_threshold, eventual_risk_structural
 B = LogBarrier(0.1, [1.0])
 for V in (4.0, 19.9):
     print(near_exhaustion_bound(V_m=V, m=1.0, ubar=1.0, beta=0.95, T=0, lower_barrier=B.lower_level([0.05])).statement())

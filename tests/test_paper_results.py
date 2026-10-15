@@ -2,16 +2,16 @@
 import math
 import numpy as np
 
-from bpg import BudgetSpec, Requirement, Stage, cite, plan, evaluate, evaluation_from_episodes, RunningMaxCost, BudgetWrapper
-from bpg import certificates as C
-from bpg import convergence as K
-from bpg import validation as V
-from bpg.frontier import price_sequence_check
-from bpg.paper import RESULTS, results_table
-from bpg.regularizers import regularizer_effects, advise_regularizers
-from bpg.roles import RegularizerMix, stationary_spread, kappa1_for_spread, adam_stationary_spread
-from bpg.examples.plateau import PlateauModel, simulate_particles, feature_bounds, PAPER_ROLES_TABLE
-from bpg.examples.wear import WearModel, IncumbentRule, make_wear_env
+from barrierpg import BudgetSpec, Requirement, Stage, cite, plan, evaluate, evaluation_from_episodes, RunningMaxCost, BudgetWrapper
+from barrierpg import certificates as C
+from barrierpg import convergence as K
+from barrierpg import validation as V
+from barrierpg.frontier import price_sequence_check
+from barrierpg.paper import RESULTS, results_table
+from barrierpg.regularizers import regularizer_effects, advise_regularizers
+from barrierpg.roles import RegularizerMix, stationary_spread, kappa1_for_spread, adam_stationary_spread
+from barrierpg.examples.plateau import PlateauModel, simulate_particles, feature_bounds, PAPER_ROLES_TABLE
+from barrierpg.examples.wear import WearModel, IncumbentRule, make_wear_env
 
 
 def test_registry():
@@ -176,7 +176,7 @@ NUMBERED = __import__("re").compile(r"(Proposition|Theorem|Corollary|Remark|Defi
 
 def test_no_statement_numbers_in_printed_text():
     """The toolbox cites results by name only: no printed citation, plan or report carries a statement number."""
-    from bpg.paper import RESULTS
+    from barrierpg.paper import RESULTS
     texts = [cite(k) for k in RESULTS] + [cite("fixed_price", p) for p in ("i", "ii", "iii", "iv")]
     spec = BudgetSpec(budgets=[1.0], beta=0.95, ubar=1.0)
     p = plan(spec, Requirement(T=19, alpha=0.05), sup_U=5.4, stage=Stage(m=1.0, kappa=1.0, eta=0.1), allowance_error_known=False,
@@ -186,7 +186,7 @@ def test_no_statement_numbers_in_printed_text():
     texts.append(RegularizerMix(kappa1=0.1, kappa2=1.0).explain())
     model = WearModel(); st = Stage(m=1.0)
     ev = evaluate(lambda: make_wear_env(st, model), IncumbentRule(seed=1), 300, spec=model.spec(), stage=st, seed=2, T=19)
-    from bpg import interpret
+    from barrierpg import interpret
     texts.append(interpret(model.spec(), Requirement(T=19, alpha=0.05), st, ev, sup_U=5.4, delta=0.1).text())
     for t in texts:
         hit = NUMBERED.search(t)

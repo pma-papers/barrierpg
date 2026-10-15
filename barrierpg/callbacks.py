@@ -33,7 +33,7 @@ except ImportError:  # pragma: no cover
 
     class BaseCallback:  # type: ignore
         def __init__(self, verbose=0):
-            raise ImportError("stable_baselines3 is required for bpg.callbacks")
+            raise ImportError("stable_baselines3 is required for barrierpg.callbacks")
 
 
 # ---------------------------------------------------------------------------------------------
@@ -213,7 +213,7 @@ class ParameterAnchor:
         return float(np.exp(policy.log_std.detach().cpu().numpy()).mean())
 
     def effects_inputs(self) -> dict:
-        """Keyword arguments for bpg.regularizers.regularizer_effects: distance, dispersions, whether anchored."""
+        """Keyword arguments for barrierpg.regularizers.regularizer_effects: distance, dispersions, whether anchored."""
         return dict(parameter_distance=self.distance(), dispersion_final=self.dispersion(), dispersion_prior=self._prior_dispersion,
                     dispersion_anchored=self.include_log_std)
 
@@ -406,7 +406,7 @@ class BudgetMonitor(BaseCallback):
         return np.array([t.get(key, np.nan) for t in self.trace], dtype=float)
 
     def convergence(self, window: Optional[int] = None, rel_tol: Optional[float] = None):
-        """Has the run stopped changing? See bpg.convergence.training_convergence."""
+        """Has the run stopped changing? See barrierpg.convergence.training_convergence."""
         return training_convergence(self.trace, window=self.window if window is None else window,
                                     rel_tol=self.rel_tol if rel_tol is None else rel_tol)
 

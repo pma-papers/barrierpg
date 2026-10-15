@@ -56,7 +56,7 @@ benchmark task can be read in both ways, and why the two requirements differ.
 ## Step 2. State the requirement before choosing a method
 
 ```python
-from bpg import BudgetSpec, Requirement
+from barrierpg import BudgetSpec, Requirement
 spec = BudgetSpec(budgets=[24.0], beta=0.999, ubar=100.0, u_minus=100.0, horizon=1000)
 req = Requirement(T=999, alpha=0.05, zeta=0.05, family=10)
 ```
@@ -93,8 +93,8 @@ of adding a reserve).
 ## Step 4. Wrap the environment
 
 ```python
-from bpg import BudgetWrapper, Stage
-from bpg.problems.lander import fuel_cost          # fuel_cost(obs, action, next_obs, reward, info) -> [fuel burned]
+from barrierpg import BudgetWrapper, Stage
+from barrierpg.problems.lander import fuel_cost    # fuel_cost(obs, action, next_obs, reward, info) -> [fuel burned]
 env = BudgetWrapper(gym.make("LunarLanderContinuous-v3"), cost=fuel_cost, spec=spec, stage=Stage(m=0.5, clip_utility=False))
 ```
 
@@ -111,7 +111,7 @@ env = BudgetWrapper(gym.make("LunarLanderContinuous-v3"), cost=fuel_cost, spec=s
 * `true_budget_scale=0.9` judges failure against a budget 10% smaller than the one the policy observes. Use it to
   test how a policy copes with a misjudged budget.
 
-`bpg.problems` contains the four problems of this guide; each module documents its mapping from the task to the
+`barrierpg.problems` contains the four problems of this guide; each module documents its mapping from the task to the
 budget problem and can serve as a template.
 
 ## Step 5. Choose the price
@@ -247,7 +247,7 @@ behavior under a different simulator.
 |---|---|
 | Requirement | `BudgetSpec`, `Requirement` |
 | Another method? | `plan`, `planning.when_to_use_another_method` |
-| Wrap | `BudgetWrapper`, `RunningMaxCost`, `Stage`, `bpg.problems` |
+| Wrap | `BudgetWrapper`, `RunningMaxCost`, `Stage`, `barrierpg.problems` |
 | Price | `plan`, `frontier.check_runs`, `frontier.price_sequence_check`, `DualAscent`, `callbacks.dual_step_suggestion`, `DualAscent.diagnose` |
 | Reserve | `Stage(theta=...)`, `BudgetWrapper(true_budget_scale=...)` |
 | Regularizers | `ActionAnchor`, `ParameterAnchor`, `ParameterNoise`, `fit_actor_mean`, `set_log_std`, `advise_regularizers`, `regularizer_effects` |

@@ -11,7 +11,7 @@ from typing import Callable, Dict, List, Optional
 
 import numpy as np
 
-from bpg import Stage
+from barrierpg import Stage
 
 
 @dataclass
@@ -61,7 +61,7 @@ class Problem:
 
 # --- the retailer ---------------------------------------------------------------------------------------------------
 def _retailer() -> Problem:
-    from bpg.problems.inventory import Retailer, make_inventory_env, BaseStockRule
+    from barrierpg.problems.inventory import Retailer, make_inventory_env, BaseStockRule
     r = Retailer()
 
     def lump(F):
@@ -100,7 +100,7 @@ def _retailer() -> Problem:
 
 # --- the robot on a battery -----------------------------------------------------------------------------------------
 def _robot() -> Problem:
-    from bpg.problems.energy import Battery, make_robot_env
+    from barrierpg.problems.energy import Battery, make_robot_env
     b = Battery()
 
     def price(m):
@@ -135,7 +135,7 @@ def _robot() -> Problem:
 
 # --- the lander with a fuel tank ------------------------------------------------------------------------------------
 def _lander() -> Problem:
-    from bpg.problems.lander import Tank, make_lander_env
+    from barrierpg.problems.lander import Tank, make_lander_env
     tank = Tank()
 
     def price(m):
@@ -173,7 +173,7 @@ def _lander() -> Problem:
 
 # --- the navigation robot with a damage allowance (Python 3.10 environment with Safety-Gymnasium) --------------------
 def _navigation() -> Problem:
-    from bpg.problems.navigation import Allowance, make_navigation_env
+    from barrierpg.problems.navigation import Allowance, make_navigation_env
     allow = Allowance()
 
     def price(m):

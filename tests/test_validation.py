@@ -1,5 +1,5 @@
 import math
-from bpg import validation as V
+from barrierpg import validation as V
 
 
 def test_binomial_and_floor():

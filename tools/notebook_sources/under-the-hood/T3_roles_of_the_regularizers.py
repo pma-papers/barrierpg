@@ -29,14 +29,14 @@ import torch
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 
-import bpg
-from bpg import Stage, Requirement, evaluate, sb3_policy, interpret, advise_regularizers, regularizer_effects, stopped_action_relative_entropy
-from bpg.callbacks import ActionAnchor, ParameterAnchor, ParameterNoise, fit_actor_mean, set_log_std
-from bpg.certificates import action_risk_bound, kl_upper_inverse
-from bpg.convergence import FeatureConstants, curvature_budget
-from bpg.examples.plateau import PlateauModel, simulate_particles, feature_bounds, chi
-from bpg.examples.wear import WearModel, make_wear_env, IncumbentRule
-from bpg.roles import RegularizerMix, stationary_spread, adam_stationary_spread
+import barrierpg
+from barrierpg import Stage, Requirement, evaluate, sb3_policy, interpret, advise_regularizers, regularizer_effects, stopped_action_relative_entropy
+from barrierpg.callbacks import ActionAnchor, ParameterAnchor, ParameterNoise, fit_actor_mean, set_log_std
+from barrierpg.certificates import action_risk_bound, kl_upper_inverse
+from barrierpg.convergence import FeatureConstants, curvature_budget
+from barrierpg.examples.plateau import PlateauModel, simulate_particles, feature_bounds, chi
+from barrierpg.examples.wear import WearModel, make_wear_env, IncumbentRule
+from barrierpg.roles import RegularizerMix, stationary_spread, adam_stationary_spread
 
 torch.set_num_threads(1)
 plt.rcParams.update({"figure.dpi": 110, "axes.spines.top": False, "axes.spines.right": False, "font.size": 10})

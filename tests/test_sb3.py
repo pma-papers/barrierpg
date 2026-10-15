@@ -6,7 +6,7 @@ def test_wrapper_reproduces_fuellander():
     import gymnasium as gym
     import sys
     from pathlib import Path
-    from bpg import BudgetSpec, BudgetWrapper, Stage
+    from barrierpg import BudgetSpec, BudgetWrapper, Stage
     try:
         import Box2D  # noqa: F401
     except ImportError:
@@ -32,9 +32,9 @@ def test_wrapper_reproduces_fuellander():
 def test_ppo_smoke_with_callbacks():
     from stable_baselines3 import PPO
     from stable_baselines3.common.vec_env import DummyVecEnv
-    from bpg import Stage, evaluate, sb3_policy
-    from bpg.callbacks import BudgetMonitor, DualAscent, ParameterAnchor
-    from bpg.examples.wear import WearModel, make_wear_env
+    from barrierpg import Stage, evaluate, sb3_policy
+    from barrierpg.callbacks import BudgetMonitor, DualAscent, ParameterAnchor
+    from barrierpg.examples.wear import WearModel, make_wear_env
     model = WearModel(); spec = model.spec()
     stage = Stage(m=1.0, penalty="multiplier")
     venv = DummyVecEnv([lambda: make_wear_env(stage, model) for _ in range(4)])
@@ -52,7 +52,7 @@ def test_ppo_smoke_with_callbacks():
 def _small_ppo(stage, seed=0, n_envs=2, log_std_init=-1.0):
     from stable_baselines3 import PPO
     from stable_baselines3.common.vec_env import DummyVecEnv
-    from bpg.examples.wear import WearModel, make_wear_env
+    from barrierpg.examples.wear import WearModel, make_wear_env
     model = WearModel()
     venv = DummyVecEnv([lambda: make_wear_env(stage, model) for _ in range(n_envs)])
     return PPO("MlpPolicy", venv, seed=seed, n_steps=64, batch_size=64, n_epochs=1, gamma=1.0, learning_rate=1e-3, device="cpu", verbose=0,
@@ -61,8 +61,8 @@ def _small_ppo(stage, seed=0, n_envs=2, log_std_init=-1.0):
 
 def test_parameter_noise_variance_and_composition():
     import torch
-    from bpg import Stage
-    from bpg.callbacks import ParameterAnchor, ParameterNoise
+    from barrierpg import Stage
+    from barrierpg.callbacks import ParameterAnchor, ParameterNoise
     ppo = _small_ppo(Stage(m=1.0))
     noise = ParameterNoise(ppo, kappa1=0.5, seed=0).install()
     opt = ppo.policy.optimizer
@@ -82,9 +82,9 @@ def test_parameter_noise_variance_and_composition():
 
 def test_fit_actor_mean_and_dispersion():
     import numpy as np
-    from bpg import Stage
-    from bpg.callbacks import fit_actor_mean, set_log_std, ParameterAnchor
-    from bpg.examples.wear import IncumbentRule
+    from barrierpg import Stage
+    from barrierpg.callbacks import fit_actor_mean, set_log_std, ParameterAnchor
+    from barrierpg.examples.wear import IncumbentRule
     ppo = _small_ppo(Stage(m=0.03))
     rule = IncumbentRule(span=3.0, std=0.1)
     rng = np.random.default_rng(0)
@@ -99,8 +99,8 @@ def test_fit_actor_mean_and_dispersion():
 
 def test_action_anchor_charges_the_failing_action():
     import numpy as np
-    from bpg import Stage
-    from bpg.callbacks import ActionAnchor
+    from barrierpg import Stage
+    from barrierpg.callbacks import ActionAnchor
     ppo = _small_ppo(Stage(m=1.0), n_envs=1, log_std_init=0.0)
     seen = {}
 

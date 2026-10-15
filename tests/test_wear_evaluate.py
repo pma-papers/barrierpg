@@ -1,8 +1,8 @@
 import numpy as np
-from bpg import BudgetSpec, Requirement, Stage, evaluate, interpret, plan
-from bpg.examples.wear import EXACT_FRONTIER, INCUMBENT, IncumbentRule, WearModel, full_rate_policy, idle_policy, make_wear_env
-from bpg.evaluate import stopped_action_relative_entropy
-from bpg.convergence import FeatureConstants
+from barrierpg import BudgetSpec, Requirement, Stage, evaluate, interpret, plan
+from barrierpg.examples.wear import EXACT_FRONTIER, INCUMBENT, IncumbentRule, WearModel, full_rate_policy, idle_policy, make_wear_env
+from barrierpg.evaluate import stopped_action_relative_entropy
+from barrierpg.convergence import FeatureConstants
 
 
 def test_idle_and_full_rate():

@@ -151,7 +151,7 @@ def interpret(spec: BudgetSpec, requirement: Requirement, stage: Stage, evaluati
     training       BudgetMonitor.convergence() of the training run: whether it had stopped changing (stated in the summary).
     seeds          dict of name -> SeedDispersion across training seeds.
     exact_frontier_gap  relative shortfall from an exact frontier if one exists.
-    effects        bpg.regularizers.regularizer_effects(...) of the candidate (action anchor, parameter anchor,
+    effects        barrierpg.regularizers.regularizer_effects(...) of the candidate (action anchor, parameter anchor,
                    inheritance, regularization path, bias terms, joint effect).
     """
     beta, ubar, T = spec.beta, spec.ubar, requirement.T

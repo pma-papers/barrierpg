@@ -1,4 +1,4 @@
-# bpg: reinforcement learning when a resource can run out
+# barrierpg: reinforcement learning when a resource can run out
 
 **Keep the learner you use. Add the budget. Know how often the trained policy runs out, and show it.**
 
@@ -10,7 +10,7 @@ Many control and decision problems have a resource that can run out: the fuel of
 battery, the cash of a firm, an allowance of damage or emissions. Running out is a failure, and the question after
 training is always the same: how often does the policy we deploy run out, and can we show it?
 
-`bpg` answers it for any policy-gradient learner. A wrapper turns the budget into part of the problem: the policy
+`barrierpg` answers it for any policy-gradient learner. A wrapper turns the budget into part of the problem: the policy
 observes what is left, the episode ends when it runs out, and a price is charged at that moment. You train PPO, SAC
 or any other learner on the wrapped environment unchanged. The toolbox then validates the policy you deploy with an
 exact statistical test and writes a report that says what the evidence shows and what it does not.
@@ -49,8 +49,8 @@ older versions of Gymnasium and MuJoCo; use a separate environment for it (see t
 ## Sixty seconds: validate a policy and read the verdict
 
 ```python
-from bpg import Requirement, Stage, evaluate, interpret
-from bpg.problems.inventory import Retailer, make_inventory_env, BaseStockRule
+from barrierpg import Requirement, Stage, evaluate, interpret
+from barrierpg.problems.inventory import Retailer, make_inventory_env, BaseStockRule
 
 retailer = Retailer()                                   # three product lines, 52 weeks, starting cash 2,500
 spec = retailer.spec()                                  # the budget is the cash; failure is the first week with negative cash
@@ -84,8 +84,8 @@ as it stands on LunarLander with a fuel tank; change the parts marked YOUR PROBL
 ```python
 import gymnasium as gym
 from stable_baselines3 import PPO
-from bpg import BudgetSpec, Requirement, Stage, BudgetWrapper, evaluate, interpret, plan
-from bpg.callbacks import BudgetMonitor
+from barrierpg import BudgetSpec, Requirement, Stage, BudgetWrapper, evaluate, interpret, plan
+from barrierpg.callbacks import BudgetMonitor
 
 def fuel_used(obs, action, next_obs, reward, info):     # the resource one step consumes (nonnegative)
     ...
@@ -109,8 +109,8 @@ optional; the template and notebooks 1 and 2 show them in code. The wrapper appe
 observation, ends the episode when the budget is exhausted, and charges the price there. Options cover a reserve margin (`Stage(theta=...)`), a lump sum charged once at failure
 (`Stage(penalty="multiplier", multiplier=F)`), an adaptive multiplier toward a tolerance (the `DualAscent`
 callback), a budget that is smaller than the policy believes (`true_budget_scale=0.9`), and a resource that is also
-replenished, such as cash (`RunningMaxCost`). The modules in [`bpg/problems/`](bpg/problems) show the mapping from a
-task to a budget for each of the four problems and serve as templates.
+replenished, such as cash (`RunningMaxCost`). The modules in [`barrierpg/problems/`](barrierpg/problems) show the
+mapping from a task to a budget for each of the four problems and serve as templates.
 
 ## When to use another method
 

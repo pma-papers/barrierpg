@@ -1,7 +1,7 @@
 import math
 import numpy as np
-from bpg import convergence as K
-from bpg import frontier as F
+from barrierpg import convergence as K
+from barrierpg import frontier as F
 
 
 def test_curvature_constants_reproduce_the_paper():
@@ -75,7 +75,7 @@ def test_multiplier_drift_is_tested_on_its_updates():
 
 
 def test_frontier_checks():
-    from bpg.examples.wear import EXACT_FRONTIER
+    from barrierpg.examples.wear import EXACT_FRONTIER
     runs = [F.Run(m=m, q_beta=q, U=U, label="exact") for m, (q, U) in EXACT_FRONTIER.items() if m > 0]
     chk = F.check_runs(runs, beta=0.95, sup_U=5.4343, delta=1e-4)
     assert chk.consistent, chk.explain()

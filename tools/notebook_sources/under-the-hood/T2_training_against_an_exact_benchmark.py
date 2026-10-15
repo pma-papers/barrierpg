@@ -25,13 +25,13 @@ import torch
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 
-import bpg
-from bpg import Requirement, Stage, evaluate, interpret, sb3_policy
-from bpg.callbacks import BudgetMonitor, DualAscent, dual_step_suggestion
-from bpg.convergence import seed_dispersion
-from bpg.examples.wear import WearModel, make_wear_env, EXACT_FRONTIER, EXACT_BARRIER
-from bpg.frontier import Run, check_runs, interpolate_frontier, price_sequence_check
-from bpg.spec import discounted_total, price_from_multiplier
+import barrierpg
+from barrierpg import Requirement, Stage, evaluate, interpret, sb3_policy
+from barrierpg.callbacks import BudgetMonitor, DualAscent, dual_step_suggestion
+from barrierpg.convergence import seed_dispersion
+from barrierpg.examples.wear import WearModel, make_wear_env, EXACT_FRONTIER, EXACT_BARRIER
+from barrierpg.frontier import Run, check_runs, interpolate_frontier, price_sequence_check
+from barrierpg.spec import discounted_total, price_from_multiplier
 
 torch.set_num_threads(1)
 plt.rcParams.update({"figure.dpi": 110, "axes.spines.top": False, "axes.spines.right": False, "font.size": 10})
@@ -257,8 +257,8 @@ print(rep.text())
 # candidate here; only the evaluation changes.
 
 # %%
-from bpg import BudgetWrapper
-from bpg.examples.wear import WearCore, wear_cost
+from barrierpg import BudgetWrapper
+from barrierpg.examples.wear import WearCore, wear_cost
 fixed_spec = spec.with_(horizon=req.T + 1)
 ev_fixed = evaluate(lambda: BudgetWrapper(WearCore(model), wear_cost, fixed_spec, stage, geometric_stop=False), sb3_policy(ppo),
                     10_000, spec=fixed_spec, stage=stage, seed=9, T=req.T)

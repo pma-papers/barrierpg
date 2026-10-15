@@ -20,7 +20,7 @@ dispersion, and the multiplier when it adapts), and the evaluation of the traine
 episodes, one entry per episode: whether and when it failed, its utility, and the problem's own measures (landed or
 crashed, fill rates and cash, distance and energy, damage). Runs that start from another policy also record the
 evaluation of that starting policy, and some configurations add evaluations under a different budget (a battery
-that holds 10% less than the robot believes). `records.Campaign(...).evaluation(...)` rebuilds a `bpg.Evaluation`
+that holds 10% less than the robot believes). `records.Campaign(...).evaluation(...)` rebuilds a `barrierpg.Evaluation`
 from these entries without simulating again.
 
 ## Running

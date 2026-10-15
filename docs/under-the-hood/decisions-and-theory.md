@@ -55,7 +55,7 @@ stochastic policy and its mean-action policy are different candidates.
    certificates, and `interpret(...).text()` for the report.
 
 ```python
-from bpg import BudgetSpec, Requirement, Stage, BudgetWrapper, evaluate, interpret, plan
+from barrierpg import BudgetSpec, Requirement, Stage, BudgetWrapper, evaluate, interpret, plan
 
 spec = BudgetSpec(budgets=[1.0], beta=0.95, ubar=1.0)            # one budget, utility in [0, 1]
 req = Requirement(T=19, alpha=0.05, zeta=0.05, family=2)        # p_19 <= 5%, two candidates share the error
@@ -218,8 +218,8 @@ price `m`, so training at many prices is not required.
   form `U - nu q_beta`, `Stage(clip_utility=False)`, to which the fixed-price results apply verbatim.
   `plan` warns when `m < u_minus` with clipping on.
 * **Physical horizon.** For a task that ends after `H` actions, `BudgetSpec(horizon=H)` charges the tail
-  `m (1 - beta^(H-t))/(1 - beta)` at a failure at step `t`; `bpg.spec.failure_tail` gives it, and
-  `bpg.spec.price_from_multiplier_physical` converts a flat penalty into a price at a typical failure time.
+  `m (1 - beta^(H-t))/(1 - beta)` at a failure at step `t`; `barrierpg.spec.failure_tail` gives it, and
+  `barrierpg.spec.price_from_multiplier_physical` converts a flat penalty into a price at a typical failure time.
 * **Check the resolution before retraining.** `validation.value_resolution_check` says whether the
   value-based test can certify the tolerance with the planned sample and horizon at all; increasing
   `m` cannot repair a failure of this check. `validation.episodes_for_tolerance` sizes the direct test.
@@ -376,7 +376,7 @@ law toward `pi_Gamma`, and the two targets coincide only under the centering con
 term also adds `eta C_A` to the curvature that the parameter term must supply.
 
 ```python
-from bpg import advise_regularizers, regularizer_effects
+from barrierpg import advise_regularizers, regularizer_effects
 
 advice = advise_regularizers(spec, stage, action_reference_trusted=True, price_trusted=False,
                              incumbent_available=True, prior_sigma=1.0)
@@ -427,7 +427,7 @@ print(interpret(spec, req, stage, ev, effects=eff).text())
 | Specify the requirement | `BudgetSpec`, `Requirement`, `certificates.finite_from_geometric`, `certificates.earliest_failures_time`, `certificates.eventual_risk_structural` |
 | Detect conditions for another method | `planning.when_to_use_another_method`, `plan`, `certificates.risk_floor`, `certificates.prescribed_level_attainable` |
 | Fix the price | `plan`, `certificates.conservative_price`, `certificates.conservative_multiplier`, `certificates.price_risk_law`, `certificates.price_monotonicity`, `frontier.check_runs`, `frontier.price_sequence_check`, `certificates.matched_risk_utility_gap`, `certificates.matched_risk_signed` |
-| Run any learner | `BudgetWrapper`, `RunningMaxCost`, `Stage`, `bpg.spec.failure_tail`, `BudgetMonitor` |
+| Run any learner | `BudgetWrapper`, `RunningMaxCost`, `Stage`, `barrierpg.spec.failure_tail`, `BudgetMonitor` |
 | Adaptive multiplier | `Stage(penalty="multiplier")`, `DualAscent`, `callbacks.dual_step_suggestion`, `DualAscent.diagnose` |
 | Buy margin | `Stage(theta=...)`, `BudgetWrapper(true_budget_scale=...)`, `certificates.near_exhaustion_bound`, `LogBarrier.lower_level` |
 | Choose regularizers | `advise_regularizers`, `ActionAnchor`, `ParameterAnchor`, `ParameterNoise`, `fit_actor_mean`, `set_log_std`, `RegularizerMix`, `convergence.gaussian_prior_curvature`, `convergence.curvature_budget`, `convergence.certified_kappa`, `convergence.finite_training_transfer` |

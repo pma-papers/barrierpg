@@ -1,5 +1,5 @@
 import math
-from bpg import certificates as C
+from barrierpg import certificates as C
 
 
 def test_value_certificate_and_identity():

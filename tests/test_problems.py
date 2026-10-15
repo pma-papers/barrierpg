@@ -2,11 +2,11 @@
 the robot are skipped when Box2D or MuJoCo is missing; navigation needs Safety-Gymnasium in its own environment)."""
 import numpy as np
 
-from bpg import Requirement, Stage, evaluate, interpret
+from barrierpg import Requirement, Stage, evaluate, interpret
 
 
 def test_retailer_cash_is_the_budget():
-    from bpg.problems.inventory import Retailer, InventoryCore, make_inventory_env, BaseStockRule
+    from barrierpg.problems.inventory import Retailer, InventoryCore, make_inventory_env, BaseStockRule
     r = Retailer()
     stage = Stage(m=0.0, penalty="multiplier", multiplier=5000.0, clip_utility=False)
     env = make_inventory_env(stage, r)
@@ -30,7 +30,7 @@ def test_retailer_cash_is_the_budget():
 
 
 def test_retailer_rule_with_noise_is_riskier():
-    from bpg.problems.inventory import Retailer, make_inventory_env, BaseStockRule
+    from barrierpg.problems.inventory import Retailer, make_inventory_env, BaseStockRule
     r = Retailer()
     stage = Stage(m=0.0, penalty="multiplier", multiplier=0.0, clip_utility=False)
     exact = evaluate(lambda: make_inventory_env(stage, r), BaseStockRule(r, 2.0, 300.0).deterministic, 400, spec=r.spec(),
@@ -41,9 +41,9 @@ def test_retailer_rule_with_noise_is_riskier():
 
 
 def test_observe_time_appends_the_elapsed_fraction():
-    from bpg import BudgetSpec, BudgetWrapper
-    from bpg.problems.inventory import InventoryCore, cash_outflow
-    from bpg import RunningMaxCost
+    from barrierpg import BudgetSpec, BudgetWrapper
+    from barrierpg.problems.inventory import InventoryCore, cash_outflow
+    from barrierpg import RunningMaxCost
     spec = BudgetSpec(budgets=[2500.0], beta=0.999, ubar=1.0, horizon=52)
     env = BudgetWrapper(InventoryCore(), RunningMaxCost(cash_outflow), spec, Stage(m=0.0), observe_time=True)
     o, _ = env.reset(seed=0)
@@ -60,7 +60,7 @@ def test_observe_time_appends_the_elapsed_fraction():
 
 
 def test_report_summary_is_plain():
-    from bpg.problems.inventory import Retailer, make_inventory_env, BaseStockRule
+    from barrierpg.problems.inventory import Retailer, make_inventory_env, BaseStockRule
     r = Retailer()
     stage = Stage(m=0.0, penalty="multiplier", multiplier=5000.0, clip_utility=False)
     req = Requirement(T=r.weeks - 1, alpha=0.02, zeta=0.05, family=4)
@@ -76,7 +76,7 @@ def test_report_summary_is_plain():
 def test_lander_and_robot_budgets():
     try:
         import Box2D  # noqa: F401
-        from bpg.problems.lander import make_lander_env, fuel_use, Tank
+        from barrierpg.problems.lander import make_lander_env, fuel_use, Tank
         env = make_lander_env(Stage(m=0.5, clip_utility=False), Tank(capacity=1.0))
         o, _ = env.reset(seed=0)
         for t in range(200):
@@ -88,7 +88,7 @@ def test_lander_and_robot_budgets():
         print("Box2D missing; lander skipped")
     try:
         import mujoco  # noqa: F401
-        from bpg.problems.energy import make_robot_env, Battery
+        from barrierpg.problems.energy import make_robot_env, Battery
         env = make_robot_env(Stage(m=1.0, clip_utility=False), Battery(charge=30.0, efficiency_sd=0.0))
         o, _ = env.reset(seed=0)
         for t in range(100):
@@ -103,8 +103,8 @@ def test_lander_and_robot_budgets():
 def test_zero_reserve_is_finite_under_the_unclipped_form():
     # whole-unit costs can bring the reserve to exactly zero, where the barrier is infinite; the unclipped form must
     # charge nothing there when only the failure is priced, and a finite amount with an interior barrier
-    from bpg import BudgetSpec, BudgetWrapper
-    from bpg.examples.wear import WearCore
+    from barrierpg import BudgetSpec, BudgetWrapper
+    from barrierpg.examples.wear import WearCore
     spec = BudgetSpec(budgets=[3.0], beta=0.99, ubar=1.0, horizon=10)
     for stage, expect in ((Stage(m=0.5, clip_utility=False), None), (Stage(m=0.5, theta=0.2, clip_utility=False), -0.5)):
         env = BudgetWrapper(WearCore(), lambda o, a, o2, r, i: [1.0], spec, stage)
@@ -126,7 +126,7 @@ def test_half_cheetah_without_settotalmass_matches_the_stock_environment():
         print("MuJoCo missing; skipped"); return
     import os
     import tempfile
-    from bpg.problems.energy import half_cheetah
+    from barrierpg.problems.energy import half_cheetah
     # the stock model warns by design, and MuJoCo writes the warning to MUJOCO_LOG.TXT in the working directory:
     # build it in a temporary one so that the test leaves nothing behind
     here = os.getcwd()

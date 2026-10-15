@@ -3,8 +3,8 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "bpg"
-version = "0.5.1"
+name = "barrierpg"
+version = "0.6.0"
 description = "Reinforcement learning when a resource can run out: train any policy-gradient learner under a budget, validate the policy, report what the evidence shows"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -16,7 +16,7 @@ rl = ["gymnasium>=1.0", "stable-baselines3>=2.3", "torch>=2.0"]
 problems = ["gymnasium[box2d,mujoco]>=1.0"]          # the lander (Box2D) and the robot (MuJoCo); navigation needs Safety-Gymnasium separately
 test = ["pytest"]
 notebooks = ["jupyter", "ipykernel", "matplotlib", "nbformat", "nbclient"]
-all = ["bpg[rl,problems,test,notebooks]"]
+all = ["barrierpg[rl,problems,test,notebooks]"]
 
 [tool.setuptools.packages.find]
-include = ["bpg*"]
+include = ["barrierpg*"]

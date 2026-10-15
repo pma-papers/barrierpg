@@ -25,7 +25,7 @@ from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 
-from bpg import BudgetSpec, Requirement, Stage, BudgetWrapper, interpret, plan
+from barrierpg import BudgetSpec, Requirement, Stage, BudgetWrapper, interpret, plan
 
 sys.path.insert(0, str(Path("..").resolve() / "campaigns"))
 from records import Campaign                     # the records of the full campaign
@@ -80,7 +80,7 @@ if HAVE_SAFETY_GYMNASIUM:
     from safety_gymnasium.wrappers import SafetyGymnasium2Gymnasium
     from stable_baselines3 import PPO
     from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
-    from bpg.callbacks import BudgetMonitor
+    from barrierpg.callbacks import BudgetMonitor
 
     def make_env(stage, **options):
         task = SafetyGymnasium2Gymnasium(safety_gymnasium.make("SafetyPointGoal1-v0"))

@@ -189,7 +189,7 @@ def plan(spec: BudgetSpec, requirement: Requirement, *, sup_U: Optional[float] =
                   episode is compared: above three times, the case for another method applies; above once, a note asks
                   to watch the return in pilot runs (the tutorial campaigns: a navigation robot's return collapsed at
                   about four times, while a legged robot and a retailer did well at two to three times).
-    regularizers  keyword arguments of bpg.regularizers.advise_regularizers (conditions of the application).
+    regularizers  keyword arguments of barrierpg.regularizers.advise_regularizers (conditions of the application).
     """
     notes, warnings = [], []
     beta, ubar, u_minus = spec.beta, spec.ubar, spec.u_minus

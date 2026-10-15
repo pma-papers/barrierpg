@@ -15,16 +15,19 @@ The exact package set in use is frozen in `../environments/bpg-toolbox.txt`.
 
 Extras: `rl` (Gymnasium, Stable-Baselines3, PyTorch), `problems` (Box2D for the lander, MuJoCo for the robot),
 `notebooks` (Jupyter, matplotlib, nbformat, nbclient), `test` (pytest), and `all`. The core (`pip install -e .`)
-needs only numpy and scipy. Building `box2d-py` needs a `swig` executable on the path; on macOS, `brew install swig`
-provides it. Tests that need Box2D or MuJoCo are skipped without them.
+needs only numpy and scipy. The distribution and the package are both called `barrierpg`; before version 0.6.0 they
+were called `bpg`, a name taken on PyPI by an unrelated package. On Python 3.14, Gymnasium's Box2D extra builds
+`box2d-py`, which needs a `swig` executable on the path (on macOS, `brew install swig`); older Pythons get a prebuilt
+wheel. Tests that need Box2D or MuJoCo are skipped without them.
 
 The navigation problem needs Safety-Gymnasium 1.0, which requires Python 3.10 or older, Gymnasium 0.28 and MuJoCo 2.3,
 so it lives in a second environment (here `~/.venvs/constrained-rl-safety310`) with the toolbox installed editable
 and without dependencies (`pip install --no-deps -e .`). Only training and new evaluations of the navigation policies
 need it; the navigation notebook reads the shipped records.
 
-The step-by-step test of the paper's fuel-tank environment needs the replication repository checked out next to the
-toolbox (`../bpg-replication`); without it the test is skipped.
+The step-by-step test of the paper's fuel-tank environment compares `BudgetWrapper` with the paper's own environment
+class, which is shipped as a test fixture (`tests/fixtures/paper_fuel_lander.py`, copied verbatim from the replication
+repository with the hash of its source file). It needs Box2D.
 
 ## VS Code
 
@@ -84,13 +87,13 @@ python tools/make_readme_figures.py      # the figure on the landing page
 The toolbox cites results by the titles the paper gives them and never by statement, section, table or equation
 numbers, so a renumbering needs no change. A new revision is checked for content instead.
 
-1. Check that every title in `RESULTS` of `bpg/paper.py` still names a statement of the paper; rename a key's title
-   if the paper renamed the result.
+1. Check that every title in `RESULTS` of `barrierpg/paper.py` still names a statement of the paper; rename a key's
+   title if the paper renamed the result.
 2. Check what changed in substance (statements, the cases of *Which formulation to prefer*, the studies' tables) and
    update the functions, `docs/` and the notebook sources that use it.
 3. Set `PAPER["checked_against"]` to the revision checked.
 4. Run the tests (`test_no_statement_numbers_in_printed_text` fails on any number in printed citations or reports),
    search the documentation for numbers with
-   `grep -rnE "(Proposition|Theorem|Corollary|Remark|Lemma|Table|Section|Appendix) [A-Z]?\.?[0-9]" bpg docs examples tools README.md`,
+   `grep -rnE "(Proposition|Theorem|Corollary|Remark|Lemma|Table|Section|Appendix) [A-Z]?\.?[0-9]" barrierpg docs examples tools README.md`,
    and rebuild the notebooks.
 5. Record the changes in `CHANGELOG.md`.

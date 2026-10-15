@@ -1,7 +1,7 @@
 """A deployment report must not silently assume an unknown optimizer error is zero."""
 import numpy as np
-from bpg import BudgetSpec, Requirement, Stage, interpret
-from bpg.evaluate import Evaluation
+from barrierpg import BudgetSpec, Requirement, Stage, interpret
+from barrierpg.evaluate import Evaluation
 
 
 def candidate():

@@ -1,8 +1,8 @@
 import math
 import numpy as np
-from bpg.spec import BudgetSpec, Requirement, Stage, discounted_total, failure_tail, price_from_multiplier, price_from_multiplier_physical
-from bpg.barrier import LogBarrier
-from bpg.wrapper import BudgetWrapper
+from barrierpg.spec import BudgetSpec, Requirement, Stage, discounted_total, failure_tail, price_from_multiplier, price_from_multiplier_physical
+from barrierpg.barrier import LogBarrier
+from barrierpg.wrapper import BudgetWrapper
 
 
 class Counter:

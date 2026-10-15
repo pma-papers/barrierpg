@@ -9,7 +9,7 @@ the quantity is an identity rather than a bound. Inputs are the quantities of th
   R      regularization cost eta A + kappa H of a comparison law;
   delta  optimization error; eps_r reward approximation error; A action relative entropy.
 
-Citations go through `bpg.paper.cite`, so they follow the paper's current numbering.
+Citations go through `barrierpg.paper.cite`, so they follow the paper's current numbering.
 """
 from __future__ import annotations
 

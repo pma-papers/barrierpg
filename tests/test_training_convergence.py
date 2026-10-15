@@ -1,7 +1,7 @@
 """The convergence check of a training run, on synthetic per-batch records and on a short PPO run."""
 import numpy as np
 
-from bpg.convergence import training_convergence
+from barrierpg.convergence import training_convergence
 
 
 def _trace(f, n=100, noise=0.01, seed=0):
@@ -26,9 +26,9 @@ def test_monitor_convergence_and_report():
         from stable_baselines3.common.vec_env import DummyVecEnv
     except ImportError:
         print("Stable-Baselines3 missing; skipped"); return
-    from bpg import Requirement, Stage, evaluate, interpret
-    from bpg.callbacks import BudgetMonitor
-    from bpg.examples.wear import WearModel, make_wear_env
+    from barrierpg import Requirement, Stage, evaluate, interpret
+    from barrierpg.callbacks import BudgetMonitor
+    from barrierpg.examples.wear import WearModel, make_wear_env
     model = WearModel(); spec = model.spec(); stage = Stage(m=1.0)
     venv = DummyVecEnv([lambda: make_wear_env(stage, model) for _ in range(4)])
     sb3 = PPO("MlpPolicy", venv, seed=0, n_steps=64, batch_size=64, n_epochs=2, gamma=1.0, device="cpu", verbose=0,

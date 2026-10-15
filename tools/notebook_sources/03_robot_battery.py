@@ -31,9 +31,9 @@ import torch
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 
-from bpg import BudgetSpec, Requirement, Stage, BudgetWrapper, evaluate, interpret
-from bpg.callbacks import BudgetMonitor
-from bpg.problems.energy import half_cheetah     # HalfCheetah-v5, without MuJoCo's warning about its model file
+from barrierpg import BudgetSpec, Requirement, Stage, BudgetWrapper, evaluate, interpret
+from barrierpg.callbacks import BudgetMonitor
+from barrierpg.problems.energy import half_cheetah     # HalfCheetah-v5, without MuJoCo's warning about its model file
 
 sys.path.insert(0, str(Path("..").resolve() / "campaigns"))
 from records import Campaign                     # the records of the full campaign
