@@ -53,6 +53,27 @@ def test_trace_diagnostics():
     sd = K.seed_dispersion([1.0, 2.0, 3.0]); assert sd.mean == 2.0 and sd.n == 3
 
 
+
+def _dual_ascent_trace(seed, nu0, step, n=240, nu_star=34.0, alpha=0.02, episodes=400):
+    """Dual ascent against a learner whose risk falls with the multiplier and equals alpha at nu_star."""
+    rng = np.random.default_rng(seed); nu = nu0; trace = []
+    for _ in range(n):
+        q = min(1.0, alpha * math.exp(-(nu - nu_star) / 25.0))
+        rate = rng.binomial(episodes, q) / episodes
+        nu = max(0.0, nu + step * (rate - alpha))
+        trace.append(dict(multiplier=nu, failure_rate=rate, episodes=episodes))
+    return trace
+
+
+def test_multiplier_drift_is_tested_on_its_updates():
+    # The multiplier is a running sum of its updates. A slope fitted to its levels reports a trend in most windows
+    # after convergence; the drift of the updates does not, and still detects a multiplier that is climbing.
+    converged = [K.multiplier_diagnosis(_dual_ascent_trace(s, 34.0, 17.0), 0.02, 0.95, 40).status for s in range(40)]
+    assert converged.count("stable") >= 34
+    climbing = [K.multiplier_diagnosis(_dual_ascent_trace(s, 0.0, 2.0), 0.02, 0.95, 40).status for s in range(40)]
+    assert climbing.count("trending") == 40
+
+
 def test_frontier_checks():
     from bpg.examples.wear import EXACT_FRONTIER
     runs = [F.Run(m=m, q_beta=q, U=U, label="exact") for m, (q, U) in EXACT_FRONTIER.items() if m > 0]

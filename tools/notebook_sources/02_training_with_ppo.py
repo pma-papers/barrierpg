@@ -158,16 +158,27 @@ print(price_sequence_check(list(deltas), list(deltas.values())).explain())
 #
 # A multiplier method charges a flat penalty $\nu$ at failure and updates it after each rollout,
 # $\nu\leftarrow\max\{0,\nu+c(\hat q-\alpha)\}$. If it converges to $\nu$, it returns the fixed-price optimum at
-# $m=(1-\beta)\nu$ (the paper's section *The fixed price of failure risk*). The step $c$ must respect two time scales: the multiplier should move by a small
-# fraction of its eventual level per rollout. We take the expected level from the runs at several prices: a price near $0.5$ attains
-# about three percent, so $\nu\approx0.5/(1-\beta)=10$.
+# $m=(1-\beta)\nu$ (the paper's section *The fixed price of failure risk*). The step $c$ is sized from the level the
+# multiplier has to reach. The learned policies above attain more risk than the exact optima at the same price, so
+# that level comes from the learned runs, not from the exact frontier: we interpolate, on a log scale, the price at
+# which they attain the prescribed level. Sized from the exact frontier, which attains it at about a third of that
+# price, the multiplier is still rising when training ends.
+#
+# The step is half the expected level per rollout in which every episode fails. Early in training, when many episodes
+# fail, the multiplier rises within a few rollouts. Near the tolerance, where the failure rate is off by about a
+# percentage point, one rollout moves it by about half a percent of its level, slowly relative to the policy's updates.
 #
 # The prescribed level is set **below** the tolerance: a multiplier that converges at the tolerance itself does not pass
 # validation at that tolerance.
 
 # %%
 alpha_level = 0.02
-dual = DualAscent(alpha=alpha_level, step=dual_step_suggestion(discounted_total(0.5, spec.beta), rollouts_to_reach=5))
+m_runs = sorted(prices)
+q_runs = [np.mean([e.q_beta for (k, sd), e in by_price.items() if k == mm]) for mm in m_runs]   # risk falls with the price
+m_expected = float(np.exp(np.interp(np.log(alpha_level), np.log(q_runs[::-1]), np.log(m_runs[::-1]))))
+nu_expected = discounted_total(m_expected, spec.beta)
+print(f"the learned runs attain {alpha_level:g} near m = {m_expected:.2f}: expected multiplier nu = {nu_expected:.1f}")
+dual = DualAscent(alpha=alpha_level, step=dual_step_suggestion(nu_expected, rollouts_to_reach=2))
 adaptive_stage = Stage(m=0.0, penalty="multiplier")
 mon_a = BudgetMonitor(spec.beta, 0.0, penalty="multiplier", dual=dual)
 ppo_a = train(adaptive_stage, seed=0, callbacks=[dual, mon_a])
@@ -190,10 +201,14 @@ print(f"adaptive candidate: q_beta = {ev_a.q_beta:.4f}, U = {ev_a.U:.3f}, final 
 # Read the diagnosis printed above. It applies the paper's two criteria for convergence: the multiplier stops moving,
 # and the attained risk lies within the confidence bound of the tolerance. *Stable* means both hold, and the
 # candidate is the fixed-price optimum at the price-equivalent $m=(1-\beta)\nu$, up to its optimization error.
-# *Trending* means the multiplier was still moving when training stopped: the candidate is not a fixed-price optimum
-# at any identified price, and longer training or a different step is needed. *Increasing* means the multiplier rose
-# while every episode failed, so the flat penalty carried no gradient (the fuel-tank study). *Off-target* means the
-# multiplier stopped moving away from the tolerance, as when the tolerance lies below the risk floor of the class.
+# The multiplier is the running sum of its updates, so the diagnosis tests whether it still moves on the updates
+# themselves: their mean over the last rollouts is its drift. *Trending* means the multiplier was still moving when
+# training stopped: the candidate is not a fixed-price optimum at any identified price, and longer training or a step
+# sized from the level the multiplier has to reach is needed. A multiplier that keeps rising while the failure rate
+# stays above the tolerance is the sign of a tolerance below the risk floor of the class, where no multiplier
+# converges. *Increasing* means the multiplier rose while every episode failed, so the flat penalty carried no
+# gradient (the fuel-tank study). *Off-target* means no drift but a failure rate away from the tolerance: the
+# rollouts are too few or too small to resolve it.
 #
 # ## Buying a margin: the interior barrier under a misjudged allowance
 #

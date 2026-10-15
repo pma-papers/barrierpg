@@ -8,7 +8,7 @@ minibatches of 1024, a linearly decaying learning rate) at a quarter of its budg
 90 seconds per run on one CPU core.
 
   python examples/02_ppo_wear.py --config fixed --m 1
-  python examples/02_ppo_wear.py --config adaptive --alpha 0.02
+  python examples/02_ppo_wear.py --config adaptive --alpha 0.02 --m 1.7   # --m: where fixed-price runs attain about alpha
   python examples/02_ppo_wear.py --config fixed --m 1 --theta 0.1
   python examples/02_ppo_wear.py --config noise --m 0.03 --kappa-p 10 --kappa1 0.1
 """
@@ -53,7 +53,8 @@ ppo = PPO("MlpPolicy", venv, seed=args.seed, n_steps=256, batch_size=1024, n_epo
           device="cpu", verbose=0)
 callbacks = []
 if args.config == "adaptive":
-    step = args.dual_step if args.dual_step is not None else dual_step_suggestion(discounted_total(args.m, spec.beta))
+    # half the expected level per rollout in which every episode fails: the multiplier reaches its level within the run
+    step = args.dual_step if args.dual_step is not None else dual_step_suggestion(discounted_total(args.m, spec.beta), rollouts_to_reach=2)
     dual = DualAscent(alpha=args.alpha, step=step); callbacks.append(dual)
     callbacks.insert(0, BudgetMonitor(spec.beta, stage.m, penalty="multiplier", dual=dual))
     print(f"dual step {step:.4g} (a twentieth of the price-equivalent multiplier {discounted_total(args.m, spec.beta):.4g} per rollout)")

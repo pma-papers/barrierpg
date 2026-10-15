@@ -25,7 +25,12 @@ Changed
   replace `violations_during_learning_acceptable`, `prescribed_tolerance_least_conservatism`,
   `expected_cost_requirement`, `structured_solution_available` and `task_stakes` (now `episode_earnings`).
 - `convergence.multiplier_diagnosis` and `DualAscent.diagnose` apply the paper's two criteria for convergence; the
-  statuses are `stable`, `increasing`, `inactive`, `trending`, `off-target` and `short`.
+  statuses are `stable`, `increasing`, `inactive`, `trending`, `off-target` and `short`. Whether the multiplier still
+  moves is tested on its rollout-to-rollout updates (their mean is its drift), not by a slope fitted to its levels:
+  the multiplier is a running sum, and the slope test reported a trend in almost every window, also after
+  convergence.
+- Notebook 2 sizes the dual step from the price at which the learned runs attain the prescribed level, half that
+  level per rollout in which every episode fails; the multiplier now converges within the run.
 - `callbacks.dual_step_suggestion(expected_multiplier, rollouts_to_reach=...)` replaces `rollouts_to_settle`.
 - The value test is described as a necessary condition for certifying a tolerance, as in the paper.
 - Wording follows the paper: a multiplier converges or increases without bound; prices are compared by training at

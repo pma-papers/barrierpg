@@ -321,17 +321,23 @@ class MultiplierDiagnosis:
 def multiplier_diagnosis(trace: Sequence[dict], alpha: float, beta: float, window: int = 20, tol: float = 0.25) -> MultiplierDiagnosis:
     """Reads a dual-ascent trace (dicts with 'multiplier' and 'failure_rate') by two criteria and their complements.
 
-    stable      the multiplier shows no trend over the last rollouts and the failure rate is near the tolerance
-                (within tol, relative, plus one rollout's sampling error);
+    The multiplier is the running sum of its updates, so whether it still moves is tested on the updates: their mean
+    over the last rollouts is its drift, detected when it exceeds two standard errors of that mean. A slope fitted to
+    the levels of a running sum would report a trend in almost any window, also after convergence.
+
+    stable      the multiplier shows no drift over the last rollouts and the failure rate is near the tolerance
+                (within tol, relative, plus the sampling error of the window);
     increasing  the multiplier rose in nearly every rollout while the failure rate stayed far above the tolerance.
                 When every episode fails, the flat penalty carries no gradient (the fuel-tank study with its
                 pre-registered step); reduce the dual step, use a fixed price, or start from a controller that sometimes
                 survives;
     inactive    the multiplier is zero and the failure rate is below the tolerance: the tolerance does not constrain
                 the unpriced optimum;
-    trending    the multiplier is still rising or falling: train longer or reduce the step;
-    off-target  no trend, but the failure rate is not near the tolerance: the tolerance may lie below the risk floor
-                of the class (then no multiplier converges), or the rollouts are too small to resolve it;
+    trending    the multiplier is still rising or falling: train longer, or size the step from the level the
+                multiplier has to reach. A multiplier that keeps rising while the failure rate stays above the
+                tolerance is the sign of a tolerance below the risk floor of the class (then no multiplier converges);
+    off-target  no detectable drift, but the failure rate is not near the tolerance: the rollouts are too few or too
+                small to resolve the tolerance;
     short       too few rollouts.
     """
     nu = np.array([t["multiplier"] for t in trace], dtype=float)
@@ -340,7 +346,10 @@ def multiplier_diagnosis(trace: Sequence[dict], alpha: float, beta: float, windo
         return MultiplierDiagnosis("short", float(nu[-1]) if len(nu) else 0.0, 0.0, float("nan"), alpha, "too few rollouts to diagnose")
     w = min(window, len(nu))
     rate_w = float(np.nanmean(fr[-w:]))
-    tt = trend_test(nu, w)
+    steps = np.diff(nu[-(w + 1):])
+    drift = float(steps.mean())
+    drift_se = float(steps.std(ddof=1) / math.sqrt(len(steps))) if len(steps) > 1 else float("inf")
+    drifting = abs(drift) > 2.0 * drift_se if drift_se > 0 else abs(drift) > 0
     last, eq = float(nu[-1]), price_from_multiplier(float(nu[-1]), beta)
     increases = np.mean(np.diff(nu[-w:]) > 0) if w > 1 else 0.0
     if last == 0.0 and rate_w <= alpha:
@@ -352,18 +361,19 @@ def multiplier_diagnosis(trace: Sequence[dict], alpha: float, beta: float, windo
                                    f"the tolerance {alpha:g}: when every episode fails the flat penalty carries no gradient; reduce the dual step, use a "
                                    "fixed price, or start from a controller that sometimes survives")
     close = abs(rate_w - alpha) <= tol * alpha + 1.0 / math.sqrt(max(1, sum(t.get("episodes", 1) for t in trace[-w:])))
-    if not tt.trend_detected and close:
+    if not drifting and close:
         return MultiplierDiagnosis("stable", last, eq, rate_w, alpha,
-                                   f"multiplier {last:.4g} (price-equivalent m = (1-beta) nu = {eq:.4g}) shows no trend over the last {w} rollouts, and the "
+                                   f"multiplier {last:.4g} (price-equivalent m = (1-beta) nu = {eq:.4g}) shows no drift over the last {w} rollouts "
+                                   f"({drift:+.3g} per rollout, standard error {drift_se:.2g}), and the "
                                    f"failure rate {rate_w:.3g} is near the tolerance {alpha:g}. A multiplier that has converged returns the fixed-price "
                                    "optimum at that price; a level reached at the tolerance itself does not pass a validation test at that tolerance")
-    if not tt.trend_detected and not close:
+    if not drifting and not close:
         return MultiplierDiagnosis("off-target", last, eq, rate_w, alpha,
-                                   f"multiplier shows no trend but the failure rate {rate_w:.3g} is not near the tolerance {alpha:g}: the tolerance may lie "
-                                   "below the risk floor of the class (then no multiplier converges), or the rollouts are too small to resolve it")
+                                   f"multiplier shows no drift but the failure rate {rate_w:.3g} is not near the tolerance {alpha:g}: the rollouts are too "
+                                   "few or too small to resolve the tolerance")
     return MultiplierDiagnosis("trending", last, eq, rate_w, alpha,
-                               f"multiplier still {'rising' if tt.slope_per_step > 0 else 'falling'} over the last {w} rollouts (failure rate {rate_w:.3g}, "
-                               f"tolerance {alpha:g}): it has not converged")
+                               f"multiplier still {'rising' if drift > 0 else 'falling'} over the last {w} rollouts ({drift:+.3g} per rollout, standard "
+                               f"error {drift_se:.2g}; failure rate {rate_w:.3g}, tolerance {alpha:g}): it has not converged")
 
 
 @dataclass

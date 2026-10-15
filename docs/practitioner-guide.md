@@ -193,15 +193,22 @@ price `m`, so training at many prices is not required.
   `certificates.matched_risk_utility_gap` bounds the shortfall.
 * **An adaptive multiplier targets a tolerance directly** when the tolerance lies above the risk floor
   of the class; no multiplier converges below it. Use `Stage(penalty="multiplier")` and `DualAscent(alpha,
-  step)`. Take the step from `callbacks.dual_step_suggestion(expected_multiplier)`: the multiplier
-  should move by a small fraction of its eventual level per rollout (the toolbox's rule is a twentieth
-  of the penalty at which a fixed-price run attains about the tolerance). Read the trace with
+  step)`. Take the step from `callbacks.dual_step_suggestion(expected_multiplier, rollouts_to_reach)`,
+  with the expected multiplier the penalty at which fixed-price runs of the same learner attain about the
+  tolerance; a learned policy attains more risk than the exact optimum at the same price, so the exact
+  frontier understates it. The step moves the multiplier by `expected_multiplier / rollouts_to_reach` in a
+  rollout in which every episode fails, and by the fraction `rate - alpha` of that otherwise, so near the
+  tolerance it moves slowly relative to the policy's updates. The default, a twentieth, suits long runs;
+  with a few hundred rollouts a larger fraction is needed (notebook 2 uses one half). Read the trace with
   `DualAscent.diagnose(beta)`, which applies the paper's two criteria for convergence: the multiplier
   stops moving, and the attained risk lies within the confidence bound of the tolerance. The status is
   *stable* (both hold), *increasing* (every episode fails and the flat penalty carries no gradient:
   lower the step, raise a fixed price, or start from a controller that sometimes survives), *inactive*
-  (the tolerance does not bind), *trending*, *off-target* (the multiplier is stable but the risk misses
-  the tolerance), or *short* (too few rollouts). A multiplier that converges at the tolerance itself
+  (the tolerance does not bind), *trending* (still moving; one that keeps rising while the failure
+  rate stays above the tolerance signals a tolerance below the risk floor), *off-target* (no drift, but
+  the rollouts cannot resolve the tolerance), or *short* (too few rollouts). The drift is tested on the
+  multiplier's updates, since a slope fitted to the levels of a running sum reports a trend in almost
+  any window. A multiplier that converges at the tolerance itself
   does not pass validation at that tolerance: set the prescribed level below the tolerance by the width
   of the confidence bound, just as a fixed price has to be chosen with one.
 * **Price and conditioning.** A higher price raises the curvature that a convergence argument requires
