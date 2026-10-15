@@ -48,12 +48,45 @@ class Battery:
                           horizon=self.mission)
 
 
+def half_cheetah(**make_kwargs):
+    """Gymnasium's HalfCheetah-v5, built so that MuJoCo 3 does not warn about the model file's deprecated settotalmass
+    attribute. The attribute is removed from a copy of the model file, and the total mass it set is applied with
+    mujoco.mj_setTotalmass instead, as the warning advises; the masses, inertias and dynamics are identical to the stock
+    environment's. If a later Gymnasium drops the attribute, the stock environment is returned unchanged."""
+    import hashlib
+    import os
+    import re
+    import tempfile
+    import mujoco
+    import gymnasium.envs.mujoco as gym_mujoco
+    xml = open(os.path.join(os.path.dirname(gym_mujoco.__file__), "assets", "half_cheetah.xml")).read()
+    found = re.search(r'settotalmass="([0-9.eE+-]+)"', xml)
+    if found is None:
+        return gym.make("HalfCheetah-v5", **make_kwargs)
+    patched = re.sub(r'\s*settotalmass="[^"]*"', "", xml)
+    path = os.path.join(tempfile.gettempdir(), f"bpg-half_cheetah-{hashlib.sha1(patched.encode()).hexdigest()[:12]}.xml")
+    if not os.path.exists(path):                       # written once, atomically (parallel runs may start together)
+        fd, tmp = tempfile.mkstemp(suffix=".xml", dir=tempfile.gettempdir())
+        with os.fdopen(fd, "w") as f:
+            f.write(patched)
+        os.replace(tmp, path)
+    env = gym.make("HalfCheetah-v5", xml_file=path, **make_kwargs)
+    core = env.unwrapped
+    mujoco.mj_setTotalmass(core.model, float(found.group(1)))
+    mujoco.mj_setConst(core.model, core.data)
+    core.init_qpos = core.data.qpos.ravel().copy()
+    core.init_qvel = core.data.qvel.ravel().copy()
+    return env
+
+
 if gym is not None:
     class BatteryRobot(gym.Wrapper):
         """Adds the battery draw to info['energy'] and the mission's efficiency factor to info['efficiency']."""
 
         def __init__(self, battery: Battery = Battery(), **make_kwargs):
-            super().__init__(gym.make(battery.env_id, max_episode_steps=battery.mission, **make_kwargs))
+            env = (half_cheetah(max_episode_steps=battery.mission, **make_kwargs) if battery.env_id == "HalfCheetah-v5"
+                   else gym.make(battery.env_id, max_episode_steps=battery.mission, **make_kwargs))
+            super().__init__(env)
             self.battery = battery
             self._rng = np.random.default_rng()
             self.efficiency = 1.0
@@ -89,4 +122,4 @@ def make_robot_env(stage: Stage, battery: Battery = Battery(), *, true_budget_sc
                          true_budget_scale=true_budget_scale, observe_time=observe_time)
 
 
-__all__ = ["Battery", "energy_use", "make_robot_env"] + (["BatteryRobot"] if gym is not None else [])
+__all__ = ["Battery", "energy_use", "make_robot_env", "half_cheetah"] + (["BatteryRobot"] if gym is not None else [])

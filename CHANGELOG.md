@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.1 (2026-10-15): HalfCheetah without MuJoCo's deprecation warning
+
+- `bpg.problems.energy.half_cheetah()` builds Gymnasium's HalfCheetah-v5 from a copy of its model file without the
+  `settotalmass` attribute, which MuJoCo 3 deprecates and warned about at every environment (and logged to
+  MUJOCO_LOG.TXT); the total mass is set with `mujoco.mj_setTotalmass` instead. Masses, inertias and trajectories are
+  identical to the stock environment's (a test checks it). The robot problem and notebook 3 use it.
+
 ## 0.5.0 (2026-10-15): convergence monitoring; regularizers as examples
 
 - Convergence monitoring of a training run: `bpg.convergence.training_convergence` compares the last tenth of the

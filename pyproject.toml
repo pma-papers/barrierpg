@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bpg"
-version = "0.5.0"
+version = "0.5.1"
 description = "Reinforcement learning when a resource can run out: train any policy-gradient learner under a budget, validate the policy, report what the evidence shows"
 readme = "README.md"
 requires-python = ">=3.10"

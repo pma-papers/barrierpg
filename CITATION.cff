@@ -1,7 +1,7 @@
 cff-version: 1.2.0
 message: "If you use this toolbox, please cite the paper below and the software."
 title: "bpg: clipped barrier policy gradients under resource budgets"
-version: 0.5.0
+version: 0.5.1
 date-released: 2026-10-15
 license: MIT
 authors:

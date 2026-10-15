@@ -116,3 +116,21 @@ def test_zero_reserve_is_finite_under_the_unclipped_form():
             assert info["interior_loss"] == 0.0
         else:
             assert abs(r - expect) < 1e-9
+
+
+def test_half_cheetah_without_settotalmass_matches_the_stock_environment():
+    try:
+        import mujoco  # noqa: F401
+        import gymnasium as gym
+    except ImportError:
+        print("MuJoCo missing; skipped"); return
+    from bpg.problems.energy import half_cheetah
+    a, b = gym.make("HalfCheetah-v5"), half_cheetah()
+    assert np.array_equal(a.unwrapped.model.body_mass, b.unwrapped.model.body_mass)
+    assert np.array_equal(a.unwrapped.model.body_inertia, b.unwrapped.model.body_inertia)
+    oa, _ = a.reset(seed=1); ob, _ = b.reset(seed=1)
+    rng = np.random.default_rng(1)
+    for _ in range(200):
+        act = rng.uniform(-1, 1, 6)
+        oa, ra, *_ = a.step(act); ob, rb, *_ = b.step(act)
+        assert np.array_equal(oa, ob) and ra == rb

@@ -33,6 +33,7 @@ from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 
 from bpg import BudgetSpec, Requirement, Stage, BudgetWrapper, evaluate, interpret
 from bpg.callbacks import BudgetMonitor
+from bpg.problems.energy import half_cheetah     # HalfCheetah-v5, without MuJoCo's warning about its model file
 
 sys.path.insert(0, str(Path("..").resolve() / "campaigns"))
 from records import Campaign                     # the records of the full campaign
@@ -53,7 +54,7 @@ class Battery(gym.Wrapper):
     """HalfCheetah with a battery draw in info['energy']: (idle load + squared torques) times the mission's efficiency."""
 
     def __init__(self, idle=0.5, efficiency_sd=0.15, mission=1000):
-        super().__init__(gym.make("HalfCheetah-v5", max_episode_steps=mission))
+        super().__init__(half_cheetah(max_episode_steps=mission))
         self.idle, self.sd = idle, efficiency_sd
         self.rng = np.random.default_rng()
 
