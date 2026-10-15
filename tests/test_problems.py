@@ -124,8 +124,19 @@ def test_half_cheetah_without_settotalmass_matches_the_stock_environment():
         import gymnasium as gym
     except ImportError:
         print("MuJoCo missing; skipped"); return
+    import os
+    import tempfile
     from bpg.problems.energy import half_cheetah
-    a, b = gym.make("HalfCheetah-v5"), half_cheetah()
+    # the stock model warns by design, and MuJoCo writes the warning to MUJOCO_LOG.TXT in the working directory:
+    # build it in a temporary one so that the test leaves nothing behind
+    here = os.getcwd()
+    with tempfile.TemporaryDirectory() as tmp:
+        os.chdir(tmp)
+        try:
+            a = gym.make("HalfCheetah-v5")
+        finally:
+            os.chdir(here)
+    b = half_cheetah()
     assert np.array_equal(a.unwrapped.model.body_mass, b.unwrapped.model.body_mass)
     assert np.array_equal(a.unwrapped.model.body_inertia, b.unwrapped.model.body_inertia)
     oa, _ = a.reset(seed=1); ob, _ = b.reset(seed=1)
