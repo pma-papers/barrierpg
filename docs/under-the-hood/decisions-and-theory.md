@@ -290,13 +290,21 @@ dx_i = [policy gradient] dl - [kappa1 grad W(x_i) + kappa1 omega grad G'(rho_n)(
 
 Relative entropy alone ties noise and pull to one strength; the general class unties them, and every
 combination converges by the same argument. Under a plain gradient pull the stationary spread is
-`sqrt(kappa1/(kappa1/sigma^2 + kappa2 lambda_P))` (`roles.stationary_spread`, `kappa1_for_spread`). In
-the paper's PPO study of the roles Adam normalized the pull, and the measured spread was proportional
-to `kappa1` instead, about `sqrt(2) kappa1`: the roles survived the finite network, the formula did not.
-Risk and utility stayed at the anchored values while the spread was small against the policy's
-dispersion and then moved, with seeds splitting; noise without a pull acted as exploration and abandoned
-the prior. Treat `kappa1` as a knob to vary and measure. `RegularizerMix(kappa1, kappa2).explain()`
-describes a combination.
+`sqrt(kappa1/(kappa1/sigma^2 + kappa2 lambda_P))` (`roles.stationary_spread`, `kappa1_for_spread`).
+How the pull enters the learner decides whether that formula applies (the paper's guidance, the four
+implementation rules of its first subsection). `ParameterAnchor`'s default is the decoupled pull,
+applied to the parameters after the optimizer's step as `theta <- theta - lr kappa2 (theta - theta_0)`:
+every coordinate contracts by `1 - lr kappa2` per step whatever the optimizer, and with
+`ParameterNoise` the pair is the Euler-Maruyama step of the particle form, so the stationary spread is
+the prediction to check. The paper's PPO study of the roles used the coupled form
+(`decoupled=False`), the pull added to the gradient before Adam's step, where Adam's per-coordinate
+normalization makes the restoring step about `lr` whatever the distance; the measured spread was
+proportional to `kappa1` instead, about `sqrt(2) kappa1` (`roles.adam_stationary_spread`), whatever
+`kappa2` and `lr`. The roles survived the finite network; the formula holds for the decoupled pull and
+not for the coupled one. In that study, risk and utility stayed at the anchored values while the spread
+was small against the policy's dispersion and then moved, with seeds splitting; noise without a pull
+acted as exploration and abandoned the prior. Treat `kappa1` as a knob to vary and measure.
+`RegularizerMix(kappa1, kappa2).explain()` describes a combination.
 
 ### 5.3 The prior is a policy
 

@@ -15,7 +15,9 @@ A configuration fixes everything a run needs: the stage (a price, a lump sum cha
 toward a tolerance), the number of training steps, the regularizers, and where the policy starts (from scratch, from
 a network fitted to an incumbent rule, or from the trained policy of another configuration).
 
-`record.json` holds the configuration, the PPO settings, the training traces per rollout (failure rate, utility,
+`record.json` holds the configuration, the PPO settings (the anchored configurations were trained with the coupled
+form of the parameter anchor, the pull added to the gradient before Adam's step, which `Config.anchor_decoupled=False`
+pins; records written from 0.6.1 on say so under `regularizers.anchor_form`), the training traces per rollout (failure rate, utility,
 dispersion, and the multiplier when it adapts), and the evaluation of the trained stochastic policy on fresh
 episodes, one entry per episode: whether and when it failed, its utility, and the problem's own measures (landed or
 crashed, fill rates and cash, distance and energy, damage). Runs that start from another policy also record the

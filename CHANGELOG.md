@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.6.1 (2026-10-20): the parameter anchor decoupled from the optimizer; checked against revision 68
+
+- `ParameterAnchor` has two forms. The new default, `decoupled=True`, applies the pull to the actor's parameters after
+  the optimizer's step, `theta <- theta - lr kappa_p (theta - theta_0)` with the current learning rate of the
+  optimizer's first parameter group (the weight decay of AdamW). Every coordinate then contracts toward the anchor by
+  `1 - lr kappa_p` per step whatever the optimizer does with the objective's gradient, so the strength keeps its
+  meaning as a curvature (`contraction()`, `half_life()`), and with `ParameterNoise` the pair is the Euler-Maruyama step
+  of the particle form, whose stationary spread (`roles.stationary_spread`) is the prediction to check. `install`
+  refuses `lr kappa_p > 1`. `decoupled=False` is the previous form, the pull added to the gradient after clipping and
+  before the step; under Adam it is rescaled coordinate by coordinate to a step of about `lr` whatever the distance,
+  the form of the paper's runs and of the shipped campaign records. The paper's guidance (the first subsection of
+  *Practical choices, scope and conclusion*) states the four implementation rules behind this.
+- `ParameterAnchor` and `ParameterNoise` compose in either installation order through one hook on the optimizer's
+  step: coupled pull, step, decoupled pull, noise. The noise always comes after the pull.
+- Tests: the decoupled pull contracts a parameter with zero objective gradient by exactly `1 - lr kappa_p` per step
+  under Adam; the coupled pull's step under Adam is about `lr` at a displacement of 1 as at 0.01; anchor and noise
+  compose to `theta_0 + (1 - lr kappa_2) delta + sqrt(2 kappa_1 lr) xi` in either order.
+- The claim that under Adam even a weak pull on the weights outweighs the policy gradient is withdrawn from the
+  practitioner guide, the decisions document and notebook 1: it was not established. In its place the documents
+  explain the coupled and the decoupled forms. `roles.adam_stationary_spread` and the printed explanations say that
+  the measured `sqrt(2) kappa1` describes the coupled form.
+- Reproducibility of what was trained before this change: `campaigns.problems.Config.anchor_decoupled` (default
+  `False`) pins the coupled form for the shipped records, new records carry `regularizers.anchor_form`, the live
+  anchored runs of notebooks 1 and 2 and of T3 pass `decoupled=False` so that their stored outputs and text remain
+  those of the form they ran, and `examples/under-the-hood/wear_ppo.py` has `--anchor-form` (default coupled, the
+  paper's). Whether the anchored lander still runs dry under the decoupled form, and what the roles study gives under
+  it, is untested: the notebook sentences say so. The template `examples/your_problem.py` uses the default.
+- `PAPER["checked_against"]` is revision 68 (2026-10-20): the result titles are unchanged, and revision 68's statement
+  of the coupling in its roles study and its guidance are reflected in the callbacks' docstrings.
+
 ## 0.6.0 (2026-10-15): the toolbox is called `barrierpg`; the fuel-tank test runs anywhere
 
 - The distribution and the package are renamed from `bpg` to `barrierpg`, because the name `bpg` is taken on PyPI by

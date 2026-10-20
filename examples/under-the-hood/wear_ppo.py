@@ -34,6 +34,8 @@ ap.add_argument("--config", choices=["fixed", "adaptive", "anchored", "noise"], 
 ap.add_argument("--m", type=float, default=1.0); ap.add_argument("--theta", type=float, default=0.0)
 ap.add_argument("--alpha", type=float, default=0.05); ap.add_argument("--dual-step", type=float, default=None)
 ap.add_argument("--kappa-p", type=float, default=10.0); ap.add_argument("--kappa1", type=float, default=0.1)
+ap.add_argument("--anchor-form", choices=["coupled", "decoupled"], default="coupled",
+                help="coupled: the pull added to the gradient before Adam's step, the paper's runs; decoupled: the toolbox default, applied after the step")
 ap.add_argument("--steps", type=int, default=2_000_000); ap.add_argument("--seed", type=int, default=0)
 ap.add_argument("--n-envs", type=int, default=32); ap.add_argument("--eval", type=int, default=5000)
 args = ap.parse_args()
@@ -62,7 +64,7 @@ else:
     callbacks.append(BudgetMonitor(spec.beta, stage.m))
 anchor = noise = None
 if args.config in ("anchored", "noise"):
-    anchor = ParameterAnchor(ppo, kappa_p=args.kappa_p).install()     # prior = the initial actor; evaluate it as a candidate
+    anchor = ParameterAnchor(ppo, kappa_p=args.kappa_p, decoupled=(args.anchor_form == "decoupled")).install()     # prior = the initial actor; evaluate it as a candidate
     prior_eval = evaluate(lambda: make_wear_env(stage, model), sb3_policy(ppo), args.eval, spec=spec, stage=stage, seed=100, T=19)
     print("prior policy (the initial actor): " + prior_eval.summary().split("\n")[0])
     if args.config == "noise":

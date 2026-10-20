@@ -1,4 +1,5 @@
 """Needs gymnasium + stable_baselines3 (+ Box2D for the lunar reproduction): pip install -e ".[rl,problems,test]"."""
+import math
 import numpy as np
 
 
@@ -118,3 +119,100 @@ def test_action_anchor_charges_the_failing_action():
         ppo.learn(total_timesteps=64 * 4, callback=Probe(1.0, log_ref, include_failing_action=flag))
     assert seen.get(True) and all(x < 0 for x in seen[True])           # failing steps are charged by default
     assert seen.get(False) and all(x == 0 for x in seen[False])        # and not with include_failing_action=False
+
+
+def _zero_grads(ppo):
+    import torch
+    for p in ppo.policy.parameters():
+        p.grad = torch.zeros_like(p)
+
+
+def _displace(params, delta):
+    import torch
+    with torch.no_grad():
+        for p in params:
+            p.add_(delta)
+
+
+def test_decoupled_anchor_contracts_by_one_minus_lr_kappa_under_adam():
+    """With no objective gradient, Adam moves nothing and the decoupled pull contracts every coordinate toward the
+    anchor by exactly 1 - lr kappa_p per step (the first implementation rule of the paper's guidance)."""
+    import torch
+    from barrierpg import Stage
+    from barrierpg.callbacks import ParameterAnchor
+    ppo = _small_ppo(Stage(m=1.0))                                   # Adam, learning rate 1e-3
+    lr, kappa = 1e-3, 100.0
+    anchor = ParameterAnchor(ppo, kappa_p=kappa).install()           # decoupled by default
+    assert anchor.form == "decoupled" and abs(anchor.contraction() - (1 - lr * kappa)) < 1e-12
+    assert abs(anchor.half_life() - math.log(2) / -math.log(1 - lr * kappa)) < 1e-9
+    _displace(anchor.params, 0.5)
+    d0 = anchor.distance()
+    for k in range(1, 4):
+        _zero_grads(ppo)
+        ppo.policy.optimizer.step()
+        assert abs(anchor.distance() / d0 - (1 - lr * kappa) ** k) < 1e-6, (k, anchor.distance() / d0)
+        for p, p0 in zip(anchor.params, anchor.theta0):              # coordinate by coordinate, not only in norm
+            assert torch.allclose(p.detach() - p0, torch.full_like(p0, 0.5 * (1 - lr * kappa) ** k), atol=1e-7)
+    assert anchor.steps == 3
+    # a strength that would overshoot the anchor is refused
+    try:
+        ParameterAnchor(_small_ppo(Stage(m=1.0)), kappa_p=2000.0).install()
+        assert False, "lr kappa_p > 1 must raise"
+    except ValueError:
+        pass
+
+
+def test_coupled_anchor_step_is_of_order_lr_whatever_the_distance():
+    """The legacy form adds kappa_p (theta - theta_0) to the gradient before Adam's step. Adam's first step is
+    lr g / (|g| + eps), about lr per coordinate for any g much larger than eps, so the restoring step is about lr
+    at a displacement of 1 as at a displacement of 0.01 (the coupling the paper's runs have)."""
+    import torch
+    from barrierpg import Stage
+    from barrierpg.callbacks import ParameterAnchor
+    lr, kappa = 1e-3, 2.0
+    steps = {}
+    for delta in (1.0, 0.01):
+        ppo = _small_ppo(Stage(m=1.0))
+        anchor = ParameterAnchor(ppo, kappa_p=kappa, decoupled=False).install()
+        assert anchor.form == "coupled" and math.isnan(anchor.contraction())
+        _displace(anchor.params, delta)
+        _zero_grads(ppo)
+        ppo.policy.optimizer.step()
+        moved = torch.cat([(p0 + delta - p.detach()).reshape(-1) for p, p0 in zip(anchor.params, anchor.theta0)])
+        steps[delta] = float(moved.mean())
+        assert float(moved.min()) > 0.0                               # every coordinate moved toward the anchor
+    for delta, s in steps.items():
+        assert abs(s / lr - 1.0) < 0.05, (delta, s)                   # about lr, not lr kappa_p delta (2e-3 vs 2e-5)
+    assert abs(steps[1.0] / steps[0.01] - 1.0) < 0.05               # a hundredfold distance, the same step
+
+
+def test_anchor_and_noise_compose_pull_then_noise_in_either_order():
+    """One Adam step with a zero objective gradient, a decoupled anchor and seeded noise gives exactly
+    theta_0 + (1 - lr kappa2) delta + sqrt(2 kappa1 lr) xi, whichever of the two is installed first: the pull acts
+    on the parameters after the step and the noise after the pull (the Euler-Maruyama step of the particle form)."""
+    import torch
+    from barrierpg import Stage
+    from barrierpg.callbacks import ParameterAnchor, ParameterNoise
+    lr, kappa1, kappa2, delta, seed = 1e-3, 0.5, 100.0, 0.5, 7
+    results = []
+    for order in ("anchor first", "noise first"):
+        ppo = _small_ppo(Stage(m=1.0))
+        if order == "anchor first":
+            anchor = ParameterAnchor(ppo, kappa_p=kappa2).install()
+            noise = ParameterNoise(ppo, kappa1=kappa1, seed=seed).install()
+        else:
+            noise = ParameterNoise(ppo, kappa1=kappa1, seed=seed).install()
+            anchor = ParameterAnchor(ppo, kappa_p=kappa2).install()
+        _displace(anchor.params, delta)
+        _zero_grads(ppo)
+        ppo.policy.optimizer.step()
+        gen = torch.Generator(device="cpu"); gen.manual_seed(seed)   # the noise draws, replayed
+        std = math.sqrt(2 * kappa1 * lr)
+        for p, p0 in zip(anchor.params, anchor.theta0):
+            xi = torch.randn(p.shape, generator=gen, dtype=p.dtype)
+            expected = p0 + (1 - lr * kappa2) * delta + std * xi
+            assert torch.allclose(p.detach(), expected, atol=1e-7), order
+        assert anchor.steps == 1 and noise.steps == 1
+        assert abs(noise.injected_variance - 2 * kappa1 * lr) < 1e-12
+        results.append(torch.cat([p.detach().reshape(-1) for p in anchor.params]))
+    assert torch.allclose(results[0], results[1])                     # the installation order does not matter

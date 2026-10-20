@@ -219,7 +219,7 @@ def train(stage, steps, start, seed=1, anchor=None, action_anchor=None):
     monitor = BudgetMonitor(spec.beta, stage.m, horizon=spec.horizon)   # records every batch; checks convergence
     callbacks, regularizers = [monitor], {}
     if anchor:                                                          # weight decay toward the starting weights
-        regularizers["anchor"] = ParameterAnchor(model, anchor).install()
+        regularizers["anchor"] = ParameterAnchor(model, anchor, decoupled=False).install()   # the campaign's form, see below
     if action_anchor:                                                   # charge departures from the start's actions
         def log_start(obs, act):
             with torch.no_grad():
@@ -350,8 +350,16 @@ print(camp.convergence_table(regs))
 # %% [markdown]
 # The parameter anchor keeps the controller's flaw. The controller runs dry under the new tank, and anchored to its
 # weights the lander keeps running dry, at every strength tried, down to 0.01. The prior policy here is one the new
-# requirement rejects, and the learner inherits its risk. Under Adam, which rescales every gradient, even a weak pull
-# on the weights outweighs the policy gradient.
+# requirement rejects, and the learner inherits its risk.
+#
+# These runs, and the short ones above, use the coupled form of the anchor (`decoupled=False`): the pull is added to
+# the policy gradient before Adam's step, the form of the paper's runs. Adam divides every gradient coordinate by its
+# running root-mean-square, so the pull's step is about the learning rate whatever the distance to the anchor and
+# whatever the strength, and the strength does not read as a curvature. The toolbox's default is the decoupled form,
+# `theta <- theta - lr kappa_p (theta - theta_0)` applied to the weights after the step, under which every weight
+# contracts toward the anchor by `1 - lr kappa_p` per step and the strength keeps its meaning (the paper's guidance;
+# `ParameterAnchor`'s docstring). Whether the anchored lander still runs dry under the decoupled form at these
+# strengths is not tested here.
 #
 # The action anchor holds the behavior near the controller and gives way where the tank demands a change. With it the
 # lander learned to save fuel as well as without it; its effect on crashes was mixed across seeds.

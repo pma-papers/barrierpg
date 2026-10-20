@@ -187,8 +187,9 @@ How to choose, by what you have:
 
 * **A controller in use** (the lander). Start training from it. If its behavior violates the new requirement, do not
   anchor its weights: the learner inherits the prior policy's risk. The lander's controller ran dry under the new
-  tank, and a parameter anchor to it kept it running dry at every strength tried, down to 0.01; with Adam, even a weak
-  pull on the weights outweighs the policy gradient. An action anchor to the controller, which charges departures of
+  tank, and a parameter anchor to it kept it running dry at every strength tried, down to 0.01 (runs with the coupled
+  form of the anchor under Adam, the form of the paper's runs, where the pull's step is about the learning rate
+  whatever its strength; see the end of this step). An action anchor to the controller, which charges departures of
   the action distribution instead, let it learn to save fuel while keeping its landings; its effect on crashes was
   mixed across seeds. When a parameter anchor is appropriate (a prior whose behavior you accept), anchor every parameter that shapes the policy, the action dispersion included; otherwise the learner can
   change the policy through the dispersion alone.
@@ -202,11 +203,29 @@ How to choose, by what you have:
   and use it for conditioning only.
 
 Set the strength of a parameter anchor for how well the optimizer behaves, not to reach a convergence guarantee: the
-strength the theory requires is far larger than useful and would leave the policy at the prior. With an adaptive
-optimizer such as Adam, the effect of an anchor does not grow in proportion to its strength, and even a weak anchor
-can hold the policy at the prior; judge an anchor by what the trained policy does and by its distance from the prior
-(`ParameterAnchor.distance()`), not by the number. Treat a policy that fails validation as the signal to lower the
-anchor or raise the price, not to anchor harder.
+strength the theory requires is far larger than useful and would leave the policy at the prior. Judge an anchor by
+what the trained policy does and by its distance from the prior (`ParameterAnchor.distance()`), not by the number.
+Treat a policy that fails validation as the signal to lower the anchor or raise the price, not to anchor harder.
+
+How the anchor enters the learner must match the optimizer (the paper's guidance, its four implementation rules).
+`ParameterAnchor` has two forms:
+
+* **Decoupled** (`decoupled=True`, the default): the pull is applied to the weights after the optimizer's step,
+  `theta <- theta - lr kappa_p (theta - theta_0)`, the weight decay of AdamW. Every weight then moves toward the
+  anchor by the factor `1 - lr kappa_p` per step whatever Adam does with the policy gradient, so the strength keeps
+  its meaning: calibrate it by the half-life `ln 2 / (lr kappa_p)` steps (`ParameterAnchor.half_life()`) and by the
+  measured distance, and with `ParameterNoise` compare the measured spread with the stationary-spread formula
+  (`roles.stationary_spread`). A learning rate decayed to zero switches the pull off with it.
+* **Coupled** (`decoupled=False`): the pull is added to the policy gradient before the step, the form of the paper's
+  runs and of the shipped campaign records. Adam divides every gradient coordinate by its running root-mean-square, so
+  the pull's step is about the learning rate whatever the distance to the anchor and whatever the strength, it is weak
+  where the policy gradient is large and of fixed size where it is small, and it inflates Adam's normalizer, which
+  shrinks the policy gradient's own step. The strength then loses its meaning as a curvature, and the spread under
+  noise is proportional to the noise strength whatever the pull. Use this form to reproduce the paper's runs.
+
+Strengths are comparable only within one form. Pull the actor's weights including the action dispersion (unless the
+dispersion is meant to be free) and never the critic, which has no prior; `ParameterAnchor` does both. Record the
+optimizer, its stability constant, the order of gradient clipping and pull, and the form.
 
 ## Step 8. Validate the policy you deploy
 

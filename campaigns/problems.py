@@ -38,6 +38,7 @@ class Config:
     note: str = ""
     dual: Optional[dict] = None          # dict(alpha=..., step=..., multiplier0=...): adaptive multiplier
     anchor: Optional[float] = None       # kappa_p of a ParameterAnchor to the starting parameters
+    anchor_decoupled: bool = False       # the shipped records were trained with the coupled pull (the paper's form); True: the toolbox default
     noise: Optional[float] = None        # kappa1 of ParameterNoise
     action_anchor: Optional[float] = None  # eta of an ActionAnchor to the starting policy (requires init)
     prior: Optional[str] = None          # 'incumbent': fit the actor to the problem's incumbent before training

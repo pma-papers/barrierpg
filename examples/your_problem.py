@@ -55,7 +55,8 @@ def make_env(stage, **options):
 #   observation, including the budget gauge). Start from it when retraining from scratch would not find good behavior.
 # ANCHOR: a parameter anchor of strength kappa_p, weight decay toward START_FROM's weights. The learner inherits that
 #   policy's risk, so anchor only if its behavior is acceptable under the new budget (notebook 1: a controller that
-#   violated the new limit kept violating it when anchored).
+#   violated the new limit kept violating it when anchored, with the coupled form of the anchor; here the default
+#   applies, the decoupled pull theta <- theta - lr kappa_p (theta - theta_0) after the optimizer's step).
 # ACTION_ANCHOR: an action anchor of weight eta, which charges how far the action distribution departs from
 #   START_FROM's; it holds the behavior near the reference and gives way where the budget demands a change.
 # To start from a rule rather than a trained policy, fit the network to the rule first (notebook 2: fit_actor_mean on

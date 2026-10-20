@@ -151,8 +151,9 @@ def advise_regularizers(spec: BudgetSpec, stage: Stage, *, action_reference_trus
         R.append(Recommendation("noise", "inject parameter noise of variance 2 kappa1 x lr after each optimizer step (ParameterNoise), with an anchor kappa2 "
                                 "holding the units; vary kappa1 and measure the per-parameter spread",
                                 "a regularizer without noise cannot move units off a region where the value gradient vanishes: a potential alone collapses the "
-                                "units to the prior's center and never leaves the plateau; noise lets them reach where the feature acts. Under Adam the measured "
-                                "spread was proportional to kappa1, and seeds split once it approached the policy's dispersion",
+                                "units to the prior's center and never leaves the plateau; noise lets them reach where the feature acts. With the coupled pull "
+                                "under Adam (the paper's runs) the measured spread was proportional to kappa1, and seeds split once it approached the "
+                                "policy's dispersion; with the decoupled pull (the default) check the measured spread against the stationary-spread formula",
                                 f"{cite('particle')}; {cite('roles')}; {cite('collapse')}"))
     if starting_from_finite_network:
         R.append(Recommendation("regularizer family", "a convex potential on the parameters: plain weight decay |x|^2/2 or an anchor |x - x_ref|^2/2 (curvature one)",
@@ -265,7 +266,7 @@ def regularizer_effects(spec: BudgetSpec, stage: Stage, candidate: Dict, *, acti
         line = (f"parameter noise (kappa1 = {noise_kappa1:g}" + (f", pull kappa2 = {k2:g}" if k2 > 0 else ", no pull") + f"): per-parameter spread {spread:.3g}")
         if k2 > 0:
             line += f"; a gradient pull would hold it at sqrt(kappa1/(kappa1+kappa2)) = {nominal:.3g}"
-        line += f"; under Adam the paper measured about sqrt(2) kappa1 = {adam:.3g} [{cite('roles')}]"
+        line += f"; with the coupled pull under Adam the paper measured about sqrt(2) kappa1 = {adam:.3g} [{cite('roles')}]"
         E.lines.append(line)
         if dispersion_final is not None and spread >= 0.5 * dispersion_final:
             E.flags.append("the parameter spread is comparable to the action dispersion: in the paper's study risk and utility moved away from the anchored values "

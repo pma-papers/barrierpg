@@ -3,9 +3,11 @@
   DualAscent        adaptive multiplier toward a prescribed tolerance, with a diagnosis of its trace;
   ActionAnchor      the action relative entropy to an action reference, charged as a reward term;
   ParameterAnchor   the pull of the particle form: weight decay toward a prior parameter theta_0
-                    (the potential term, the finite-network part of a Gaussian prior);
+                    (the potential term, the finite-network part of a Gaussian prior), applied to the
+                    parameters after the optimizer's step (decoupled, the default) or added to the gradient
+                    before it (coupled, the paper's runs);
   ParameterNoise    the noise of the particle form: Gaussian noise of variance 2 kappa1 x lr on every actor
-                    parameter after each optimizer step (the entropy term of relative entropy);
+                    parameter after each optimizer step and after the pull (the entropy term of relative entropy);
   BudgetMonitor     per-rollout failure rate, stopped utility, interior loss, clipped value, near-exhaustion
                     and dispersion, with trend tests;
   fit_actor_mean, set_log_std   build a prior from an incumbent rule (the actor at theta_0 is the prior policy).
@@ -149,44 +151,135 @@ def actor_parameters(model, include_log_std: bool = True) -> list:
     return params
 
 
+def _step_hooks(optimizer) -> dict:
+    """Wrap the optimizer's step once with three hook lists, run in this order: 'before' (the coupled pull, which
+    edits the gradients), the optimizer's own step, 'after' (the decoupled pull on the parameters), 'noise' (the
+    parameter noise, last). Anchor and noise then compose in whatever order they are installed."""
+    hooks = getattr(optimizer, "_barrierpg_hooks", None)
+    if hooks is None:
+        base_step = optimizer.step
+        hooks = dict(before=[], after=[], noise=[])
+
+        def step(closure=None):
+            for h in hooks["before"]:
+                h()
+            out = base_step(closure)
+            for h in hooks["after"]:
+                h()
+            for h in hooks["noise"]:
+                h()
+            return out
+
+        optimizer.step = step
+        optimizer._barrierpg_hooks = hooks
+    return hooks
+
+
+def _current_lr(optimizer) -> float:
+    """The learning rate of the optimizer's first parameter group, clipped at zero (SB3's linear schedule dips below
+    zero on the last iteration). It is the step of flow time for the pull and the noise."""
+    return max(float(optimizer.param_groups[0]["lr"]), 0.0)
+
+
 class ParameterAnchor:
-    """The pull of the particle form on a finite actor: adds kappa_p (theta - theta_0) to the actor's gradient after
-    gradient clipping and before every optimizer step. This is weight decay toward theta_0, the potential
-    regularizer (kappa_p/2) |theta - theta_0|^2, which is the part of a Gaussian prior N(theta_0, sigma^2 I) a finite
-    network can carry (kappa_p = kappa/sigma^2; 'The Gaussian prior as entropy, weight decay, and a policy'). Under a potential, noiseless continuous-time training
-    is the population flow from the network's own empirical law ('Finite-network training under a potential').
+    """The pull of the particle form on a finite actor: weight decay toward a prior parameter theta_0 on every actor
+    parameter, the potential regularizer (kappa_p/2) |theta - theta_0|^2, which is the part of a Gaussian prior
+    N(theta_0, sigma^2 I) a finite network can carry (kappa_p = kappa/sigma^2; 'The Gaussian prior as entropy, weight
+    decay, and a policy'). Under a potential, noiseless continuous-time training is the population flow from the
+    network's own empirical law ('Finite-network training under a potential').
+
+    Two forms, chosen by `decoupled` (the paper's Section 'Practical choices, scope and conclusion', the four
+    implementation rules of its first subsection):
+
+    decoupled=True (default): the pull is applied to the parameters after the optimizer's step,
+        theta <- theta - lr kappa_p (theta - theta_0), lr the current learning rate of the optimizer's first parameter
+        group. This is the decoupled weight decay of AdamW. Every coordinate contracts toward the anchor by the factor
+        1 - lr kappa_p per step (half-life ln 2 / (lr kappa_p) steps), whatever the optimizer does with the objective's
+        gradient, so the strength keeps its meaning as a curvature, and with ParameterNoise the pair is the
+        Euler-Maruyama step of the particle form, whose stationary spread sqrt(kappa1/(kappa1/sigma^2 + kappa2 lambda_P))
+        is the prediction to check (roles.stationary_spread). Requires lr kappa_p < 1 (install raises otherwise); a
+        learning rate decayed to zero switches the pull off.
+    decoupled=False: the legacy form used by the paper's runs. kappa_p (theta - theta_0) is added to the actor's
+        gradient after gradient clipping and before the optimizer's step. Under Adam, which divides each gradient
+        coordinate by its running root-mean-square, the pull is rescaled coordinate by coordinate: its step is about lr
+        whatever the distance to the anchor, it is weak where the objective's gradient is large and of fixed size where
+        it is small, and it inflates the normalizer, which shrinks the objective's own step. The strength then loses
+        its meaning as a curvature, and under ParameterNoise the spread is proportional to kappa_1 whatever the pull
+        (about sqrt(2) kappa_1 in the paper's roles study, roles.adam_stationary_spread). Use it to reproduce the
+        paper's runs and the shipped campaign records; strengths are comparable only within one form.
 
     The prior must cover every parameter that shapes the policy, including the dispersion (log_std): anchoring the
     mean network alone leaves the dispersion free and the learner can move the whole distance between the prior
-    policy and the optimum through that one parameter (the paper's parameter-anchor study). The learner inherits the prior policy, the
-    actor at theta_0 with its dispersion; evaluate it as a candidate before training.
+    policy and the optimum through that one parameter (the paper's parameter-anchor study). The learner inherits the
+    prior policy, the actor at theta_0 with its dispersion; evaluate it as a candidate before training. Never anchor
+    the critic, which has no prior (actor_parameters excludes it).
 
-    Usage: anchor = ParameterAnchor(model, kappa_p).install()  before model.learn(...).
-    theta_0 defaults to the parameters at installation.
+    Usage: anchor = ParameterAnchor(model, kappa_p).install()  before model.learn(...), in either order with a
+    ParameterNoise (the noise is always added after the pull). theta_0 defaults to the parameters at installation.
+    Record the optimizer, its stability constant, the order of gradient clipping and pull, and the form.
     """
 
-    def __init__(self, model, kappa_p: float, theta0: Optional[Sequence] = None, include_log_std: bool = True):
+    def __init__(self, model, kappa_p: float, theta0: Optional[Sequence] = None, include_log_std: bool = True,
+                 decoupled: bool = True):
         import torch
         self.torch = torch
         self.model, self.kappa_p, self.include_log_std = model, float(kappa_p), bool(include_log_std)
+        self.decoupled = bool(decoupled)
         self.params = actor_parameters(model, include_log_std)
         self.theta0 = [p.detach().clone() for p in self.params] if theta0 is None else [torch.as_tensor(t) for t in theta0]
         self._prior_dispersion = self.dispersion()      # the dispersion at installation, also for the mean-only case
+        self.steps = 0
+
+    @property
+    def form(self) -> str:
+        """'decoupled' (pull on the parameters after the step) or 'coupled' (pull on the gradient before the step)."""
+        return "decoupled" if self.decoupled else "coupled"
+
+    def contraction(self, learning_rate: Optional[float] = None) -> float:
+        """The decoupled pull's per-step contraction factor 1 - lr kappa_p toward the anchor (lr the current learning
+        rate unless given). For the coupled form the factor is not defined: the step depends on the optimizer's state."""
+        if not self.decoupled:
+            return float("nan")
+        lr = _current_lr(self.model.policy.optimizer) if learning_rate is None else max(float(learning_rate), 0.0)
+        return 1.0 - lr * self.kappa_p
+
+    def half_life(self, learning_rate: Optional[float] = None) -> float:
+        """ln 2 / (lr kappa_p): the number of steps over which the decoupled pull halves the distance to the anchor
+        in the absence of an objective gradient (the paper's second rule: calibrate the strength by this)."""
+        c = self.contraction(learning_rate)
+        if not (c < 1.0):
+            return float("inf")
+        return math.log(2.0) / -math.log(c) if c > 0 else 0.0
 
     def install(self):
         opt = self.model.policy.optimizer
-        base_step = opt.step
-        params, theta0, kappa, torch = self.params, self.theta0, self.kappa_p, self.torch
+        params, theta0, torch = self.params, self.theta0, self.torch
+        hooks = _step_hooks(opt)
 
-        def step(closure=None):
-            if kappa > 0:
-                with torch.no_grad():
-                    for p, p0 in zip(params, theta0):
-                        if p.grad is not None:
-                            p.grad.add_(kappa * (p - p0))
-            return base_step(closure)
+        if self.decoupled:
+            if _current_lr(opt) * self.kappa_p > 1.0:
+                raise ValueError(f"lr kappa_p = {_current_lr(opt) * self.kappa_p:.3g} > 1: the decoupled pull would overshoot the anchor; "
+                                 "lower kappa_p or the learning rate")
 
-        opt.step = step
+            def pull():
+                if self.kappa_p > 0:
+                    lr = _current_lr(opt)
+                    with torch.no_grad():
+                        for p, p0 in zip(params, theta0):
+                            p.sub_(lr * self.kappa_p * (p - p0))
+                self.steps += 1
+
+            hooks["after"].append(pull)
+        else:
+            def pull():
+                if self.kappa_p > 0:
+                    with torch.no_grad():
+                        for p, p0 in zip(params, theta0):
+                            if p.grad is not None:
+                                p.grad.add_(self.kappa_p * (p - p0))
+                self.steps += 1
+
+            hooks["before"].append(pull)
         return self
 
     @property
@@ -219,17 +312,23 @@ class ParameterAnchor:
 
 
 class ParameterNoise:
-    """The noise of the particle form on a finite actor: after every optimizer step, each actor parameter receives
-    independent Gaussian noise of variance 2 kappa1 x lr, lr the current learning rate (the step of flow time,
-    clipped at zero because SB3's linear schedule dips below zero on the last iteration). This is the
-    finite-network counterpart of the entropy term of relative entropy, which no standard learner injects
-    (the paper's particle form of the flow). Combined with a ParameterAnchor of strength kappa2, kappa2 sets where the units are held and
-    kappa1 how far they spread (the paper's roles study).
+    """The noise of the particle form on a finite actor: after every optimizer step, and after the pull of a
+    ParameterAnchor if one is installed, each actor parameter receives independent Gaussian noise of variance
+    2 kappa1 x lr, lr the current learning rate of the optimizer's first parameter group (the step of flow time,
+    clipped at zero because SB3's linear schedule dips below zero on the last iteration). This is the finite-network
+    counterpart of the entropy term of relative entropy, which no standard learner injects (the paper's particle form
+    of the flow). Combined with a ParameterAnchor of strength kappa2, kappa2 sets where the units are held and kappa1
+    how far they spread (the paper's roles study).
 
-    What the paper measured with PPO and Adam: the per-parameter spread grows with kappa1 but in proportion to it
-    (about sqrt(2) kappa1), not as sqrt(kappa1/(kappa1+kappa2)); risk and utility stay at the anchored values while
-    the spread is small against the policy's dispersion and then move, with seeds splitting; noise alone acted as
-    exploration and abandoned the prior. Treat kappa1 as a setting to vary and measure, not one to set from the formula.
+    With a decoupled anchor (the default) the pull and the noise together are the Euler-Maruyama step of the particle
+    form, theta <- theta - lr kappa2 (theta - theta_0) + sqrt(2 kappa1 lr) xi, and the stationary per-parameter
+    spread sqrt(kappa1/(kappa1/sigma^2 + kappa2 lambda_P)) is the prediction to check against the measured spread.
+    With a coupled anchor under Adam the pull's step is about lr whatever the distance, so the noised parameters
+    follow a Laplace law of spread proportional to kappa1 (about sqrt(2) kappa1, the paper's roles study, which ran
+    the coupled form) whatever kappa2 and lr; risk and utility stayed at the anchored values while the spread was
+    small against the policy's dispersion and then moved, with seeds splitting, and noise alone acted as exploration
+    and abandoned the prior (the paper's Section 'Practical choices, scope and conclusion', first subsection).
+    In both forms, vary kappa1 and measure the spread (spread()).
 
     Usage: noise = ParameterNoise(model, kappa1, seed=0).install()  before model.learn(...); install it together
     with a ParameterAnchor in either order.
@@ -250,14 +349,12 @@ class ParameterNoise:
 
     def install(self):
         opt = self.model.policy.optimizer
-        base_step = opt.step
         torch = self.torch
+        hooks = _step_hooks(opt)
 
-        def step(closure=None):
-            out = base_step(closure)
+        def inject():
             if self.kappa1 > 0:
-                lr = max(float(opt.param_groups[0]["lr"]), 0.0)
-                var = 2.0 * self.kappa1 * lr
+                var = 2.0 * self.kappa1 * _current_lr(opt)
                 std = math.sqrt(var)
                 with torch.no_grad():
                     for p in self.params:
@@ -265,9 +362,8 @@ class ParameterNoise:
                         p.add_(noise.to(p.device) * std)
                 self.injected_variance += var
             self.steps += 1
-            return out
 
-        opt.step = step
+        hooks["noise"].append(inject)
         return self
 
     @property

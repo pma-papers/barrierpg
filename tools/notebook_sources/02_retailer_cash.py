@@ -271,7 +271,7 @@ def train(stage, steps, seed=1, prior=None, anchor=None, dual=None):
         fit_actor_mean(model, lambda o: np.stack([mean_action(x) for x in o]), states, seed=seed, steps=15000)
         set_log_std(model, log_std)
     if anchor:                                              # weight decay toward the starting weights (section 7)
-        anchor = ParameterAnchor(model, anchor).install()
+        anchor = ParameterAnchor(model, anchor, decoupled=False).install()   # the campaign's coupled form (notebook 1)
     monitor = BudgetMonitor(spec.beta, stage.m, horizon=spec.horizon, penalty=stage.penalty, dual=dual,
                             multiplier=None if dual else stage.multiplier)
     model.learn(steps, callback=([dual] if dual else []) + [monitor])   # dual: an adaptive multiplier (section 8)
@@ -396,7 +396,9 @@ print(f"the prior policy: insolvency {prior_ev.p_T:.2%}, profit {prior_ev.U:.0f}
 
 # %% [markdown]
 # With `train(stage, steps, prior=prior)` the learner starts from this network, and `anchor=1.0` adds a parameter anchor
-# that pulls the weights back toward it. Here is one short run of each.
+# that pulls the weights back toward it, in the coupled form of the campaign's records (the pull added to the gradient
+# before Adam's step, the paper's form; the toolbox's default is the decoupled pull applied to the weights after the
+# step, under which the strength keeps its meaning, see notebook 1). Here is one short run of each.
 
 # %%
 for name, options in {"from the prior, no anchor": dict(prior=prior), "from the prior, anchor 1": dict(prior=prior, anchor=1.0)}.items():

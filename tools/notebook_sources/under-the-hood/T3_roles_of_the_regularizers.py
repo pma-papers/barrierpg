@@ -239,7 +239,7 @@ param_runs = {}
 for label, kappa_p, logstd in (("control, kappa_p = 0", 0.0, True), ("anchor, kappa_p = 10", 10.0, True),
                                ("anchor, kappa_p = 100", 100.0, True), ("mean-only anchor, kappa_p = 100", 100.0, False)):
     ppo, _ = prior_ppo()
-    anchor = ParameterAnchor(ppo, kappa_p, include_log_std=logstd).install()
+    anchor = ParameterAnchor(ppo, kappa_p, include_log_std=logstd, decoupled=False).install()   # the paper's coupled form
     ppo.learn(STEPS)
     e, A = assess(ppo, seed=40)
     param_runs[label] = (e, A, anchor)
@@ -270,15 +270,18 @@ print(regularizer_effects(spec, low_price.with_(kappa=10.0), cand(param_runs["an
 #
 # The finite-network counterpart of the entropy term is Gaussian noise of variance $2\kappa_1$ times the learning
 # rate after each optimizer step (`ParameterNoise`). Under a plain gradient pull $\kappa_2$ the per-parameter
-# spread would converge to $\sqrt{\kappa_1/(\kappa_1+\kappa_2)}$. The paper measured, with Adam, a spread proportional to
-# $\kappa_1$ instead (about $\sqrt2\,\kappa_1$): Adam normalizes the pull to a step of fixed size. The roles survived,
-# the formula did not. Here: the anchor $\kappa_2=10$ with noise $\kappa_1\in\{0.01,0.1\}$, and noise alone.
+# spread would converge to $\sqrt{\kappa_1/(\kappa_1+\kappa_2)}$. The paper's runs used the coupled form of the anchor
+# (`ParameterAnchor(decoupled=False)`, the pull added to the gradient before Adam's step), and measured a spread proportional to
+# $\kappa_1$ instead (about $\sqrt2\,\kappa_1$): Adam normalizes the pull to a step of about the learning rate whatever
+# the distance. The roles survived, the formula did not hold for that form. The toolbox's default is the decoupled pull,
+# applied to the parameters after the step, for which the formula is the prediction to check. This part reproduces the
+# paper's form. Here: the anchor $\kappa_2=10$ with noise $\kappa_1\in\{0.01,0.1\}$, and noise alone.
 
 # %%
 noise_runs = {0.0: (param_runs["anchor, kappa_p = 10"][0], param_runs["anchor, kappa_p = 10"][2].spread())}
 for k1, k2 in ((0.01, 10.0), (0.1, 10.0), (0.1, 0.0)):
     ppo, _ = prior_ppo()
-    anchor = ParameterAnchor(ppo, k2).install()
+    anchor = ParameterAnchor(ppo, k2, decoupled=False).install()
     noise = ParameterNoise(ppo, k1, seed=0).install()
     ppo.learn(STEPS)
     e, A = assess(ppo, seed=50)
@@ -302,7 +305,7 @@ print("\n" + regularizer_effects(spec, low_price, cand(e), noise_kappa1=0.1, anc
 
 # %%
 ppo, _ = prior_ppo()
-anchor = ParameterAnchor(ppo, 10.0).install()
+anchor = ParameterAnchor(ppo, 10.0, decoupled=False).install()
 ppo.learn(STEPS, callback=[ActionAnchor(0.1, log_reference)])
 e, A = assess(ppo, seed=60)
 joint = regularizer_effects(spec, Stage(m=0.03, eta=0.1, kappa=10.0), cand(e), action_entropy=A, reference_risk=q_ref,

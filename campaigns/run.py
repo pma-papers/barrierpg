@@ -143,7 +143,7 @@ def main():
     monitor = BudgetMonitor(problem.spec.beta, st.m, horizon=problem.spec.horizon, penalty=st.penalty, dual=dual,
                             multiplier=(st.multiplier if st.penalty == "multiplier" and dual is None else None))
     callbacks.append(monitor)
-    anchor = ParameterAnchor(model, config.anchor).install() if config.anchor else None
+    anchor = ParameterAnchor(model, config.anchor, decoupled=config.anchor_decoupled).install() if config.anchor else None
     action_anchor = None
     if config.action_anchor:
         reference = PPO.load(str(src / "model.zip"), device="cpu", custom_objects=LOAD_OBJECTS)
@@ -185,7 +185,7 @@ def main():
     record = dict(
         problem=problem.name, config=args.config, seed=args.seed, steps=int(model.num_timesteps), note=config.note,
         stage=asdict(eval_config.stage), trained_stage=asdict(config.stage), ppo=asdict(problem.ppo),
-        regularizers=dict(anchor=config.anchor, noise=config.noise, action_anchor=config.action_anchor, prior=config.prior,
+        regularizers=dict(anchor=config.anchor, anchor_form=None if anchor is None else anchor.form, noise=config.noise, action_anchor=config.action_anchor, prior=config.prior,
                           init=config.init, prior_mse=prior_mse),
         dual=None if dual is None else dict(config.dual, final=dual.multiplier, trace=dual.trace,
                                             diagnosis=asdict(dual.diagnose(problem.spec.beta, window=40))),

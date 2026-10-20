@@ -32,9 +32,12 @@ comparable to the plateau's width (the paper's study of the roles of the regular
 Finite networks. The anchor (callbacks.ParameterAnchor) is the potential term; injected Gaussian noise of
 variance 2 kappa1 times the learning rate after each optimizer step (callbacks.ParameterNoise) is the noise term.
 Under a plain gradient step the stationary spread under a quadratic pull is sqrt(kappa1/(kappa1/sigma^2 +
-kappa2 lambda_P)). Under Adam the paper measured a spread proportional to kappa1 instead (about sqrt(2) kappa1),
-explained after the runs by Adam normalizing the pull to a step of fixed size; the decoupling of roles survived,
-the stationary-spread formula did not.
+kappa2 lambda_P)). The anchor's default form realizes that step: the pull is applied to the parameters after the
+optimizer's step (decoupled), so every coordinate contracts by 1 - lr kappa2 per step whatever the optimizer. The
+paper's runs used the coupled form, the pull added to the gradient before an Adam step, which rescales it
+coordinate by coordinate to a step of about lr whatever the distance; there the paper measured a spread
+proportional to kappa1 instead (about sqrt(2) kappa1, adam_stationary_spread). The decoupling of roles survived
+the finite network; the stationary-spread formula holds for the decoupled pull and not for the coupled one.
 """
 from __future__ import annotations
 
@@ -101,7 +104,7 @@ class RegularizerMix:
             out.append(f"noise: add N(0, 2 x {self.kappa1:g} x lr) to every actor parameter after each optimizer step (ParameterNoise)")
             out.append(f"prior pull: weight decay toward the prior center with weight {self.kappa1 / self.sigma ** 2:g} (ParameterAnchor)")
         if self.kappa2 > 0:
-            out.append(f"potential pull: anchor gradient {self.kappa2 * self.lambda_P:g} (theta - theta_ref) added before each step (ParameterAnchor)")
+            out.append(f"potential pull: theta <- theta - lr x {self.kappa2 * self.lambda_P:g} (theta - theta_ref) after each step (ParameterAnchor, decoupled)")
         if self.omega > 0:
             out.append("integrand: no finite-network form without a density estimate of the units")
         return out
@@ -117,8 +120,8 @@ class RegularizerMix:
         if self.collapses:
             lines.append(f"  a potential alone collapses the population to one point mass in the certified regime [{cite('collapse')}]")
         if self.kappa1 > 0:
-            lines.append(f"  under Adam the measured spread was about sqrt(2) kappa1 = {adam_stationary_spread(self.kappa1):.3g} instead "
-                         f"(post-hoc explanation, not a result) [{cite('roles')}]")
+            lines.append(f"  with the coupled pull under Adam (the paper's runs) the measured spread was about sqrt(2) kappa1 = "
+                         f"{adam_stationary_spread(self.kappa1):.3g} instead (post-hoc explanation, not a result) [{cite('roles')}]")
         if self.kappa1 > 0 and self.kappa2 == 0 and self.omega == 0:
             lines.append("  relative entropy alone: noise and pull tied to one strength")
         lines.append(f"  [{cite('particle')}]")
@@ -126,13 +129,17 @@ class RegularizerMix:
 
 
 def stationary_spread(kappa1: float, kappa2: float, sigma: float = 1.0, lambda_P: float = 1.0) -> float:
-    """sqrt(kappa1 / (kappa1/sigma^2 + kappa2 lambda_P)): see RegularizerMix.stationary_spread."""
+    """sqrt(kappa1 / (kappa1/sigma^2 + kappa2 lambda_P)): see RegularizerMix.stationary_spread. The prediction for a
+    decoupled pull (ParameterAnchor's default) with ParameterNoise; not for the coupled pull under Adam."""
     return RegularizerMix(kappa1, kappa2, sigma, lambda_P).stationary_spread()
 
 
 def adam_stationary_spread(kappa1: float) -> float:
-    """sqrt(2) kappa1: the stationary spread of a random walk of diffusion 2 kappa1 against a pull of fixed step size,
-    the explanation the paper gave after its PPO runs, where Adam normalized the anchor's pull. Post hoc, one example."""
+    """sqrt(2) kappa1: the stationary spread of a random walk of diffusion 2 kappa1 lr against a pull of fixed step
+    size lr, a Laplace law independent of kappa2 and lr. It describes the COUPLED form of the anchor (the pull added to
+    the gradient before an Adam step, ParameterAnchor(decoupled=False), the form of the paper's PPO runs), where Adam's
+    per-coordinate normalization makes the restoring step about lr whatever the distance. The explanation the paper
+    gave after its runs; post hoc, one example. The decoupled form (the default) follows stationary_spread instead."""
     return math.sqrt(2.0) * kappa1
 
 
