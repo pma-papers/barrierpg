@@ -5,13 +5,13 @@
 - `ParameterAnchor` has two forms. The new default, `decoupled=True`, applies the pull to the actor's parameters after
   the optimizer's step, `theta <- theta - lr kappa_p (theta - theta_0)` with the current learning rate of the
   optimizer's first parameter group (the weight decay of AdamW). Every coordinate then contracts toward the anchor by
-  `1 - lr kappa_p` per step whatever the optimizer does with the objective's gradient, so the strength keeps its
-  meaning as a curvature (`contraction()`, `half_life()`), and with `ParameterNoise` the pair is the Euler-Maruyama step
-  of the particle form, whose stationary spread (`roles.stationary_spread`) is the prediction to check. `install`
-  refuses `lr kappa_p > 1`. `decoupled=False` is the previous form, the pull added to the gradient after clipping and
-  before the step; under Adam it is rescaled coordinate by coordinate to a step of about `lr` whatever the distance,
-  the form of the paper's runs and of the shipped campaign records. The paper's guidance (the first subsection of
-  *Practical choices, scope and conclusion*) states the four implementation rules behind this.
+  `1 - lr kappa_p` per step whatever the optimizer does with the objective's gradient, so the strength keeps its meaning
+  as a curvature (`contraction()`, `half_life()`), and with `ParameterNoise` the pair is the Euler-Maruyama step of the
+  particle form, and the measured spread can be checked against its stationary spread (`roles.stationary_spread`).
+  `install` refuses `lr kappa_p > 1`. `decoupled=False` is the previous form, the pull added to the gradient after
+  clipping and before the step; under Adam it is rescaled coordinate by coordinate to a step of about `lr` whatever the
+  distance, the form of the paper's runs and of the shipped campaign records. The paper's guidance (the first subsection
+  of *Practical choices, scope and conclusion*) states the four implementation rules behind this.
 - `ParameterAnchor` and `ParameterNoise` compose in either installation order through one hook on the optimizer's
   step: coupled pull, step, decoupled pull, noise. The noise always comes after the pull.
 - Tests: the decoupled pull contracts a parameter with zero objective gradient by exactly `1 - lr kappa_p` per step
@@ -27,6 +27,8 @@
   those of the form they ran, and `examples/under-the-hood/wear_ppo.py` has `--anchor-form` (default coupled, the
   paper's). Whether the anchored lander still runs dry under the decoupled form, and what the roles study gives under
   it, is untested: the notebook sentences say so. The template `examples/your_problem.py` uses the default.
+- Notebooks T3 and T4 are re-executed from their sources, whose wording had changed in 0.4.1 without a rebuild; only
+  labels and sentences differ, every number is unchanged.
 - `PAPER["checked_against"]` is revision 68 (2026-10-20): the result titles are unchanged, and revision 68's statement
   of the coupling in its roles study and its guidance are reflected in the callbacks' docstrings.
 

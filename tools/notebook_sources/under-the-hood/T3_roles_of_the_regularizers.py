@@ -271,11 +271,11 @@ print(regularizer_effects(spec, low_price.with_(kappa=10.0), cand(param_runs["an
 # The finite-network counterpart of the entropy term is Gaussian noise of variance $2\kappa_1$ times the learning
 # rate after each optimizer step (`ParameterNoise`). Under a plain gradient pull $\kappa_2$ the per-parameter
 # spread would converge to $\sqrt{\kappa_1/(\kappa_1+\kappa_2)}$. The paper's runs used the coupled form of the anchor
-# (`ParameterAnchor(decoupled=False)`, the pull added to the gradient before Adam's step), and measured a spread proportional to
-# $\kappa_1$ instead (about $\sqrt2\,\kappa_1$): Adam normalizes the pull to a step of about the learning rate whatever
-# the distance. The roles survived, the formula did not hold for that form. The toolbox's default is the decoupled pull,
-# applied to the parameters after the step, for which the formula is the prediction to check. This part reproduces the
-# paper's form. Here: the anchor $\kappa_2=10$ with noise $\kappa_1\in\{0.01,0.1\}$, and noise alone.
+# (`ParameterAnchor(decoupled=False)`, the pull added to the gradient before Adam's step), and measured a spread
+# proportional to $\kappa_1$ instead (about $\sqrt2\,\kappa_1$): Adam normalizes the pull to a step of about the
+# learning rate whatever the distance. The roles survived, the formula did not hold for that form. The toolbox's default
+# is the decoupled pull, applied to the parameters after the step; for it, check the measured spread against the
+# formula. This part reproduces the paper's form. Here: the anchor $\kappa_2=10$ with noise $\kappa_1\in\{0.01,0.1\}$, and noise alone.
 
 # %%
 noise_runs = {0.0: (param_runs["anchor, kappa_p = 10"][0], param_runs["anchor, kappa_p = 10"][2].spread())}

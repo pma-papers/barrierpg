@@ -129,7 +129,7 @@ class RegularizerMix:
 
 
 def stationary_spread(kappa1: float, kappa2: float, sigma: float = 1.0, lambda_P: float = 1.0) -> float:
-    """sqrt(kappa1 / (kappa1/sigma^2 + kappa2 lambda_P)): see RegularizerMix.stationary_spread. The prediction for a
+    """sqrt(kappa1 / (kappa1/sigma^2 + kappa2 lambda_P)): see RegularizerMix.stationary_spread. It applies to a
     decoupled pull (ParameterAnchor's default) with ParameterNoise; not for the coupled pull under Adam."""
     return RegularizerMix(kappa1, kappa2, sigma, lambda_P).stationary_spread()
 

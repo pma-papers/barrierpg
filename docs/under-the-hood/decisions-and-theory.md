@@ -295,8 +295,8 @@ How the pull enters the learner decides whether that formula applies (the paper'
 implementation rules of its first subsection). `ParameterAnchor`'s default is the decoupled pull,
 applied to the parameters after the optimizer's step as `theta <- theta - lr kappa2 (theta - theta_0)`:
 every coordinate contracts by `1 - lr kappa2` per step whatever the optimizer, and with
-`ParameterNoise` the pair is the Euler-Maruyama step of the particle form, so the stationary spread is
-the prediction to check. The paper's PPO study of the roles used the coupled form
+`ParameterNoise` the pair is the Euler-Maruyama step of the particle form, so the measured spread can be
+checked against the stationary spread. The paper's PPO study of the roles used the coupled form
 (`decoupled=False`), the pull added to the gradient before Adam's step, where Adam's per-coordinate
 normalization makes the restoring step about `lr` whatever the distance; the measured spread was
 proportional to `kappa1` instead, about `sqrt(2) kappa1` (`roles.adam_stationary_spread`), whatever

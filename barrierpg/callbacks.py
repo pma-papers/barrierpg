@@ -196,8 +196,8 @@ class ParameterAnchor:
         group. This is the decoupled weight decay of AdamW. Every coordinate contracts toward the anchor by the factor
         1 - lr kappa_p per step (half-life ln 2 / (lr kappa_p) steps), whatever the optimizer does with the objective's
         gradient, so the strength keeps its meaning as a curvature, and with ParameterNoise the pair is the
-        Euler-Maruyama step of the particle form, whose stationary spread sqrt(kappa1/(kappa1/sigma^2 + kappa2 lambda_P))
-        is the prediction to check (roles.stationary_spread). Requires lr kappa_p < 1 (install raises otherwise); a
+        Euler-Maruyama step of the particle form: check the measured spread against its stationary spread
+        sqrt(kappa1/(kappa1/sigma^2 + kappa2 lambda_P)) (roles.stationary_spread). Requires lr kappa_p < 1 (install raises otherwise); a
         learning rate decayed to zero switches the pull off.
     decoupled=False: the legacy form used by the paper's runs. kappa_p (theta - theta_0) is added to the actor's
         gradient after gradient clipping and before the optimizer's step. Under Adam, which divides each gradient
@@ -322,7 +322,7 @@ class ParameterNoise:
 
     With a decoupled anchor (the default) the pull and the noise together are the Euler-Maruyama step of the particle
     form, theta <- theta - lr kappa2 (theta - theta_0) + sqrt(2 kappa1 lr) xi, and the stationary per-parameter
-    spread sqrt(kappa1/(kappa1/sigma^2 + kappa2 lambda_P)) is the prediction to check against the measured spread.
+    spread sqrt(kappa1/(kappa1/sigma^2 + kappa2 lambda_P)) is the value to check the measured spread against.
     With a coupled anchor under Adam the pull's step is about lr whatever the distance, so the noised parameters
     follow a Laplace law of spread proportional to kappa1 (about sqrt(2) kappa1, the paper's roles study, which ran
     the coupled form) whatever kappa2 and lr; risk and utility stayed at the anchored values while the spread was

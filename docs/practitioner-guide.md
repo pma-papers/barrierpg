@@ -191,8 +191,9 @@ How to choose, by what you have:
   form of the anchor under Adam, the form of the paper's runs, where the pull's step is about the learning rate
   whatever its strength; see the end of this step). An action anchor to the controller, which charges departures of
   the action distribution instead, let it learn to save fuel while keeping its landings; its effect on crashes was
-  mixed across seeds. When a parameter anchor is appropriate (a prior whose behavior you accept), anchor every parameter that shapes the policy, the action dispersion included; otherwise the learner can
-  change the policy through the dispersion alone.
+  mixed across seeds. When a parameter anchor is appropriate (a prior whose behavior you accept), anchor every
+  parameter that shapes the policy, the action dispersion included; otherwise the learner can change the policy
+  through the dispersion alone.
 * **An incumbent rule** (the retailer's base-stock rule). Fit the network to the rule, on states that include the bad
   ones (fit on the states a noisy version of the rule visits), give it a small dispersion, and evaluate the fitted
   network as a policy before training: it is the prior policy, and it can be riskier than the rule. A learner started
