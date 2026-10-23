@@ -21,7 +21,7 @@ from typing import Dict, Optional, Tuple
 PAPER = dict(
     title="The Price of Failure Risk: Clipped Barrier Policy Gradients with Convex Regularization",
     authors="Pekka Malo, Lauri Viitasaari, Antti Suominen, Eeva Vilkkumaa, Olli Tahvonen",
-    checked_against="revision 68 (2026-10-20)",
+    checked_against="revision 73 (2026-10-23)",
 )
 
 # key -> (kind, title in the paper)
@@ -33,14 +33,14 @@ RESULTS: Dict[str, Tuple[str, str]] = {
     "model": ("section", "Budgets and the clipped-barrier mechanism"),
     "risk_floor": ("section", "The represented class"),
     # risk certificates and performance comparisons
-    "running_example": ("section", "Running example: an operating rate and a wear allowance"),
+    "running_example": ("section", "A running example with an operating rate and a wear allowance"),
     "value_certificate": ("proposition", "Value and objective certificates"),
     "failure_time": ("remark", "The geometric risk as a risk measure of the failure time"),
     "identity": ("section", "Utility at the attained risk level"),
     "matched_risk": ("theorem", "Matched-risk performance comparison"),
     "fixed_price": ("proposition", "Fixed price of failure risk"),
     "fixed_price_section": ("section", "The fixed price of failure risk"),
-    "action_risk": ("proposition", "Action regularization and trajectory risk"),
+    "action_risk": ("proposition", "Action regularization and failure risk"),
     # convergence and the prior
     "admissible": ("definition", "Admissible parameter regularizer"),
     "admissible_families": ("proposition", "Admissible families"),
@@ -50,7 +50,7 @@ RESULTS: Dict[str, Tuple[str, str]] = {
     "bias": ("remark", "The regularization bias is priced and detected"),
     "particle": ("section", "The prior and the particle form of the flow"),
     "finite_training": ("proposition", "Finite-network training under a potential"),
-    "gaussian_prior": ("remark", "The Gaussian prior as entropy, weight decay, and a policy"),
+    "gaussian_prior": ("remark", "The Gaussian prior as entropy, weight decay and a policy"),
     "centering": ("section", "Improvement relative to the prior policy"),
     "curvature_constants": ("proposition", "Value and action-law curvature"),
     "weight_decay": ("remark", "Potential regularizers and weight decay"),
@@ -61,6 +61,7 @@ RESULTS: Dict[str, Tuple[str, str]] = {
     "transfer": ("theorem", "Population-to-network transfer"),
     "algorithm": ("algorithm", "Fixed-stage learning and independent deployment validation"),
     "validation": ("section", "Validate the deployed candidate at its specified horizon"),
+    "physical_price": ("proposition", "The risk priced by a physical horizon"),
     # related formulations (online appendix)
     "frontier_support": ("proposition", "The price supports the frontier"),
     "one_shot": ("lemma", "The one-shot equivalent"),
@@ -75,10 +76,9 @@ RESULTS: Dict[str, Tuple[str, str]] = {
     "flow_test": ("study", "the solvable flow"),
     "anchor_study": ("study", "the parameter-anchor study"),
     "roles": ("study", "the roles of the regularizers"),
-    "application": ("study", "the emissions application"),
     "benchmark_suite": ("study", "the benchmark-suite study"),
     # practice
-    "guidance": ("section", "Using the bounded barrier"),
+    "guidance": ("section", "Using the clipped barrier"),
     "scope": ("section", "Scope of the guarantees"),
     "toolbox_appendix": ("section", "The companion toolbox"),
     # supplementary results of the toolbox

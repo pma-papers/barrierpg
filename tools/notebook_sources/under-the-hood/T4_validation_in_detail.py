@@ -140,14 +140,14 @@ print(V.value_resolution_check(beta=spec.beta, H=H, T=19, N=Nv, zeta=0.05, alpha
 #
 # ## 5. A physical horizon and a lump sanction, with your own evaluator
 #
-# Many tasks end after a fixed number of actions, and many sanctions are charged once. The paper's emissions
-# application is of this kind: 52 weeks, an annual allowance, and a sanction $F$ if the allowance turns negative.
+# Many tasks end after a fixed number of actions, and many sanctions are charged once. An annual emissions allowance
+# is of this kind: 52 weeks, and a sanction $F$ if the allowance turns negative.
 # The toolbox's form is a flat penalty $\nu=F$ at the failing week, `Stage(penalty="multiplier", multiplier=F)`, with
 # the pre-failure reward left unclipped; the value certificate is then $p_T\le(\bar uS_H-V^{(H)})/(F\beta^T)$.
 #
 # Evaluation through the wrapper runs one episode at a time. For many candidates on common random numbers a
 # vectorized simulator is faster; `evaluation_from_episodes` builds the same `Evaluation` from its per-episode arrays.
-# Here is a stylized weekly emissions process (not the paper's estimated model) with a pacing rule as candidate.
+# Here is a stylized weekly emissions process with a pacing rule as candidate.
 
 # %%
 def simulate_year(n, buffer, seed, F=50.0, b=31.7, c=6.0, H=52):

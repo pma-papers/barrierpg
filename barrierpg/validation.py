@@ -154,7 +154,9 @@ def lump_sanction_risk(V_H: float, H: int, nu: float, ubar: float, beta: float, 
                        zeta: Optional[float] = None, u_minus: float = 0.0) -> Bound:
     """A task that ends after H actions with a flat penalty nu charged once at the failing action (a lump sanction, the
     frozen-multiplier form): since ubar S_H - V^(H) >= nu E[beta^tau 1{tau <= T}],
-        p_T <= min{1, (ubar S_H - V^(H)) / (nu beta^T)}   (the emissions application).
+        p_T <= min{1, (ubar S_H - V^(H)) / (nu beta^T)}.
+    This is the value certificate of the frozen-multiplier objective at a physical horizon, where a lump sum at
+    failure prices E[beta^tau 1{tau < H}].
     With N and zeta, V_H is the mean complete return and is first lowered by the Hoeffding term of the return's own range,
     (ubar + u_minus) S_H + nu: a penalty charged once widens the range by nu, not by a per-period price times S_H."""
     S_H = discounted_sum_to(beta, H)
@@ -162,7 +164,7 @@ def lump_sanction_risk(V_H: float, H: int, nu: float, ubar: float, beta: float, 
     if N is not None and zeta is not None:
         V = hoeffding_lower(V_H, N, zeta, -u_minus * S_H - nu, ubar * S_H)
     return Bound(f"p_{T} upper bound (lump sanction, H={H})", clip01((ubar * S_H - V) / (nu * beta ** T)),
-                 cite("application") + ", value certificate with a flat penalty",
+                 cite("value_certificate") + ", frozen-multiplier form; " + cite("physical_price"),
                  ["the penalty nu is charged once, at the failing action; the reward before failure is the utility, unclipped",
                   "-u_minus <= u <= ubar"],
                  dict(V_H=V_H, V_used=V, H=H, nu=nu, ubar=ubar, beta=beta, T=T, N=N, zeta=zeta, u_minus=u_minus),

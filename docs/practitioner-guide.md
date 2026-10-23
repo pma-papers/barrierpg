@@ -214,9 +214,11 @@ How the anchor enters the learner must match the optimizer (the paper's guidance
 * **Decoupled** (`decoupled=True`, the default): the pull is applied to the weights after the optimizer's step,
   `theta <- theta - lr kappa_p (theta - theta_0)`, the weight decay of AdamW. Every weight then moves toward the
   anchor by the factor `1 - lr kappa_p` per step whatever Adam does with the policy gradient, so the strength keeps
-  its meaning: calibrate it by the half-life `ln 2 / (lr kappa_p)` steps (`ParameterAnchor.half_life()`) and by the
-  measured distance, and with `ParameterNoise` compare the measured spread with the stationary-spread formula
-  (`roles.stationary_spread`). A learning rate decayed to zero switches the pull off with it.
+  its meaning: calibrate it by the half-life, about `ln 2 / (lr kappa_p)` steps (`ParameterAnchor.half_life()`), and
+  by the measured distance. With `ParameterNoise`, compare the measured spread with `sqrt(kappa1/kappa_p)`
+  (`roles.noise_and_anchor_spread`): the injected noise adds no pull of its own. Under Adam this is a reference, not
+  a prediction, since the policy-gradient step stays adaptive. A learning rate decayed to zero switches the pull off
+  with it.
 * **Coupled** (`decoupled=False`): the pull is added to the policy gradient before the step, the form of the paper's
   runs and of the shipped campaign records. Adam divides every gradient coordinate by its running root-mean-square, so
   the pull's step is about the learning rate whatever the distance to the anchor and whatever the strength, it is weak

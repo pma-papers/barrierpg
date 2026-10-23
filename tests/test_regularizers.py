@@ -43,3 +43,21 @@ def test_effects_readings():
     e3 = regularizer_effects(spec, Stage(m=0.03, eta=1.0), dict(q_beta=0.012, U=2.8), action_entropy=0.01, reference_risk=0.011)
     assert e3.action["informative"] and e3.action["bound"] >= 0.012
     assert "Regularizer effects" in e.explain()
+
+
+def test_noise_and_anchor_spread():
+    """Pull plus injected noise without an objective: the AR(1) x+ = (1 - hK) x + sqrt(2 kappa1 h) xi has variance
+    kappa1/(K (1 - hK/2)); the noise carries no pull, so the flow's sqrt(kappa1/(kappa1 + kappa2)) does not apply."""
+    import math
+    import numpy as np
+    from barrierpg.roles import noise_and_anchor_spread, stationary_spread
+    k1, K, h = 0.1, 10.0, 0.05
+    assert abs(noise_and_anchor_spread(k1, K, h) ** 2 - 2 * k1 * h / (1 - (1 - h * K) ** 2)) < 1e-12
+    assert abs(noise_and_anchor_spread(k1, K) - math.sqrt(k1 / K)) < 1e-12
+    assert noise_and_anchor_spread(k1, 0.0) == math.inf and noise_and_anchor_spread(k1, K, 0.3) == math.inf
+    assert abs(noise_and_anchor_spread(k1, k1 + K) - stationary_spread(k1, K)) < 1e-12   # with the prior's pull added
+    rng = np.random.default_rng(0)
+    x = np.zeros(20000)
+    for _ in range(400):
+        x = (1 - h * K) * x + math.sqrt(2 * k1 * h) * rng.standard_normal(x.size)
+    assert abs(x.std() / noise_and_anchor_spread(k1, K, h) - 1) < 0.03

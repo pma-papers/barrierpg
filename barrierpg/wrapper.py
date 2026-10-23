@@ -1,4 +1,4 @@
-"""Environment wrapper: budgets, bounded barrier reward, failure tail, multiplier mode.
+"""Environment wrapper: budgets, clipped barrier reward, failure tail, multiplier mode.
 
 Works as a gymnasium.Wrapper when gymnasium is installed; otherwise as a plain wrapper around any
 object with reset() -> (obs, info) and step(action) -> (obs, reward, terminated, truncated, info).
@@ -209,7 +209,7 @@ class RunningMaxCost:
     sum_j g_j = M_t >= C_t and the first time the running maximum exceeds the budget is the first time the cumulative
     use does. Use it with cost discount one. The observed reserve is then b - M_t, which is below the true remaining
     allowance b - C_t after a net saving; if the requirement concerns the end of the horizon only (a year-end miss), check
-    that the first crossing coincides with the end-of-horizon event on evaluated trajectories (the emissions study did)."""
+    that the first crossing coincides with the end-of-horizon event on evaluated trajectories."""
 
     def __init__(self, signed_use: Callable, K: int = 1):
         self.signed_use, self.K = signed_use, int(K)

@@ -5,7 +5,7 @@
 #
 # * The **action relative entropy** $\mathcal A$ (weight $\eta$) is a reward term on the *action law*. It holds the
 #   policy near an **action reference** $\rho$ and keeps the trajectory risk within $\mathrm{kl}(q\,\|\,q_\rho)\le\mathcal A$
-#   of the reference's risk (*Action regularization and trajectory risk*). It adds no curvature to the learning problem.
+#   of the reference's risk (*Action regularization and failure risk*). It adds no curvature to the learning problem.
 # * The **parameter regularizer** $\mathcal H$ (strength $\kappa$) acts on the *law of the network's units*. It supplies
 #   the curvature that makes the population learning problem converge (*Fixed-stage population convergence*), and its
 #   bias is toward a **prior policy**, whose risk and utility the learner inherits (*Improvement over the prior policy*).
@@ -36,7 +36,7 @@ from barrierpg.certificates import action_risk_bound, kl_upper_inverse
 from barrierpg.convergence import FeatureConstants, curvature_budget
 from barrierpg.examples.plateau import PlateauModel, simulate_particles, feature_bounds, chi
 from barrierpg.examples.wear import WearModel, make_wear_env, IncumbentRule
-from barrierpg.roles import RegularizerMix, stationary_spread, adam_stationary_spread
+from barrierpg.roles import RegularizerMix, stationary_spread, noise_and_anchor_spread, adam_stationary_spread
 
 torch.set_num_threads(1)
 plt.rcParams.update({"figure.dpi": 110, "axes.spines.top": False, "axes.spines.right": False, "font.size": 10})
@@ -212,7 +212,7 @@ plt.tight_layout(); plt.show()
 # ## Part D. The parameter anchor: the prior is a policy
 #
 # A finite network carries the pull part of a Gaussian prior: weight decay toward parameters $\theta_0$
-# (`ParameterAnchor`; the paper's *The Gaussian prior as entropy, weight decay, and a policy*). We fit the actor's mean to the incumbent rule (`fit_actor_mean`) and set its
+# (`ParameterAnchor`; the paper's *The Gaussian prior as entropy, weight decay and a policy*). We fit the actor's mean to the incumbent rule (`fit_actor_mean`) and set its
 # dispersion to the incumbent's (`set_log_std`): the actor at $\theta_0$ is then the **prior policy**. The learner
 # inherits the prior policy's risk and utility, so we evaluate it as a candidate before training.
 #
@@ -269,13 +269,15 @@ print(regularizer_effects(spec, low_price.with_(kappa=10.0), cand(param_runs["an
 # ## Part E. The roles on PPO: pull and noise
 #
 # The finite-network counterpart of the entropy term is Gaussian noise of variance $2\kappa_1$ times the learning
-# rate after each optimizer step (`ParameterNoise`). Under a plain gradient pull $\kappa_2$ the per-parameter
-# spread would converge to $\sqrt{\kappa_1/(\kappa_1+\kappa_2)}$. The paper's runs used the coupled form of the anchor
-# (`ParameterAnchor(decoupled=False)`, the pull added to the gradient before Adam's step), and measured a spread
-# proportional to $\kappa_1$ instead (about $\sqrt2\,\kappa_1$): Adam normalizes the pull to a step of about the
-# learning rate whatever the distance. The roles survived, the formula did not hold for that form. The toolbox's default
-# is the decoupled pull, applied to the parameters after the step; for it, check the measured spread against the
-# formula. This part reproduces the paper's form. Here: the anchor $\kappa_2=10$ with noise $\kappa_1\in\{0.01,0.1\}$, and noise alone.
+# rate after each optimizer step (`ParameterNoise`). The injected noise carries no pull of its own: only the anchor
+# pulls. Under plain gradient descent without an objective, the anchor $\kappa_2$ and the noise give the
+# per-parameter spread $\sqrt{\kappa_1/\kappa_2}$ (`roles.noise_and_anchor_spread`), not the flow's
+# $\sqrt{\kappa_1/(\kappa_1+\kappa_2)}$, in which relative entropy pulls too. The paper's runs used the coupled form
+# of the anchor (`ParameterAnchor(decoupled=False)`, the pull added to the gradient before Adam's step), and measured a
+# spread growing in proportion to $\kappa_1$ (about $\sqrt2\,\kappa_1$); the paper proposes Adam's normalization of
+# the pull as an explanation, after the runs. The toolbox's default is the decoupled pull, applied to the parameters
+# after the step. Under Adam the objective's step stays adaptive, so $\sqrt{\kappa_1/\kappa_2}$ is a reference to
+# compare with, not a prediction. This part reproduces the paper's form. Here: the anchor $\kappa_2=10$ with noise $\kappa_1\in\{0.01,0.1\}$, and noise alone.
 
 # %%
 noise_runs = {0.0: (param_runs["anchor, kappa_p = 10"][0], param_runs["anchor, kappa_p = 10"][2].spread())}
@@ -287,7 +289,7 @@ for k1, k2 in ((0.01, 10.0), (0.1, 10.0), (0.1, 0.0)):
     e, A = assess(ppo, seed=50)
     noise_runs[(k1, k2)] = (e, noise.spread())
     print(f"kappa1 = {k1:<5g} kappa2 = {k2:<4g}: q_beta = {e.q_beta:.4f}, U = {e.U:.3f}, A = {A:10.3f}, spread = {noise.spread():.4f} "
-          f"(gradient-pull formula {stationary_spread(k1, k2) if k2 else float('nan'):.4f}, Adam sqrt(2) kappa1 = {adam_stationary_spread(k1):.4f})")
+          f"(plain-gradient reference sqrt(kappa1/kappa2) {noise_and_anchor_spread(k1, k2) if k2 else float('nan'):.4f}, Adam sqrt(2) kappa1 = {adam_stationary_spread(k1):.4f})")
 e, spread = noise_runs[(0.1, 0.0)]
 print("\n" + regularizer_effects(spec, low_price, cand(e), noise_kappa1=0.1, anchor_kappa2=0.0, spread=spread, prior_policy=prior_c).explain())
 

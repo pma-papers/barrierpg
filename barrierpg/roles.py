@@ -29,21 +29,27 @@ kappa1 lambda_W + kappa2 lambda_P. On the solvable flow a potential alone collap
 center and never leaves the plateau; relative entropy escapes; the sum escapes once its stationary spread is
 comparable to the plateau's width (the paper's study of the roles of the regularizers).
 
-Finite networks. The anchor (callbacks.ParameterAnchor) is the potential term; injected Gaussian noise of
-variance 2 kappa1 times the learning rate after each optimizer step (callbacks.ParameterNoise) is the noise term.
-Under a plain gradient step the stationary spread under a quadratic pull is sqrt(kappa1/(kappa1/sigma^2 +
-kappa2 lambda_P)). The anchor's default form realizes that step: the pull is applied to the parameters after the
-optimizer's step (decoupled), so every coordinate contracts by 1 - lr kappa2 per step whatever the optimizer. The
-paper's runs used the coupled form, the pull added to the gradient before an Adam step, which rescales it
-coordinate by coordinate to a step of about lr whatever the distance; there the paper measured a spread
-proportional to kappa1 instead (about sqrt(2) kappa1, adam_stationary_spread). The decoupling of roles survived
-the finite network; the stationary-spread formula holds for the decoupled pull and not for the coupled one.
+Finite networks. The anchor (callbacks.ParameterAnchor) is a quadratic pull of strength K; injected Gaussian noise
+of variance 2 kappa1 times the learning rate after each optimizer step (callbacks.ParameterNoise) is the noise term.
+The injected noise carries no pull of its own, unlike relative entropy, whose prior pulls at kappa1/sigma^2. Under
+plain gradient descent with step h, pull plus noise is the Euler-Maruyama step of the gradient-driven particle
+equation, and without an objective gradient the stationary variance per parameter is kappa1/(K (1 - h K/2)) for
+0 < h K < 2, about kappa1/K for a small step (noise_and_anchor_spread). It equals the flow's
+kappa1/(kappa1/sigma^2 + kappa2 lambda_P) only when the anchor also carries the prior's pull,
+K = kappa1/sigma^2 + kappa2 lambda_P. The anchor's default form is decoupled: the pull is applied to the parameters
+after the optimizer's step, so the pull substep contracts every coordinate by 1 - lr K whatever the optimizer. Under
+an adaptive optimizer such as Adam the objective's step stays adaptive, so the full update is not that
+Euler-Maruyama step and its spread does not follow from the flow's theory: the formula is a zero-objective reference,
+and the strength is calibrated by the measured contraction, parameter distance and spread. A changing learning rate
+has no single fixed-step stationary law. The paper's runs used the coupled form, the pull added to the gradient
+before an Adam step, which rescales it coordinate by coordinate; there the measured spread grew in proportion to
+kappa1 (about sqrt(2) kappa1 in its study, adam_stationary_spread, an explanation proposed after the runs).
 """
 from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, Optional
 
 from .paper import cite
 
@@ -129,9 +135,29 @@ class RegularizerMix:
 
 
 def stationary_spread(kappa1: float, kappa2: float, sigma: float = 1.0, lambda_P: float = 1.0) -> float:
-    """sqrt(kappa1 / (kappa1/sigma^2 + kappa2 lambda_P)): see RegularizerMix.stationary_spread. It applies to a
-    decoupled pull (ParameterAnchor's default) with ParameterNoise; not for the coupled pull under Adam."""
+    """sqrt(kappa1 / (kappa1/sigma^2 + kappa2 lambda_P)): the flow's stationary spread with relative entropy and a
+    potential, without the value gradient (RegularizerMix.stationary_spread). For ParameterNoise with a ParameterAnchor
+    use noise_and_anchor_spread: the injected noise carries no pull of its own."""
     return RegularizerMix(kappa1, kappa2, sigma, lambda_P).stationary_spread()
+
+
+def noise_and_anchor_spread(kappa1: float, kappa_pull: float, step: Optional[float] = None) -> float:
+    """The zero-objective reference spread per parameter of ParameterNoise (variance 2 kappa1 x step per step) with a
+    quadratic pull of total strength K = kappa_pull applied as theta <- theta - step K (theta - theta_0), as a decoupled
+    ParameterAnchor does: sqrt(kappa1 / (K (1 - step K/2))) for 0 < step K < 2, and sqrt(kappa1/K) as step -> 0 (step
+    None). Exact for plain gradient descent at a constant step without an objective gradient (the paper's toolbox
+    appendix). With an objective gradient, under an adaptive optimizer, or with a changing learning rate it is a
+    reference to compare the measured spread with, not a prediction; with the coupled pull under Adam see
+    adam_stationary_spread."""
+    K = float(kappa_pull)
+    if K <= 0.0:
+        return math.inf
+    if step is None:
+        return math.sqrt(kappa1 / K)
+    hK = float(step) * K
+    if not 0.0 < hK < 2.0:
+        return math.inf
+    return math.sqrt(kappa1 / (K * (1.0 - hK / 2.0)))
 
 
 def adam_stationary_spread(kappa1: float) -> float:
@@ -139,7 +165,7 @@ def adam_stationary_spread(kappa1: float) -> float:
     size lr, a Laplace law independent of kappa2 and lr. It describes the COUPLED form of the anchor (the pull added to
     the gradient before an Adam step, ParameterAnchor(decoupled=False), the form of the paper's PPO runs), where Adam's
     per-coordinate normalization makes the restoring step about lr whatever the distance. The explanation the paper
-    gave after its runs; post hoc, one example. The decoupled form (the default) follows stationary_spread instead."""
+    gave after its runs; post hoc, one example. For the decoupled form (the default) see noise_and_anchor_spread."""
     return math.sqrt(2.0) * kappa1
 
 
@@ -152,4 +178,4 @@ def kappa1_for_spread(spread: float, kappa2: float, sigma: float = 1.0, lambda_P
     return s2 * kappa2 * lambda_P / (1.0 - s2 / sigma ** 2)
 
 
-__all__ = ["RegularizerMix", "stationary_spread", "adam_stationary_spread", "kappa1_for_spread"]
+__all__ = ["RegularizerMix", "stationary_spread", "noise_and_anchor_spread", "adam_stationary_spread", "kappa1_for_spread"]

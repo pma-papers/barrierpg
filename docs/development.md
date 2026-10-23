@@ -60,8 +60,7 @@ python -m pytest tests -q        # the same checks under pytest
 The checks cover the budget mechanics of the four tutorial problems, the validation and certificates, the plain
 report, and they reproduce numbers of the paper where the toolbox can compute them: the curvature deficit of the
 solvable flow ($C_m=1940$, certified $\kappa=2037$), the plateau value $-2.2533$, the stationary spreads of the roles
-study, the incumbent rule's risk and utility in the wear example, the price-sequence reading of the emissions study,
-and a step-by-step reproduction of the paper's fuel-tank environment.
+study, the incumbent rule's risk and utility in the wear example, and a step-by-step reproduction of the paper's fuel-tank environment.
 
 ## Campaigns
 

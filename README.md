@@ -136,8 +136,8 @@ solutions: the price against an exact trade-off of utility and risk, training ag
 of the regularizers on a solvable learning problem, and the validation in detail. The
 [decisions and the theory behind them](docs/under-the-hood/decisions-and-theory.md) and the
 [results map](docs/under-the-hood/results-map.md) connect each function to the result it implements; results are
-cited by the paper's titles, never by numbers. The paper's own studies are reproduced in the separate replication
-repository.
+cited by the paper's titles, never by numbers. The paper's own studies are reproduced in the separate
+[replication repository](https://github.com/pma-papers/bpg-replication).
 
 ## Campaigns
 

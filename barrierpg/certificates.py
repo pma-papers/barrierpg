@@ -178,7 +178,7 @@ def conservative_price(alpha: float, beta: float, sup_U: float, U0: float = 0.0,
                        delta: float = 0.0, u_minus: float = 0.0) -> Bound:
     """The price at which the price-risk law certifies q_beta <= alpha with the comparison policy
     (U0, I0, q0): m >= (1-beta)[sup U - U0 + I0 + delta] / (alpha - q0), and m >= u_minus. Infinite if
-    alpha <= q0. The paper's suggested starting price ('Using the bounded barrier'): a safe start, not the price to aim for."""
+    alpha <= q0. The paper's suggested starting price ('Using the clipped barrier'): a safe start, not the price to aim for."""
     if alpha <= q0:
         return Bound("price m certifying alpha", math.inf, cite("fixed_price", "ii") + " inverted", [_H_SIGN],
                      note="the comparison policy's own risk exceeds the tolerance; no price is certified by this law")
@@ -191,7 +191,7 @@ def conservative_price(alpha: float, beta: float, sup_U: float, U0: float = 0.0,
 def conservative_multiplier(alpha: float, sup_U: float, U0: float = 0.0, q0: float = 0.0, delta: float = 0.0) -> Bound:
     """The flat failure penalty nu at which the frozen-multiplier objective U - nu q_beta certifies
     q_beta <= alpha: nu >= [sup U - U0 + delta] / (alpha - q0). This is the price-risk law with I_m = 0 and
-    nu = m/(1-beta); use it for a lump sanction charged once at failure (the emissions study)."""
+    nu = m/(1-beta); use it for a lump sum charged once at failure."""
     if alpha <= q0:
         return Bound("flat penalty nu certifying alpha", math.inf, cite("fixed_price", "ii") + " with I_m = 0, inverted",
                      note="the comparison policy's own risk exceeds the tolerance")
@@ -279,7 +279,7 @@ def comparison_law_slack(m: float, ubar: float, beta: float, alpha: float, T: in
 
 
 # ---------------------------------------------------------------------------------------------
-# Action regularization and trajectory risk
+# Action regularization and failure risk
 # ---------------------------------------------------------------------------------------------
 def kl_bernoulli(p: float, q: float) -> float:
     """kl(p || q) with the conventions 0 log(0/q) = 0 and p log(p/0) = +inf for p > 0."""

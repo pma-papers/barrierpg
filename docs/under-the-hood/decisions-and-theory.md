@@ -4,11 +4,11 @@ This document belongs to the toolbox's "under the hood" track, for readers who w
 [practitioner guide](../practitioner-guide.md) tied to the result of the paper *The Price of Failure Risk: Clipped
 Barrier Policy Gradients with Convex Regularization* (Malo, Viitasaari, Suominen, Vilkkumaa, Tahvonen) that supports
 it. It uses the paper's notation and its test problems, which have exact solutions. The
-[under-the-hood notebooks](../../notebooks/under-the-hood/) run these problems with outputs, and the replication
-repository walks through the paper's studies.
+[under-the-hood notebooks](../../notebooks/under-the-hood/) run these problems with outputs, and the
+[replication repository](https://github.com/pma-papers/bpg-replication) walks through the paper's studies.
 
 The paper does not rank barrier policy gradients against other constrained methods, and neither
-does this guide. Its purpose is to say what the bounded barrier delivers, what can be
+does this guide. Its purpose is to say what the clipped barrier delivers, what can be
 certified about the policy it returns, what each regularizer does, and when another method is the
 better choice.
 
@@ -26,7 +26,7 @@ The guide uses the paper's names, one name per concept.
 | `p_T = P(tau <= T)` | finite-horizon risk over `T + 1` actions | `Requirement(T, alpha)` |
 | `q_beta = E[beta^tau 1{tau < inf}]` | geometric risk: failure before an independent geometric time | `Evaluation.q_beta` |
 | `m` | price of failure risk; a failure costs `m/(1-beta)` in discounted total | `Stage.m` |
-| `max{-m, u - B(z')}` | the bounded barrier, the one-step reward clipped at `-m` | `BudgetWrapper` |
+| `max{-m, u - B(z')}` | the clipped barrier, the one-step reward clipped at `-m` | `BudgetWrapper` |
 | `V_m`, `U`, `I_m` | clipped value, stopped utility, interior loss: `V_m = U - I_m - m q_beta/(1-beta)` | `Evaluation` |
 | `theta` | scale of the interior barrier `B(z) = theta sum_k log(1 + b_k/z_k)`; `theta = 0` is the failure-only price | `Stage.theta` |
 | `nu` | flat failure penalty (frozen multiplier, or adaptive multiplier under dual ascent) | `Stage(penalty="multiplier")`, `DualAscent` |
@@ -99,7 +99,7 @@ mechanism. The choice of mechanism follows from the requirement, not the other w
 * **A resource whose step use can be negative** (net emissions in a week, a battery that recharges) needs
   nonnegative costs for the wrapper: `RunningMaxCost(signed_use)` charges the increment of the running maximum of
   the cumulative use, whose first crossing of the budget is the first crossing of the cumulative use.
-* **For a chance requirement** the bounded barrier is a surrogate, not the constraint. The
+* **For a chance requirement** the clipped barrier is a surrogate, not the constraint. The
   requirement is met by a certificate when it is informative and by validation of the deployed
   candidate otherwise (section 6 of this guide).
 * `plan(..., violations_during_training_matter=True)` and a zero tolerance trigger warnings: both point
@@ -136,12 +136,12 @@ when a reserve margin before exhaustion is worth its cost. Another method is the
    fuel-tank study). The toolbox's own prescribed-level option is `Stage(penalty="multiplier")` with
    `DualAscent`; see section 3 of this guide for its step and diagnosis.
 3. **Violations during training matter.** Constrained policy optimization keeps the iterates near the
-   constraint; the bounded barrier is trained where failures are permitted, in a simulator.
+   constraint; the clipped barrier is trained where failures are permitted, in a simulator.
 4. **The loss grows with the amount by which the consumption exceeds the budget.** A failure price
    charges the event of exhaustion, not its size; the CVaR constraint on the cumulative consumption
    charges the size.
-5. **The model is known and small.** In the emissions application the exact dynamic program, and a
-   re-planning rule tuned for each sanction, were better than either learner (PPO and SAC). The
+5. **The model is known and small.** Solve it exactly when you can: an exact dynamic program gives the
+   frontier itself, and in the wear-allowance study the learned policies came within a few percent of it. The
    certificates and the validation apply to such policies as well, since they hold for whatever policy
    is deployed: evaluate the policy through `BudgetWrapper`, validate it with `Evaluation.validate` or
    `validation.validate_direct`, and read it with `interpret`.
@@ -181,9 +181,9 @@ price `m`, so training at many prices is not required.
   price-risk law, monotonicity and dominance.
 * **Check that raising the price can work.** A sequence of prices reaches a tolerance when some policy
   has risk to spare and the charged errors (the comparison policy's interior loss, the regularization
-  cost and the optimization error) grow slower than the price (*Price sequences reaching a tolerance*). In
-  the emissions study PPO failed this condition: its shortfall grew in proportion to the sanction. On short
-  pilot runs at a few prices,
+  cost and the optimization error) grow slower than the price (*Price sequences reaching a tolerance*). A
+  learner whose shortfall grows in proportion to the price fails this condition. On short pilot runs at a
+  few prices,
   `frontier.price_sequence_check(prices, shortfalls)` reads the condition from measured shortfalls; on a
   new problem, the shortfall from the best structured policy at the same price is a lower bound on the
   optimization error. A rising shortfall or crash rate is the signal to stop raising the price.
@@ -254,7 +254,7 @@ that its target lacks.
   `ActionAnchor` charges it at every decision up to and including the failing one, as the paper's `A`
   does (`include_failing_action=False` charges the steps before failure only).
   It holds the policy near the action reference and bounds the departure of the trajectory risk from
-  the reference's: `kl(q || q_rho) <= A` (*Action regularization and trajectory risk*; `certificates.action_risk_bound`,
+  the reference's: `kl(q || q_rho) <= A` (*Action regularization and failure risk*; `certificates.action_risk_bound`,
   `kl_upper_inverse`). The bound is informative only for small `A`, that is, when the learned policy
   stays close to the reference and gains little. Use the action relative entropy when the action
   reference is trusted and the price or the model is not; otherwise a correctly chosen price dominates
@@ -289,22 +289,30 @@ dx_i = [policy gradient] dl - [kappa1 grad W(x_i) + kappa1 omega grad G'(rho_n)(
   a density, so it has no finite-network form without a density estimate.
 
 Relative entropy alone ties noise and pull to one strength; the general class unties them, and every
-combination converges by the same argument. Under a plain gradient pull the stationary spread is
-`sqrt(kappa1/(kappa1/sigma^2 + kappa2 lambda_P))` (`roles.stationary_spread`, `kappa1_for_spread`).
-How the pull enters the learner decides whether that formula applies (the paper's guidance, the four
-implementation rules of its first subsection). `ParameterAnchor`'s default is the decoupled pull,
-applied to the parameters after the optimizer's step as `theta <- theta - lr kappa2 (theta - theta_0)`:
-every coordinate contracts by `1 - lr kappa2` per step whatever the optimizer, and with
-`ParameterNoise` the pair is the Euler-Maruyama step of the particle form, so the measured spread can be
-checked against the stationary spread. The paper's PPO study of the roles used the coupled form
-(`decoupled=False`), the pull added to the gradient before Adam's step, where Adam's per-coordinate
-normalization makes the restoring step about `lr` whatever the distance; the measured spread was
-proportional to `kappa1` instead, about `sqrt(2) kappa1` (`roles.adam_stationary_spread`), whatever
-`kappa2` and `lr`. The roles survived the finite network; the formula holds for the decoupled pull and
-not for the coupled one. In that study, risk and utility stayed at the anchored values while the spread
-was small against the policy's dispersion and then moved, with seeds splitting; noise without a pull
-acted as exploration and abandoned the prior. Treat `kappa1` as a knob to vary and measure.
-`RegularizerMix(kappa1, kappa2).explain()` describes a combination.
+combination converges by the same argument. On the flow, without the value gradient, the stationary
+spread is `sqrt(kappa1/(kappa1/sigma^2 + kappa2 lambda_P))` (`roles.stationary_spread`,
+`kappa1_for_spread`).
+
+On a finite network the injected noise (`ParameterNoise`) carries no pull of its own: only the anchor
+pulls. Under plain gradient descent with step `h`, the anchor's pull `K` plus the noise is the
+Euler-Maruyama step of the gradient-driven particle equation, and without an objective gradient the
+stationary spread per parameter is `sqrt(kappa1/(K (1 - h K/2)))`, about `sqrt(kappa1/K)`
+(`roles.noise_and_anchor_spread`). It equals the flow's formula only when the anchor also carries the
+prior's pull, `K = kappa1/sigma^2 + kappa2 lambda_P`. How the pull enters the learner then decides what
+can be said (the paper's guidance, the implementation rules of its first subsection, and its appendix on
+the optimizer). `ParameterAnchor`'s default is the decoupled pull, applied to the parameters after the
+optimizer's step as `theta <- theta - lr K (theta - theta_0)`: the pull substep contracts every
+coordinate by `1 - lr K` whatever the optimizer. Under Adam the objective's step stays adaptive, so the
+full update is not the Euler-Maruyama step and its spread does not follow from the flow's theory:
+calibrate the strength by the measured contraction, parameter distance and spread, and read the formula
+as a zero-objective reference. A changing learning rate has no single fixed-step stationary law. The
+paper's PPO study of the roles used the coupled form (`decoupled=False`), the pull added to the gradient
+before Adam's step; there the measured spread grew in proportion to `kappa1`, about `sqrt(2) kappa1`
+(`roles.adam_stationary_spread`, an explanation the paper proposes after the runs). In that study, risk
+and utility stayed at the anchored values while the spread was small against the policy's dispersion and
+then moved, the seeds splitting; noise without a pull acted as exploration and abandoned the prior.
+Treat `kappa1` as a knob to vary and measure. `RegularizerMix(kappa1, kappa2).explain()` describes a
+combination on the flow.
 
 ### 5.3 The prior is a policy
 

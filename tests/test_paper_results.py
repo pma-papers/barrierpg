@@ -17,7 +17,7 @@ from barrierpg.examples.wear import WearModel, IncumbentRule, make_wear_env
 def test_registry():
     assert cite("fixed_price", "ii") == "paper, 'Fixed price of failure risk' (price-risk law)"
     assert cite("flow") == "paper, 'Fixed-stage population convergence'" and "Finite-network training" in cite("finite_training")
-    assert "Action regularization and trajectory risk" in cite("action_risk") and "Learning error and budget risk" in cite("learning_error")
+    assert "Action regularization and failure risk" in cite("action_risk") and "Learning error and budget risk" in cite("learning_error")
     assert "supplementary" in cite("near_exhaustion")
     assert results_table().count("\n") == len(RESULTS) + 1
 
@@ -98,10 +98,10 @@ def test_lump_sanction_certificate():
     assert abs(bh.inputs["V_used"] - lo) < 1e-9 and bh.value > b.value
 
 
-def test_price_sequence_on_the_application():
+def test_price_sequence_check():
     F = [25, 50, 100, 200, 400]
-    ppo = price_sequence_check(F, [0.79, 1.51, 3.77, 7.55, 12.07])         # the paper's PPO shortfalls
-    sac = price_sequence_check(F, [0.93, 1.59, 1.35, 3.43, 2.78])          # and SAC's
+    ppo = price_sequence_check(F, [0.79, 1.51, 3.77, 7.55, 12.07])         # shortfalls growing with the price
+    sac = price_sequence_check(F, [0.93, 1.59, 1.35, 3.43, 2.78])          # shortfalls growing slower
     assert not ppo.shrinking and sac.shrinking and ppo.loglog_slope > 0.9
     assert "not the remedy" in ppo.explanation and "Price sequences reaching a tolerance" in sac.explanation
     empty = price_sequence_check([0.5, 2.0, 8.0], [0.0, 0.0, 0.0])
@@ -162,7 +162,7 @@ def test_effects_noise_and_inheritance():
     e = regularizer_effects(spec, st, dict(q_beta=0.14, U=3.08, q_se=0.01, U_se=0.05, V_m=2.0),
                             prior_policy=dict(q_beta=0.0103, U=2.73, q_se=0.001, U_se=0.01, V_m=2.5),
                             noise_kappa1=0.101, anchor_kappa2=10.0, spread=0.13, dispersion_final=0.10)
-    assert abs(e.noise["nominal_gradient_spread"] - 0.1) < 1e-3 and any("comparable to the action dispersion" in f for f in e.flags)
+    assert abs(e.noise["nominal_gradient_spread"] - math.sqrt(0.101 / 10.0)) < 1e-12 and any("comparable to the action dispersion" in f for f in e.flags)
     assert any("clipped value is below the prior" in f for f in e.flags)
     e2 = regularizer_effects(spec, st, dict(q_beta=0.506, U=5.24), noise_kappa1=0.101, spread=1.5)
     assert any("abandons the prior" in f for f in e2.flags)

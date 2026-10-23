@@ -21,7 +21,7 @@ in [`barrierpg/paper.py`](../../barrierpg/paper.py); `barrierpg.paper.results_ta
 | *Fixed price of failure risk*, monotonicity in the price | A higher price raises the attained risk only through the errors and the interior loss | `certificates.price_monotonicity`, `frontier.check_runs` |
 | *Fixed price of failure risk*, learning form | The price–risk law for a minimizer of the regularized objective, with the regularization cost charged | `certificates.learning_form_risk`, `comparison_law_risk` |
 | *The fixed price of failure risk* (the section) | A prescribed level below the risk floor is unattainable, and no multiplier converges | `certificates.prescribed_level_attainable`, `convergence.multiplier_diagnosis` |
-| *Action regularization and trajectory risk* | $\mathrm{kl}(q\,\|\,q_\rho)\le\mathcal A$: departure from the action reference's risk | `certificates.action_risk_bound`, `kl_upper_inverse`, `kl_lower_inverse` |
+| *Action regularization and failure risk* | $\mathrm{kl}(q\,\|\,q_\rho)\le\mathcal A$: departure from the action reference's risk | `certificates.action_risk_bound`, `kl_upper_inverse`, `kl_lower_inverse` |
 
 ## Convergence, the prior and the roles of the regularizers
 
@@ -33,9 +33,9 @@ in [`barrierpg/paper.py`](../../barrierpg/paper.py); `barrierpg.paper.results_ta
 | *Learning error and budget risk* | The risk bound along the population flow at learning time $\ell$ | `convergence.learning_risk_bound`, `learning_time_for_slack`, `initial_gap_upper`; `certificates.learning_slack` |
 | *Improvement over the prior policy* (with its proof) | Clipped value at least the prior policy's; risk within a slack of order $\kappa^{-1/2}$; a second slack with $\eta>0$; the $\kappa$ that meets a tolerance | `convergence.risk_slack_from_prior`, `action_slack_from_prior`, `kappa_for_tolerance` |
 | *The regularization bias is priced and detected* | The bias enters only through the comparison law's regularization cost and shows as a failed certificate | `regularizers.regularizer_effects` (bias terms), `report.interpret` |
-| *The prior and the particle form of the flow* | Noise $\sqrt{2\kappa_1}\,dB$, pull $-\kappa_1\nabla W-\kappa_2\nabla P$, spread from the integrand; stationary spread under a gradient pull | `roles.RegularizerMix`, `stationary_spread`, `kappa1_for_spread`; `callbacks.ParameterNoise` |
+| *The prior and the particle form of the flow* | Noise $\sqrt{2\kappa_1}\,dB$, pull $-\kappa_1\nabla W-\kappa_2\nabla P$, spread from the integrand; stationary spread under a gradient pull; with injected noise the anchor is the only pull | `roles.RegularizerMix`, `stationary_spread`, `kappa1_for_spread`, `noise_and_anchor_spread`; `callbacks.ParameterNoise` |
 | *Finite-network training under a potential* | Noiseless finite-network training is the flow from its empirical law, with the same contraction; value and risk transfer | `convergence.finite_training_transfer` |
-| *The Gaussian prior as entropy, weight decay, and a policy* | Entropy plus weight decay of weight $\kappa/\sigma^2$; the rate depends on $\kappa/\sigma^2$ only | `convergence.gaussian_prior_curvature`; `callbacks.ParameterAnchor` |
+| *The Gaussian prior as entropy, weight decay and a policy* | Entropy plus weight decay of weight $\kappa/\sigma^2$; the rate depends on $\kappa/\sigma^2$ only | `convergence.gaussian_prior_curvature`; `callbacks.ParameterAnchor` |
 | *Potential regularizers and weight decay* | Potentials are admissible and finite on a finite network | `callbacks.ParameterAnchor.regularizer_value` |
 | *Collapse under a potential alone* | A potential alone collapses the units to one point in the certified regime | `roles.RegularizerMix.collapses` |
 | *First variations* | The per-unit policy gradient | `examples.plateau.PlateauModel.value_gradient` (the solvable flow) |
@@ -48,7 +48,7 @@ in [`barrierpg/paper.py`](../../barrierpg/paper.py); `barrierpg.paper.results_ta
 | *Validate the deployed candidate at its specified horizon*, the direct test | Exact binomial upper bound; resolution floor $1-\zeta^{1/N}$; errors allocated over a family | `validation.validate_direct`, `binomial_upper`, `resolution_floor`, `episodes_for_tolerance`, `allocate_error`; `Evaluation.validate` |
 | The same section, the value test | Hoeffding lower bound on $V_m$ from truncated returns; a necessary condition for the test to certify a tolerance | `validation.hoeffding_value_lower`, `risk_from_validation_value`, `value_resolution_check` |
 | The same section, a physical horizon | The certificate when the task ends after $H$ actions | `validation.physical_horizon_risk` |
-| The emissions application | The value certificate with a lump sanction, $p_T\le(\bar uS_H-V^{(H)})/(F\beta^T)$ | `validation.lump_sanction_risk` |
+| *The risk priced by a physical horizon*, with *Value and objective certificates* | The value certificate with a lump sum at failure, $p_T\le(\bar uS_H-V^{(H)})/(F\beta^T)$ | `validation.lump_sanction_risk` |
 | *Fixed-stage learning and independent deployment validation* (the algorithm) | Train at a fixed stage, then validate the deployed candidate | `evaluate`, `evaluation_from_episodes`, `Evaluation.validate`, `interpret` |
 | *Delay without eventual feasibility* | A small geometric risk is not an eventual-risk guarantee | stated in every report |
 | *Price sequences reaching a tolerance* | A sequence of prices reaches a tolerance when the charged errors grow slower than the price | `frontier.price_sequence_check` |
@@ -66,7 +66,7 @@ price-equivalent.
 | Part of the paper | Function |
 |---|---|
 | *Which formulation to prefer*: the cases in which another method is the better choice | `planning.when_to_use_another_method`, `plan` |
-| *Using the bounded barrier* | `plan`, `advise_regularizers` |
+| *Using the clipped barrier* | `plan`, `advise_regularizers` |
 | *Scope of the guarantees* | `report.interpret` (the "not established" list) |
 | The wear-allowance study | `examples.wear` (model, rules, exact benchmark numbers) |
 | The solvable flow and the roles of the regularizers | `examples.plateau` (model, particle simulation, the paper's roles table) |

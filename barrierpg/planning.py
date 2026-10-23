@@ -1,6 +1,6 @@
 """Before training: turn a requirement into a configuration and a validation budget, with reasons.
 
-The plan follows the paper's 'Using the bounded barrier': specify the requirement first; fix the price, then certify;
+The plan follows the paper's 'Using the clipped barrier': specify the requirement first; fix the price, then certify;
 buy margin deliberately; choose regularizers for their role and the prior from the problem; validate the
 deployed candidate. It recommends by conditions and states, before anything else, the conditions of
 the paper's 'Which formulation to prefer' under which another method is the better choice.
@@ -77,7 +77,7 @@ def when_to_use_another_method(*, failure_permissible_at_deployment: Optional[bo
                   "a failure price charges the event of exhaustion, not its size"),
         Condition("the model is known and small", model_known_and_small,
                   "an exact dynamic program (or a structured policy, when one is available); the toolbox's certificates and validation apply to it too",
-                  "in the emissions application the exact dynamic program, and a re-planning rule tuned for each sanction, were better than either learner"),
+                  "use it whenever available; in the wear-allowance study the learned policies came within a few percent of its exact frontier"),
         Condition("the required price charges far more for a failure than an episode earns", price_exceeds_episode_earnings,
                   "reward normalization or a prescribed-level formulation",
                   "a large price degraded the controllers of the fuel-tank study; increasing the price is not an optimization guarantee"),

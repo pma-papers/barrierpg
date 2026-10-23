@@ -4,7 +4,7 @@ Two regularizers act on different objects.
 
 The action relative entropy (weight eta) is a reward term on the action law. It holds the policy near an
 action reference rho and keeps the trajectory risk within kl(q || q_rho) <= A of the reference's
-('Action regularization and trajectory risk'). It convexifies the action-law problem but not the network's, so the convergence budget
+('Action regularization and failure risk'). It convexifies the action-law problem but not the network's, so the convergence budget
 credits it with no curvature and charges it the deficit eta C_A.
 
 The parameter regularizer (strength kappa) acts on the law of the network's units. It supplies the
@@ -28,7 +28,7 @@ import numpy as np
 from .certificates import action_risk_bound
 from .convergence import CurvatureBudget, FeatureConstants, curvature_budget, gaussian_prior_curvature
 from .paper import cite
-from .roles import adam_stationary_spread, stationary_spread
+from .roles import adam_stationary_spread, noise_and_anchor_spread
 from .spec import BudgetSpec, Stage
 
 
@@ -152,8 +152,9 @@ def advise_regularizers(spec: BudgetSpec, stage: Stage, *, action_reference_trus
                                 "holding the units; vary kappa1 and measure the per-parameter spread",
                                 "a regularizer without noise cannot move units off a region where the value gradient vanishes: a potential alone collapses the "
                                 "units to the prior's center and never leaves the plateau; noise lets them reach where the feature acts. With the coupled pull "
-                                "under Adam (the paper's runs) the measured spread was proportional to kappa1, and seeds split once it approached the "
-                                "policy's dispersion; with the decoupled pull (the default) check the measured spread against the stationary-spread formula",
+                                "under Adam (the paper's runs) the measured spread grew in proportion to kappa1, and seeds split once it approached the "
+                                "policy's dispersion; with the decoupled pull (the default) compare the measured spread with sqrt(kappa1/kappa2) "
+                                "(roles.noise_and_anchor_spread; the injected noise adds no pull of its own)",
                                 f"{cite('particle')}; {cite('roles')}; {cite('collapse')}"))
     if starting_from_finite_network:
         R.append(Recommendation("regularizer family", "a convex potential on the parameters: plain weight decay |x|^2/2 or an anchor |x - x_ref|^2/2 (curvature one)",
@@ -260,12 +261,12 @@ def regularizer_effects(spec: BudgetSpec, stage: Stage, candidate: Dict, *, acti
     # injected noise (the noise role)
     if noise_kappa1 is not None and spread is not None:
         k2 = anchor_kappa2 if anchor_kappa2 is not None else 0.0
-        nominal = stationary_spread(noise_kappa1, k2) if k2 > 0 else float("nan")
+        nominal = noise_and_anchor_spread(noise_kappa1, k2) if k2 > 0 else float("nan")
         adam = adam_stationary_spread(noise_kappa1)
         E.noise = dict(kappa1=noise_kappa1, kappa2=k2, spread=spread, nominal_gradient_spread=nominal, adam_spread=adam)
         line = (f"parameter noise (kappa1 = {noise_kappa1:g}" + (f", pull kappa2 = {k2:g}" if k2 > 0 else ", no pull") + f"): per-parameter spread {spread:.3g}")
         if k2 > 0:
-            line += f"; a gradient pull would hold it at sqrt(kappa1/(kappa1+kappa2)) = {nominal:.3g}"
+            line += f"; a gradient pull without an objective would hold it at sqrt(kappa1/kappa2) = {nominal:.3g}"
         line += f"; with the coupled pull under Adam the paper measured about sqrt(2) kappa1 = {adam:.3g} [{cite('roles')}]"
         E.lines.append(line)
         if dispersion_final is not None and spread >= 0.5 * dispersion_final:

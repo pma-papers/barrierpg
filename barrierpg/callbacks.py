@@ -102,7 +102,7 @@ class ActionAnchor(BaseCallback):
     so that it is applied in the learner's reward units (the convention of the wear-allowance study).
 
     What it does: holds the policy near the action reference and keeps its trajectory risk within
-    kl(q || q_rho) <= A of the reference's ('Action regularization and trajectory risk'). It adds no curvature to the learning problem and
+    kl(q || q_rho) <= A of the reference's ('Action regularization and failure risk'). It adds no curvature to the learning problem and
     is charged the deficit eta C_A in the convergence budget; an entropy bonus is the case of a uniform reference.
     """
 
@@ -185,7 +185,7 @@ class ParameterAnchor:
     """The pull of the particle form on a finite actor: weight decay toward a prior parameter theta_0 on every actor
     parameter, the potential regularizer (kappa_p/2) |theta - theta_0|^2, which is the part of a Gaussian prior
     N(theta_0, sigma^2 I) a finite network can carry (kappa_p = kappa/sigma^2; 'The Gaussian prior as entropy, weight
-    decay, and a policy'). Under a potential, noiseless continuous-time training is the population flow from the
+    decay and a policy'). Under a potential, noiseless continuous-time training is the population flow from the
     network's own empirical law ('Finite-network training under a potential').
 
     Two forms, chosen by `decoupled` (the paper's Section 'Practical choices, scope and conclusion', the four
@@ -193,12 +193,15 @@ class ParameterAnchor:
 
     decoupled=True (default): the pull is applied to the parameters after the optimizer's step,
         theta <- theta - lr kappa_p (theta - theta_0), lr the current learning rate of the optimizer's first parameter
-        group. This is the decoupled weight decay of AdamW. Every coordinate contracts toward the anchor by the factor
-        1 - lr kappa_p per step (half-life ln 2 / (lr kappa_p) steps), whatever the optimizer does with the objective's
-        gradient, so the strength keeps its meaning as a curvature, and with ParameterNoise the pair is the
-        Euler-Maruyama step of the particle form: check the measured spread against its stationary spread
-        sqrt(kappa1/(kappa1/sigma^2 + kappa2 lambda_P)) (roles.stationary_spread). Requires lr kappa_p < 1 (install raises otherwise); a
-        learning rate decayed to zero switches the pull off.
+        group. This is the decoupled weight decay of AdamW. The pull substep contracts every coordinate toward the
+        anchor by the factor 1 - lr kappa_p (half-life -ln 2 / ln(1 - lr kappa_p) steps, about ln 2 / (lr kappa_p)),
+        whatever the optimizer does with the objective's gradient. Under plain gradient descent, pull plus ParameterNoise
+        is the Euler-Maruyama step of the gradient-driven particle equation, and without an objective gradient the
+        per-parameter spread settles at sqrt(kappa1 / (kappa_p (1 - lr kappa_p/2))), about sqrt(kappa1/kappa_p)
+        (roles.noise_and_anchor_spread); the injected noise adds no pull of its own. Under Adam the objective's step
+        stays adaptive, so the full update is not that step and the formula is only a reference: calibrate the
+        strength by the measured contraction, distance and spread. Requires lr kappa_p < 1 (install raises otherwise);
+        a learning rate decayed to zero switches the pull off.
     decoupled=False: the legacy form used by the paper's runs. kappa_p (theta - theta_0) is added to the actor's
         gradient after gradient clipping and before the optimizer's step. Under Adam, which divides each gradient
         coordinate by its running root-mean-square, the pull is rescaled coordinate by coordinate: its step is about lr
@@ -320,15 +323,17 @@ class ParameterNoise:
     of the flow). Combined with a ParameterAnchor of strength kappa2, kappa2 sets where the units are held and kappa1
     how far they spread (the paper's roles study).
 
-    With a decoupled anchor (the default) the pull and the noise together are the Euler-Maruyama step of the particle
-    form, theta <- theta - lr kappa2 (theta - theta_0) + sqrt(2 kappa1 lr) xi, and the stationary per-parameter
-    spread sqrt(kappa1/(kappa1/sigma^2 + kappa2 lambda_P)) is the value to check the measured spread against.
-    With a coupled anchor under Adam the pull's step is about lr whatever the distance, so the noised parameters
-    follow a Laplace law of spread proportional to kappa1 (about sqrt(2) kappa1, the paper's roles study, which ran
-    the coupled form) whatever kappa2 and lr; risk and utility stayed at the anchored values while the spread was
-    small against the policy's dispersion and then moved, with seeds splitting, and noise alone acted as exploration
-    and abandoned the prior (the paper's Section 'Practical choices, scope and conclusion', first subsection).
-    In both forms, vary kappa1 and measure the spread (spread()).
+    With a decoupled anchor (the default) the pull and the noise together apply
+    theta <- theta - lr kappa2 (theta - theta_0) + sqrt(2 kappa1 lr) xi after the optimizer's step. The noise adds no
+    pull of its own, so without an objective gradient the per-parameter spread settles at
+    sqrt(kappa1 / (kappa2 (1 - lr kappa2/2))), about sqrt(kappa1/kappa2) (roles.noise_and_anchor_spread), not at the
+    sqrt(kappa1/(kappa1 + kappa2)) of relative entropy plus a potential; under Adam with an objective it is a
+    reference, not a prediction. With a coupled anchor under Adam the pull passes through Adam's normalization, and
+    the paper's roles study, which ran that form, measured a spread growing in proportion to kappa1 (about
+    sqrt(2) kappa1, roles.adam_stationary_spread, an explanation proposed after the runs). In that study risk and
+    utility stayed at the anchored values while the spread was small against the policy's dispersion and then moved,
+    the seeds splitting, and noise alone acted as exploration and abandoned the prior. In both forms, vary kappa1 and
+    measure the spread (spread()).
 
     Usage: noise = ParameterNoise(model, kappa1, seed=0).install()  before model.learn(...); install it together
     with a ParameterAnchor in either order.

@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.7.0 (2026-10-23): checked against revision 73; the spread of injected noise under an anchor corrected
+
+- The spread that `ParameterNoise` reaches under a `ParameterAnchor` is corrected. The injected noise carries no pull
+  of its own, so without an objective gradient the per-parameter spread under an anchor of strength `K` at step `lr`
+  is `sqrt(kappa1/(K (1 - lr K/2)))`, about `sqrt(kappa1/K)`, the zero-objective reference of the paper's appendix on
+  the optimizer. The new `roles.noise_and_anchor_spread` computes it. Version 0.6.1 called the decoupled pull plus
+  noise the Euler-Maruyama step of the particle form with spread `sqrt(kappa1/(kappa1/sigma^2 + kappa2))`, which holds
+  only when the anchor also carries relative entropy's own pull `kappa1/sigma^2`, and only under plain gradient
+  descent: under Adam the objective's step stays adaptive, so the formula is a reference, not a prediction. In the
+  replication repository's three-optimizer runs without an objective, the spread under SGD and under the decoupled
+  Adam pull matched `sqrt(kappa1/kappa2)` to within 1%. `regularizer_effects` reports
+  this reference (`noise["nominal_gradient_spread"]`), the docstrings of both callbacks, the decisions document, the
+  practitioner guide and notebook T3 say so, and a test checks the formula against the exact variance and a
+  simulation. `roles.stationary_spread` keeps the flow's formula, relative entropy plus a potential.
+- The paper's revision 72 removed the emissions application. The toolbox no longer cites it. The lump-sum certificate
+  `validation.lump_sanction_risk` now cites *Value and objective certificates* and *The risk priced by a physical
+  horizon*, `plan`'s advice for a small known model cites the wear-allowance study's exact frontier, and the
+  docstrings, the decisions document, the results map and notebooks T2 and T4 drop the study. The lump-sum features
+  themselves are unchanged.
+- `PAPER["checked_against"]` is revision 73 (2026-10-23). Four titles changed and are updated: *A running example with
+  an operating rate and a wear allowance*, *Action regularization and failure risk*, *The Gaussian prior as entropy,
+  weight decay and a policy*, and *Using the clipped barrier*. The toolbox now says "clipped barrier" throughout, as
+  the paper does.
+- Notebooks 01, 02 and T1-T4 are re-executed: their printed advice and citations changed.
+
 ## 0.6.1 (2026-10-20): the parameter anchor decoupled from the optimizer; checked against revision 68
 
 - `ParameterAnchor` has two forms. The new default, `decoupled=True`, applies the pull to the actor's parameters after

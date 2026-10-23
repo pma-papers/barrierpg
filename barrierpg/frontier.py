@@ -148,7 +148,7 @@ def price_sequence_check(prices: Sequence[float], shortfalls: Sequence[float], *
     measured runs: shortfalls[k] is the optimization error at prices[k] (for example the gap to an exact optimum),
     interior_loss[k] the comparison policy's interior loss at that price. The charged total divided by the price
     should shrink; if it does not at the largest prices, the learner's error grows with the price and raising the
-    price is not the remedy (PPO in the emissions study). Evidence about these runs, not a proof."""
+    price is not the remedy. Evidence about these runs, not a proof."""
     m = np.asarray(prices, dtype=float); d = np.asarray(shortfalls, dtype=float)
     I = np.zeros_like(m) if interior_loss is None else np.asarray(interior_loss, dtype=float)
     order = np.argsort(m); m, d, I = m[order], d[order], I[order]
@@ -170,7 +170,7 @@ def price_sequence_check(prices: Sequence[float], shortfalls: Sequence[float], *
     else:
         text = (f"the charged errors do not shrink relative to the price (charged/m {mid:.3g} -> {ratio[-1]:.3g}; log-log slope {slope:.2f}): "
                 f"the learner's error grows with the price, so raising the price is not the remedy; consider another learner, a structured "
-                f"policy, reward normalization or a prescribed-level formulation [{cite('price_sequence')}; {cite('application')}]")
+                f"policy, reward normalization or a prescribed-level formulation [{cite('price_sequence')}]")
     return PriceSequenceCheck(rows, slope, shrinking, text)
 
 

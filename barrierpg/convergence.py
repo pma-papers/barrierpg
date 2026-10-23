@@ -103,7 +103,7 @@ def curvature_constants(constants: Constants, beta: float, m: float, ubar: float
 def gaussian_prior_curvature(sigma: float) -> float:
     """lambda_W = sigma^-2 for the prior N(x0, sigma^2 I). Relative entropy to it is negative entropy of
     weight kappa plus weight decay toward x0 of weight kappa/sigma^2, so the rate depends on (kappa, sigma)
-    only through kappa/sigma^2 while the minimizer depends on both ('The Gaussian prior as entropy, weight decay, and a policy')."""
+    only through kappa/sigma^2 while the minimizer depends on both ('The Gaussian prior as entropy, weight decay and a policy')."""
     return 1.0 / float(sigma) ** 2
 
 

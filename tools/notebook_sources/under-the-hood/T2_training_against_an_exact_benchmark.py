@@ -143,8 +143,7 @@ plt.tight_layout(); plt.show()
 #
 # **Can raising the price reach a tolerance?** By the paper's *Price sequences reaching a tolerance*, a sequence of prices reaches a tolerance
 # when some policy has risk to spare and the charged errors grow slower than the price. `price_sequence_check` reads
-# that condition from the measured shortfalls. In the paper's emissions study PPO failed it: its shortfall grew in
-# proportion to the price.
+# that condition from the measured shortfalls. A learner whose shortfall grows in proportion to the price fails it.
 
 # %%
 print(price_sequence_check(list(deltas), list(deltas.values())).explain())
