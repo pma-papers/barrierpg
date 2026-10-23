@@ -5,6 +5,14 @@ version: 0.7.0
 date-released: 2026-10-23
 license: MIT
 repository-code: "https://github.com/pma-papers/barrierpg"
+doi: 10.5281/zenodo.23597362
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.23597362
+    description: "All versions (concept DOI)"
+  - type: doi
+    value: 10.5281/zenodo.23597363
+    description: "Version 0.7.0"
 authors:
   - family-names: Malo
     given-names: Pekka
