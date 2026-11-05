@@ -65,7 +65,7 @@ def test_regularizer_mix():
         assert abs(kappa1_for_spread(s, 10.0) - k1) < 5e-4
     assert abs(adam_stationary_spread(0.1) - 0.1 * math.sqrt(2)) < 1e-12
     assert abs(mix.noise_std_per_step(3e-4) - math.sqrt(2 * 0.101 * 3e-4)) < 1e-15
-    assert "Collapse under a potential alone" in RegularizerMix(kappa2=1.0).explain()
+    assert "Finite-network training under a potential" in RegularizerMix(kappa2=1.0).explain()
 
 
 def test_new_certificates():
@@ -167,7 +167,7 @@ def test_effects_noise_and_inheritance():
     e2 = regularizer_effects(spec, st, dict(q_beta=0.506, U=5.24), noise_kappa1=0.101, spread=1.5)
     assert any("abandons the prior" in f for f in e2.flags)
     a = advise_regularizers(spec, st, stalls_where_gradient_vanishes=True)
-    assert "noise" in a.mechanisms() and "Collapse under a potential alone" in a.explain()
+    assert "noise" in a.mechanisms() and "Finite-network training under a potential" in a.explain()
 
 
 NUMBERED = __import__("re").compile(r"(Proposition|Theorem|Corollary|Remark|Definition|Example|Lemma|Algorithm|Table|Figure|Appendix|Section)s? "

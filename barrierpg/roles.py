@@ -101,7 +101,7 @@ class RegularizerMix:
     @property
     def collapses(self) -> bool:
         """A potential alone (no noise, no divergence) moves the population to a single point mass in the certified
-        regime: all units at one parameter, whatever the width ('Collapse under a potential alone')."""
+        regime: all units at one parameter, whatever the width ('Finite-network training under a potential')."""
         return self.kappa1 == 0.0 and self.kappa2 > 0.0
 
     def finite_network_form(self) -> List[str]:

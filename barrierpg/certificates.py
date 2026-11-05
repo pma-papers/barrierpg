@@ -178,7 +178,7 @@ def conservative_price(alpha: float, beta: float, sup_U: float, U0: float = 0.0,
                        delta: float = 0.0, u_minus: float = 0.0) -> Bound:
     """The price at which the price-risk law certifies q_beta <= alpha with the comparison policy
     (U0, I0, q0): m >= (1-beta)[sup U - U0 + I0 + delta] / (alpha - q0), and m >= u_minus. Infinite if
-    alpha <= q0. The paper's suggested starting price ('Using the clipped barrier'): a safe start, not the price to aim for."""
+    alpha <= q0. The paper's suggested starting price ('A workflow for practitioners'): a safe start, not the price to aim for."""
     if alpha <= q0:
         return Bound("price m certifying alpha", math.inf, cite("fixed_price", "ii") + " inverted", [_H_SIGN],
                      note="the comparison policy's own risk exceeds the tolerance; no price is certified by this law")

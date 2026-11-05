@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.7.1 (2026-11-05): checked against revision 75, the revision submitted to the journal
+
+- `PAPER["checked_against"]` is revision 75 (2026-11-05). Revisions 74 and 75 changed the paper's wording and
+  structure, not its results or numbers. Eight titles in the results map are updated to the titles the paper now
+  gives: *Types of constraint in related formulations*; the example *An asset under a wear allowance* (formerly the
+  running example); *The prior and the particle form of the flow* (which now contains the Gaussian-prior
+  decomposition); *Admissible families* (which now contains the potentials); *Finite-network training under a
+  potential* (which now states the collapse); *A workflow for practitioners* (the Online Resource's workflow, in
+  place of the former algorithm); *Fixed price of failure risk*, whose new part (v) states that the price supports
+  the frontier; and *Choice of method, scope and conclusion*. Docstrings, the results map, the decisions document and
+  notebooks T1, T3 and T4 follow. No function changes.
+
 ## 0.7.0 (2026-10-23): checked against revision 73; the spread of injected noise under an anchor corrected
 
 - The spread that `ParameterNoise` reaches under a `ParameterAnchor` is corrected. The injected noise carries no pull

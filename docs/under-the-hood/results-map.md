@@ -35,9 +35,9 @@ in [`barrierpg/paper.py`](../../barrierpg/paper.py); `barrierpg.paper.results_ta
 | *The regularization bias is priced and detected* | The bias enters only through the comparison law's regularization cost and shows as a failed certificate | `regularizers.regularizer_effects` (bias terms), `report.interpret` |
 | *The prior and the particle form of the flow* | Noise $\sqrt{2\kappa_1}\,dB$, pull $-\kappa_1\nabla W-\kappa_2\nabla P$, spread from the integrand; stationary spread under a gradient pull; with injected noise the anchor is the only pull | `roles.RegularizerMix`, `stationary_spread`, `kappa1_for_spread`, `noise_and_anchor_spread`; `callbacks.ParameterNoise` |
 | *Finite-network training under a potential* | Noiseless finite-network training is the flow from its empirical law, with the same contraction; value and risk transfer | `convergence.finite_training_transfer` |
-| *The Gaussian prior as entropy, weight decay and a policy* | Entropy plus weight decay of weight $\kappa/\sigma^2$; the rate depends on $\kappa/\sigma^2$ only | `convergence.gaussian_prior_curvature`; `callbacks.ParameterAnchor` |
-| *Potential regularizers and weight decay* | Potentials are admissible and finite on a finite network | `callbacks.ParameterAnchor.regularizer_value` |
-| *Collapse under a potential alone* | A potential alone collapses the units to one point in the certified regime | `roles.RegularizerMix.collapses` |
+| *The prior and the particle form of the flow* (the Gaussian prior as entropy plus weight decay) | Entropy plus weight decay of weight $\kappa/\sigma^2$; the rate depends on $\kappa/\sigma^2$ only | `convergence.gaussian_prior_curvature`; `callbacks.ParameterAnchor` |
+| *Admissible families* (potentials) | Potentials are admissible and finite on a finite network | `callbacks.ParameterAnchor.regularizer_value` |
+| *Finite-network training under a potential* (the collapse) | A potential alone collapses the units to one point in the certified regime | `roles.RegularizerMix.collapses` |
 | *First variations* | The per-unit policy gradient | `examples.plateau.PlateauModel.value_gradient` (the solvable flow) |
 
 ## Deployment and validation
@@ -49,13 +49,13 @@ in [`barrierpg/paper.py`](../../barrierpg/paper.py); `barrierpg.paper.results_ta
 | The same section, the value test | Hoeffding lower bound on $V_m$ from truncated returns; a necessary condition for the test to certify a tolerance | `validation.hoeffding_value_lower`, `risk_from_validation_value`, `value_resolution_check` |
 | The same section, a physical horizon | The certificate when the task ends after $H$ actions | `validation.physical_horizon_risk` |
 | *The risk priced by a physical horizon*, with *Value and objective certificates* | The value certificate with a lump sum at failure, $p_T\le(\bar uS_H-V^{(H)})/(F\beta^T)$ | `validation.lump_sanction_risk` |
-| *Fixed-stage learning and independent deployment validation* (the algorithm) | Train at a fixed stage, then validate the deployed candidate | `evaluate`, `evaluation_from_episodes`, `Evaluation.validate`, `interpret` |
+| *A workflow for practitioners* (Online Resource) | Train at a fixed stage, then validate the deployed candidate | `evaluate`, `evaluation_from_episodes`, `Evaluation.validate`, `interpret` |
 | *Delay without eventual feasibility* | A small geometric risk is not an eventual-risk guarantee | stated in every report |
 | *Price sequences reaching a tolerance* | A sequence of prices reaches a tolerance when the charged errors grow slower than the price | `frontier.price_sequence_check` |
 
 ## Related formulations
 
-The paper relates the price to other formulations (*The price supports the frontier*, *The one-shot equivalent*,
+The paper relates the price to other formulations (*Fixed price of failure risk*, its part on the frontier; *The one-shot equivalent*,
 *Chance, time and overshoot penalties*, *The price as a CVaR multiplier*, *CVaR of the failure time*). The toolbox
 uses two consequences: a lump sum $F$ charged once at failure corresponds to the price $m=(1-\beta)F$ in the absorbing
 form (`spec.price_from_multiplier`), and a multiplier method that converges returns the fixed-price optimum at its
@@ -66,7 +66,7 @@ price-equivalent.
 | Part of the paper | Function |
 |---|---|
 | *Which formulation to prefer*: the cases in which another method is the better choice | `planning.when_to_use_another_method`, `plan` |
-| *Using the clipped barrier* | `plan`, `advise_regularizers` |
+| *Choice of method, scope and conclusion* and *A workflow for practitioners* | `plan`, `advise_regularizers` |
 | *Scope of the guarantees* | `report.interpret` (the "not established" list) |
 | The wear-allowance study | `examples.wear` (model, rules, exact benchmark numbers) |
 | The solvable flow and the roles of the regularizers | `examples.plateau` (model, particle simulation, the paper's roles table) |

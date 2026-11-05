@@ -21,19 +21,19 @@ from typing import Dict, Optional, Tuple
 PAPER = dict(
     title="The Price of Failure Risk: Clipped Barrier Policy Gradients with Convex Regularization",
     authors="Pekka Malo, Lauri Viitasaari, Antti Suominen, Eeva Vilkkumaa, Olli Tahvonen",
-    checked_against="revision 73 (2026-10-23)",
+    checked_against="revision 75 (2026-11-05)",
 )
 
 # key -> (kind, title in the paper)
 RESULTS: Dict[str, Tuple[str, str]] = {
     # the problem and the model
     "problem": ("section", "The problem"),
-    "related_requirements": ("section", "Related requirements, and what a price adds"),
+    "related_requirements": ("section", "Types of constraint in related formulations"),
     "when_to_use": ("section", "Which formulation to prefer"),
     "model": ("section", "Budgets and the clipped-barrier mechanism"),
     "risk_floor": ("section", "The represented class"),
     # risk certificates and performance comparisons
-    "running_example": ("section", "A running example with an operating rate and a wear allowance"),
+    "running_example": ("example", "An asset under a wear allowance"),
     "value_certificate": ("proposition", "Value and objective certificates"),
     "failure_time": ("remark", "The geometric risk as a risk measure of the failure time"),
     "identity": ("section", "Utility at the attained risk level"),
@@ -50,20 +50,20 @@ RESULTS: Dict[str, Tuple[str, str]] = {
     "bias": ("remark", "The regularization bias is priced and detected"),
     "particle": ("section", "The prior and the particle form of the flow"),
     "finite_training": ("proposition", "Finite-network training under a potential"),
-    "gaussian_prior": ("remark", "The Gaussian prior as entropy, weight decay and a policy"),
+    "gaussian_prior": ("section", "The prior and the particle form of the flow"),
     "centering": ("section", "Improvement relative to the prior policy"),
     "curvature_constants": ("proposition", "Value and action-law curvature"),
-    "weight_decay": ("remark", "Potential regularizers and weight decay"),
-    "collapse": ("remark", "Collapse under a potential alone"),
+    "weight_decay": ("proposition", "Admissible families"),
+    "collapse": ("proposition", "Finite-network training under a potential"),
     "action_slack": ("proposition", "Improvement over the prior policy (its proof, with the action relative entropy)"),
     "first_variations": ("proposition", "First variations"),
     # deployment and validation
     "transfer": ("theorem", "Population-to-network transfer"),
-    "algorithm": ("algorithm", "Fixed-stage learning and independent deployment validation"),
+    "algorithm": ("section", "A workflow for practitioners"),
     "validation": ("section", "Validate the deployed candidate at its specified horizon"),
     "physical_price": ("proposition", "The risk priced by a physical horizon"),
     # related formulations (online appendix)
-    "frontier_support": ("proposition", "The price supports the frontier"),
+    "frontier_support": ("proposition", "Fixed price of failure risk"),
     "one_shot": ("lemma", "The one-shot equivalent"),
     "penalties": ("proposition", "Chance, time and overshoot penalties"),
     "cvar_multiplier": ("proposition", "The price as a CVaR multiplier"),
@@ -78,7 +78,7 @@ RESULTS: Dict[str, Tuple[str, str]] = {
     "roles": ("study", "the roles of the regularizers"),
     "benchmark_suite": ("study", "the benchmark-suite study"),
     # practice
-    "guidance": ("section", "Using the clipped barrier"),
+    "guidance": ("section", "Choice of method, scope and conclusion"),
     "scope": ("section", "Scope of the guarantees"),
     "toolbox_appendix": ("section", "The companion toolbox"),
     # supplementary results of the toolbox
@@ -87,7 +87,7 @@ RESULTS: Dict[str, Tuple[str, str]] = {
 }
 
 FIXED_PRICE_PARTS = {"i": "optimality at the attained risk", "ii": "price-risk law",
-                     "iii": "monotonicity in the price", "iv": "learning form"}
+                     "iii": "monotonicity in the price", "iv": "learning form", "v": "the price supports the frontier"}
 
 
 def cite(key: str, part: Optional[str] = None) -> str:

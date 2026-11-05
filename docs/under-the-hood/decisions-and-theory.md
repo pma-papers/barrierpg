@@ -284,7 +284,7 @@ dx_i = [policy gradient] dl - [kappa1 grad W(x_i) + kappa1 omega grad G'(rho_n)(
 * **Pull.** The prior's potential pulls toward its center (for `N(x0, sigma^2 I)`, weight decay of weight
   `kappa1/sigma^2`), and a potential `P` with strength `kappa2` pulls toward a reference of one's choice
   with no noise attached (`ParameterAnchor`). A potential alone collapses the population to a single
-  point in the certified regime (*Collapse under a potential alone*).
+  point in the certified regime (*Finite-network training under a potential*).
 * **Spread.** An integrand of faster growth limits how far the law crowds relative to the prior. It needs
   a density, so it has no finite-network form without a density estimate.
 

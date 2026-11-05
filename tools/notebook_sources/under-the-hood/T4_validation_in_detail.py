@@ -2,7 +2,7 @@
 # # T4. Validation and the report in detail
 #
 # The deployment decision rests on validation of the candidate that is deployed (the paper's algorithm
-# *Fixed-stage learning and independent deployment validation*).
+# *A workflow for practitioners*).
 # Certificates from the value are useful too, but they are informative only in some regimes. This notebook goes
 # through both, with numpy only:
 #

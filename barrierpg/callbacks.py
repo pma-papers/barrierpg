@@ -184,8 +184,7 @@ def _current_lr(optimizer) -> float:
 class ParameterAnchor:
     """The pull of the particle form on a finite actor: weight decay toward a prior parameter theta_0 on every actor
     parameter, the potential regularizer (kappa_p/2) |theta - theta_0|^2, which is the part of a Gaussian prior
-    N(theta_0, sigma^2 I) a finite network can carry (kappa_p = kappa/sigma^2; 'The Gaussian prior as entropy, weight
-    decay and a policy'). Under a potential, noiseless continuous-time training is the population flow from the
+    N(theta_0, sigma^2 I) a finite network can carry (kappa_p = kappa/sigma^2; 'The prior and the particle form of the flow'). Under a potential, noiseless continuous-time training is the population flow from the
     network's own empirical law ('Finite-network training under a potential').
 
     Two forms, chosen by `decoupled` (the paper's Section 'Practical choices, scope and conclusion', the four
@@ -299,7 +298,7 @@ class ParameterAnchor:
         return self.distance() / math.sqrt(max(self.n_parameters, 1))
 
     def regularizer_value(self) -> float:
-        """kappa_p/2 ||theta - theta_0||^2, the potential regularizer's value ('Potential regularizers and weight decay')."""
+        """kappa_p/2 ||theta - theta_0||^2, the potential regularizer's value ('Admissible families')."""
         return 0.5 * self.kappa_p * self.distance() ** 2
 
     def dispersion(self) -> Optional[float]:

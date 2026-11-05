@@ -64,7 +64,7 @@ print(advice.explain())
 # The particle form with relative entropy to $N(0,1)$ at strength $\kappa_1$ and the potential $x^2/2$ at strength
 # $\kappa_2$ moves each unit by
 # $$dx_i=\big[V_m'(c_n)\chi'(x_i)-(\kappa_1+\kappa_2)x_i\big]\,d\ell+\sqrt{2\kappa_1}\,dB_i .$$
-# Without noise ($\kappa_1=0$) the units collapse to the prior's center (*Collapse under a potential alone*). With noise they reach the
+# Without noise ($\kappa_1=0$) the units collapse to the prior's center (*Finite-network training under a potential*). With noise they reach the
 # region where the feature acts. Under the combined pull the stationary spread is $\sqrt{\kappa_1/(\kappa_1+\kappa_2)}$.
 
 # %%
@@ -212,7 +212,7 @@ plt.tight_layout(); plt.show()
 # ## Part D. The parameter anchor: the prior is a policy
 #
 # A finite network carries the pull part of a Gaussian prior: weight decay toward parameters $\theta_0$
-# (`ParameterAnchor`; the paper's *The Gaussian prior as entropy, weight decay and a policy*). We fit the actor's mean to the incumbent rule (`fit_actor_mean`) and set its
+# (`ParameterAnchor`; the paper's *The prior and the particle form of the flow*). We fit the actor's mean to the incumbent rule (`fit_actor_mean`) and set its
 # dispersion to the incumbent's (`set_log_std`): the actor at $\theta_0$ is then the **prior policy**. The learner
 # inherits the prior policy's risk and utility, so we evaluate it as a candidate before training.
 #

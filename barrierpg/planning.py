@@ -1,6 +1,6 @@
 """Before training: turn a requirement into a configuration and a validation budget, with reasons.
 
-The plan follows the paper's 'Using the clipped barrier': specify the requirement first; fix the price, then certify;
+The plan follows the paper's 'A workflow for practitioners': specify the requirement first; fix the price, then certify;
 buy margin deliberately; choose regularizers for their role and the prior from the problem; validate the
 deployed candidate. It recommends by conditions and states, before anything else, the conditions of
 the paper's 'Which formulation to prefer' under which another method is the better choice.
