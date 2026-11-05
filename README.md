@@ -149,6 +149,7 @@ training traces and the per-episode evaluation from which the notebooks rebuild 
 
 If you use the toolbox, please cite the paper and the software; [`CITATION.cff`](CITATION.cff) has the details. The
 software is archived on Zenodo: [10.5281/zenodo.23597362](https://doi.org/10.5281/zenodo.23597362) for all versions,
+[10.5281/zenodo.23986884](https://doi.org/10.5281/zenodo.23986884) for version 0.7.1 and
 [10.5281/zenodo.23597363](https://doi.org/10.5281/zenodo.23597363) for version 0.7.0.
 
 ## License
