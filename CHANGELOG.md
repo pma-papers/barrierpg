@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased: wording aligned with revision 75's terminology (2026-11-06)
+
+- The printed text, docstrings, documents and notebook T3 say *threshold* (the strength `(C_m + eta C_A)/lambda_H`
+  of the convergence theorem) and *above the threshold* where they said *certified threshold*, *certified strength*
+  and *certified regime*, and *the slack of the bound* where they said *risk slack*, following the paper's
+  terminology pass. The fuel-tank problem's notes say a controller trained *without a fuel limit*, not *without a
+  tank*. `PAPER["checked_against"]` is revision 75 (2026-11-06). Attribute and function names (`certified`,
+  `kappa_certified`, `certified_kappa`) are unchanged. No function changes.
+
 ## 0.7.1 (2026-11-05): checked against revision 75, the revision submitted to the journal
 
 - `PAPER["checked_against"]` is revision 75 (2026-11-05). Revisions 74 and 75 changed the paper's wording and

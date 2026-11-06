@@ -284,7 +284,7 @@ dx_i = [policy gradient] dl - [kappa1 grad W(x_i) + kappa1 omega grad G'(rho_n)(
 * **Pull.** The prior's potential pulls toward its center (for `N(x0, sigma^2 I)`, weight decay of weight
   `kappa1/sigma^2`), and a potential `P` with strength `kappa2` pulls toward a reference of one's choice
   with no noise attached (`ParameterAnchor`). A potential alone collapses the population to a single
-  point in the certified regime (*Finite-network training under a potential*).
+  point above the threshold (*Finite-network training under a potential*).
 * **Spread.** An integrand of faster growth limits how far the law crowds relative to the prior. It needs
   a density, so it has no finite-network form without a density estimate.
 
@@ -319,7 +319,7 @@ combination on the flow.
 * The regularized solution inherits the prior policy's risk and utility (*Improvement over the prior policy*). Specify
   the prior as the policy the application accepts when learning gains nothing:
   * a **risk-free or hard-feasible policy** when one exists (the idle policy of the wear study); the
-    bias then lowers risk outright, and learning improves on that policy within the risk slack;
+    bias then lowers risk outright, and learning improves on that policy within the slack of the bound;
   * the **incumbent** when one is in operation: fit the actor to it (`callbacks.fit_actor_mean`), set the
     dispersion to the incumbent's (`callbacks.set_log_std`), and anchor all actor parameters to the fitted
     `theta_0` with `ParameterAnchor(model, kappa_p).install()`;
@@ -341,7 +341,7 @@ combination on the flow.
   the induced prior policy unless the features are centered at the prior. Do not concentrate the units
   where the features are flat: a prior pinned in a flat region turns regularization into stagnation
   (the plateau of the solvable flow). `convergence.gaussian_prior_curvature(sigma)` gives the curvature.
-* **Expect the learned policy at the prior's risk, not at the risk slack the bounds grant.** The slack
+* **Expect the learned policy at the prior's risk, not at the slack the bounds grant.** The slack
   terms (`convergence.risk_slack_from_prior`, `action_slack_from_prior`) bound every policy with the
   given divergence; a learner that also optimizes utility lies orders of magnitude inside them (two to
   five orders in the solvable flow). What the bounds get right is the direction of the pull and the
@@ -372,9 +372,9 @@ states the corresponding recommendation with its reason.
   any width is the population flow from the network's own empirical law, with the same contraction and
   rate (*Finite-network training under a potential*; `convergence.finite_training_transfer`). Discrete steps and PPO's or SAC's
   estimators are outside that result.
-* **Set `kappa` for conditioning, not at the certified threshold.** The threshold of the convergence
+* **Set `kappa` for conditioning, not at the threshold.** The threshold of the convergence
   theorem is sufficient, not necessary, and grows with the price; in the solvable flow every flow
-  converged orders of magnitude below it, and at the certified strength the minimizer was the prior
+  converged orders of magnitude below it, and at the strength five percent above the threshold the minimizer was the prior
   itself. Choose the smallest strength at which the optimizer is well behaved.
   `convergence.curvature_budget(constants, beta, m, ubar, kappa, lambda_H, eta)` and
   `convergence.certified_kappa` report what the theorem says for a stage, as a diagnostic. The deficits

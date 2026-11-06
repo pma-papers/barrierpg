@@ -287,7 +287,7 @@ def plan(spec: BudgetSpec, requirement: Requirement, *, sup_U: Optional[float] =
     if features is not None and lambda_H is not None:
         m_eff = stage.m if stage.penalty == "price" else (1.0 - beta) * stage.multiplier
         curv = curvature_budget(features, beta, m_eff, ubar, stage.kappa, lambda_H, stage.eta)
-        notes.append("set kappa for conditioning rather than at the certified threshold (near which the minimizer lies close to the prior); "
+        notes.append("set kappa for conditioning rather than at the threshold of the convergence theorem (near which the minimizer lies close to the prior); "
                      "treat a failed certificate as the signal to lower kappa or raise the price; the bias is toward the prior policy, "
                      "whose risk and utility the learned policy inherits")
     if stage.eta > 0:

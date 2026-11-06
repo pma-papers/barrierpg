@@ -3,7 +3,7 @@
 The lander is Gymnasium's LunarLanderContinuous. Its task rewards a soft landing on the pad (+100), punishes a crash
 (-100), shapes the approach, and charges the fuel its engines burn. The fuel now comes from a tank: each frame
 consumes 0.30 per unit of main-engine power and 0.03 per unit of side-engine power, and a lander that empties its
-tank before touching down has failed. The tank of 24 units is smaller than a controller trained without a tank
+tank before touching down has failed. The tank of 24 units is smaller than a controller trained without a fuel limit
 needs: such a controller burns about 26 to 28 units in a median landing, so it runs dry in most landings unless it
 learns to save fuel.
 
@@ -40,7 +40,7 @@ def fuel_use(action) -> float:
 
 @dataclass(frozen=True)
 class Tank:
-    capacity: float = 24.0      # a controller trained without a tank burns about 26 to 28 units in a median landing
+    capacity: float = 24.0      # a controller trained without a fuel limit burns about 26 to 28 units in a median landing
     horizon: int = 1000
     beta: float = 0.999
     ubar: float = 100.0          # the landing bonus bounds the task's reward per frame

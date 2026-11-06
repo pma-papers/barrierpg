@@ -127,7 +127,7 @@ def rate(kappa: float, lambda_H: float, C_m: float, C_A: float = 0.0, eta: float
 
 
 def certified_kappa(lambda_H: float, C_m: float, C_A: float = 0.0, eta: float = 0.0, margin: float = 1.05) -> float:
-    """The certified threshold (C_m + eta C_A)/lambda_H, times a margin (1.05 in the paper's solvable-flow test)."""
+    """The threshold (C_m + eta C_A)/lambda_H of the convergence theorem, times a margin (1.05 in the paper's solvable-flow test)."""
     return margin * (C_m + eta * C_A) / lambda_H
 
 
@@ -159,7 +159,7 @@ class CurvatureBudget:
                  f"curvature supplied by the parameter regularizer: {self.supply:.4g}",
                  f"budget Lambda_m = {self.Lambda:.4g}: " + ("certified; the objective gap decays like exp(-2 Lambda l), W2 like exp(-Lambda l)"
                                                            if self.certified else "not certified by the convergence theorem (a sufficient condition; the flow may still converge)"),
-                 f"certified threshold (margin 1.05): kappa >= {self.kappa_certified:.4g} at curvature {self.lambda_H:.4g} per unit strength; "
+                 f"threshold (margin 1.05): kappa >= {self.kappa_certified:.4g} at curvature {self.lambda_H:.4g} per unit strength; "
                  "at that strength the minimizer lies close to the prior"]
         if self.certified:
             lines.append(f"time to shrink the objective gap by 1e-3: {time_to_fraction(self.Lambda, 1e-3):.4g}")
@@ -221,7 +221,7 @@ def finite_training_transfer(W2_initial: float, Lambda: float, ell: float, *, m:
     return dict(W2=W2, value=(m + ubar) * B1 / (2.0 * (1.0 - beta) ** 2) * W2, risk=B1 / (2.0 * (1.0 - beta)) * W2,
                 value_lipschitz=(m + ubar) * B1 / (2.0 * (1.0 - beta) ** 2), risk_lipschitz=B1 / (2.0 * (1.0 - beta)),
                 source=cite("finite_training"),
-                note="continuous-time noiseless training under a potential; in the certified regime the units collapse to one parameter "
+                note="continuous-time noiseless training under a potential; above the threshold the units collapse to one parameter "
                      f"[{cite('collapse')}]")
 
 

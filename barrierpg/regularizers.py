@@ -118,7 +118,7 @@ def advise_regularizers(spec: BudgetSpec, stage: Stage, *, action_reference_trus
                  "evaluate the prior policy as a candidate before training")
     elif risk_free_policy_available:
         R.append(Recommendation("prior", "a prior inducing the risk-free or hard-feasible policy (p_T(Gamma) = 0)",
-                                "a risk-free policy exists: the bias then lowers risk outright, and learning improves on that policy within a risk slack "
+                                "a risk-free policy exists: the bias then lowers risk outright, and learning improves on that policy within the slack of the bound "
                                 "of order kappa^(-1/2)",
                                 f"{cite('particle')}; {cite('prior_improvement')}"))
     else:
@@ -135,7 +135,7 @@ def advise_regularizers(spec: BudgetSpec, stage: Stage, *, action_reference_trus
                                 "the optimizer behaves without the regularizer; the regularizer then buys a bias toward the prior and no convergence benefit",
                                 f"{cite('bias')}; {cite('guidance')}"))
     else:
-        R.append(Recommendation("strength kappa", "the smallest kappa at which the optimizer is well behaved; never the certified threshold",
+        R.append(Recommendation("strength kappa", "the smallest kappa at which the optimizer is well behaved; never the threshold of the convergence theorem",
                                 "the threshold is sufficient, not necessary, and grows with the price; at the threshold the minimizer lies close to the prior, "
                                 "while the solvable flow converges orders of magnitude below it; a failed certificate is the signal to lower kappa or raise the price",
                                 f"{cite('flow')}; {cite('bias')}; {cite('flow_test')}"))
@@ -160,7 +160,7 @@ def advise_regularizers(spec: BudgetSpec, stage: Stage, *, action_reference_trus
         R.append(Recommendation("regularizer family", "a convex potential on the parameters: plain weight decay |x|^2/2 or an anchor |x - x_ref|^2/2 (curvature one)",
                                 "the learner is a finite network: a potential is finite on its empirical law, and noiseless continuous-time training under it is "
                                 "the population flow from that law, with the same contraction and rate; the relative-entropy families are infinite on an atomic law. "
-                                "In the certified regime a potential alone collapses all units to one parameter",
+                                "Above the threshold a potential alone collapses all units to one parameter",
                                 f"{cite('finite_training')}; {cite('weight_decay')}; {cite('collapse')}"))
     if specified_divergence:
         R.append(Recommendation("integrand", f"match the specified divergence ({specified_divergence}); same rate and threshold, different bias",

@@ -37,7 +37,7 @@ in [`barrierpg/paper.py`](../../barrierpg/paper.py); `barrierpg.paper.results_ta
 | *Finite-network training under a potential* | Noiseless finite-network training is the flow from its empirical law, with the same contraction; value and risk transfer | `convergence.finite_training_transfer` |
 | *The prior and the particle form of the flow* (the Gaussian prior as entropy plus weight decay) | Entropy plus weight decay of weight $\kappa/\sigma^2$; the rate depends on $\kappa/\sigma^2$ only | `convergence.gaussian_prior_curvature`; `callbacks.ParameterAnchor` |
 | *Admissible families* (potentials) | Potentials are admissible and finite on a finite network | `callbacks.ParameterAnchor.regularizer_value` |
-| *Finite-network training under a potential* (the collapse) | A potential alone collapses the units to one point in the certified regime | `roles.RegularizerMix.collapses` |
+| *Finite-network training under a potential* (the collapse) | A potential alone collapses the units to one point above the threshold | `roles.RegularizerMix.collapses` |
 | *First variations* | The per-unit policy gradient | `examples.plateau.PlateauModel.value_gradient` (the solvable flow) |
 
 ## Deployment and validation

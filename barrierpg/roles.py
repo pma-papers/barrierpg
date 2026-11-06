@@ -124,7 +124,7 @@ class RegularizerMix:
                  f"  curvature supplied: {self.curvature:g}",
                  f"  stationary spread under a gradient pull: {self.stationary_spread():.4g} per parameter"]
         if self.collapses:
-            lines.append(f"  a potential alone collapses the population to one point mass in the certified regime [{cite('collapse')}]")
+            lines.append(f"  a potential alone collapses the population to one point mass above the threshold [{cite('collapse')}]")
         if self.kappa1 > 0:
             lines.append(f"  with the coupled pull under Adam (the paper's runs) the measured spread was about sqrt(2) kappa1 = "
                          f"{adam_stationary_spread(self.kappa1):.3g} instead (post-hoc explanation, not a result) [{cite('roles')}]")

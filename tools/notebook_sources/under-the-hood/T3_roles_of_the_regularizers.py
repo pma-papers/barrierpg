@@ -106,7 +106,7 @@ print(RegularizerMix(kappa1=0.1, kappa2=1.0).explain())
 # ## Convergence versus bias on the same flow
 #
 # The convergence theorem certifies exponential convergence once the curvature $\kappa\lambda_W$ exceeds the deficit
-# $C_m+\eta C_{\mathcal A}$. For this flow $C_m=1940$, so the certified strength is $\kappa=2037$. The price of the
+# $C_m+\eta C_{\mathcal A}$. For this flow $C_m=1940$, so the threshold is $\kappa=1940$ and the test runs at $\kappa=2037$, five percent above it. The price of the
 # certificate is the bias toward the prior: the stronger the regularizer, the closer the minimizer is to the prior
 # policy. Relative entropy alone, at strengths from far below the threshold to the threshold itself:
 
@@ -122,8 +122,8 @@ print(f"prior policy N(0,1): V_m = {prior_value:+.4f}")
 
 # %% [markdown]
 # Every flow converges, far below the threshold too, and the improvement over the prior policy shrinks as $\kappa$
-# grows. At the certified strength the learner returns essentially the prior. The practical rule follows: set
-# $\kappa$ for conditioning, the smallest strength at which the optimizer behaves, not at the certified threshold.
+# grows. At that strength the learner returns essentially the prior. The practical rule follows: set
+# $\kappa$ for conditioning, the smallest strength at which the optimizer behaves, not at the threshold.
 #
 # ## Part B. PPO helpers
 #
@@ -325,7 +325,7 @@ print(f"joint: q_beta = {e.q_beta:.4f}, U = {e.U:.3f}, A = {A:.3f}\n"); print(jo
 # | faster-growing integrand (spread) | the unit law | limits crowding relative to the prior; needs a density | population flow only |
 #
 # * Specify the prior as a policy, through every parameter that shapes it, and evaluate it before training.
-# * Set the strengths for conditioning, not at the certified threshold.
+# * Set the strengths for conditioning, not at the threshold.
 # * Validate the learned policy: a harmful bias shows up as a failed certificate or validation, never as a passed one.
 #
 # Next: **notebook T4** goes through validation and the report in detail.

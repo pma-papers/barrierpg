@@ -21,7 +21,7 @@ from typing import Dict, Optional, Tuple
 PAPER = dict(
     title="The Price of Failure Risk: Clipped Barrier Policy Gradients with Convex Regularization",
     authors="Pekka Malo, Lauri Viitasaari, Antti Suominen, Eeva Vilkkumaa, Olli Tahvonen",
-    checked_against="revision 75 (2026-11-05)",
+    checked_against="revision 75 (2026-11-06)",
 )
 
 # key -> (kind, title in the paper)
