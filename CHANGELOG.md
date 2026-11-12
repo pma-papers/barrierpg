@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased: wording and titles of revision 76 (2026-11-12)
+## 0.8.0 (2026-11-12): the wording and the names of revision 76, with deprecated aliases
 
 - Revision 76 of the paper uses no name that is neither established nor defined in the paper, and the toolbox
   follows in its printed text, docstrings, documents and notebook sources. The parts of *Fixed price of failure risk*
@@ -46,7 +46,7 @@
   `'eventual'` (the paper's word), `Stage`.
 - `PAPER["checked_against"]` is revision 76 (2026-11-12).
 
-## Unreleased: wording aligned with revision 75's terminology (2026-11-06)
+Also in this version, on the main branch since 2026-11-06 (wording aligned with revision 75's terminology):
 
 - The printed text, docstrings, documents and notebook T3 say *threshold* (the strength `(C_m + eta C_A)/lambda_H`
   of the convergence theorem) and *above the threshold* where they said *certified threshold*, *certified strength*
