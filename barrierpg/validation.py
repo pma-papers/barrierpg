@@ -89,7 +89,7 @@ class DirectValidation:
                       f"error {self.err:.3g} allocated to this statement (family allocation)"],
                      dict(failures=self.failures, n=self.n, alpha=self.alpha, err=self.err, floor=self.floor),
                      note=("passes" if self.passed else "does not pass") + f" the tolerance {self.alpha:g}; "
-                          f"resolution floor {self.floor:.3g} (zero failures certify no less). Failure to certify does not prove violation; "
+                          f"smallest certifiable tolerance {self.floor:.3g} (zero failures certify no less). Failure to certify does not prove violation; "
                           "a passed test at one horizon does not certify a longer one")
 
 
@@ -99,20 +99,20 @@ def validate_direct(failures: int, n: int, alpha: float, zeta: float, family: in
 
 
 # ---------------------------------------------------------------------------------------------
-# Value-based validation
+# The empirical certificate
 # ---------------------------------------------------------------------------------------------
 def hoeffding_value_lower(mean_return_H: float, H: int, N: int, zeta: float, m: float, ubar: float, beta: float) -> float:
     """V_m >= V_hat_H - (m+ubar)(1-beta^H)/(1-beta) sqrt(log(1/zeta)/(2N)) - m beta^H/(1-beta)  (Hoeffding lower bound):
-    the mean of N returns truncated after H actions, less the Hoeffding term and the omitted tail."""
+    the mean of N returns truncated after H actions, less the sampling error and the truncation error."""
     S_H = discounted_sum_to(beta, H)
     return float(mean_return_H - (m + ubar) * S_H * math.sqrt(math.log(1.0 / zeta) / (2.0 * N)) - m * beta ** H / (1.0 - beta))
 
 
 def risk_from_validation_value(mean_return_H: float, H: int, N: int, zeta: float, m: float, ubar: float, beta: float, T: int) -> Bound:
-    """p_T <= min{1, (ubar - (1-beta) V_lower) / ((m+ubar) beta^T)} with the Hoeffding lower bound (value-based validation)."""
+    """p_T <= min{1, (ubar - (1-beta) V_lower) / ((m+ubar) beta^T)} with the Hoeffding lower bound (the empirical certificate)."""
     V_low = hoeffding_value_lower(mean_return_H, H, N, zeta, m, ubar, beta)
     b = risk_from_value(V_low, m, ubar, beta, T)
-    b.source = cite("validation") + ", value-based test with " + cite("value_certificate")
+    b.source = cite("validation") + ", empirical certificate with " + cite("value_certificate")
     b.hypotheses = ["returns are the clipped rewards r_m in [-m, ubar], truncated after H actions, N fresh trajectories",
                     "ubar is a valid upper bound on the one-step utility"]
     b.inputs.update(V_lower=V_low, mean_return_H=mean_return_H, H=H, N=N, zeta=zeta)
@@ -120,7 +120,7 @@ def risk_from_validation_value(mean_return_H: float, H: int, N: int, zeta: float
 
 
 def value_resolution_check(beta: float, H: int, T: int, N: int, zeta: float, alpha: float) -> dict:
-    """Before training: the value-based test can certify p_T <= alpha < 1 only if
+    """Before training: the empirical certificate can certify p_T <= alpha < 1 only if
     beta^(H-T) + (1-beta^H)/beta^T sqrt(log(1/zeta)/(2N)) <= alpha  (a necessary condition).
     Increasing m cannot repair a failure of this check."""
     lhs = beta ** (H - T) + (1.0 - beta ** H) / beta ** T * math.sqrt(math.log(1.0 / zeta) / (2.0 * N))
@@ -132,8 +132,8 @@ def physical_horizon_risk(V_mH: float, H: int, m: float, ubar: float, beta: floa
                           N: Optional[int] = None, zeta: Optional[float] = None) -> Bound:
     """Task that ends after H actions, T < H:
     p_T <= min{1, (ubar S_H - V_m^(H)) / ((m+ubar) beta^T (1-beta^(H-T))/(1-beta))}  (physical horizon).
-    With N and zeta, V_mH is the mean complete return and the Hoeffding term (m+ubar) S_H sqrt(log(1/zeta)/(2N))
-    is subtracted first (no omitted tail)."""
+    With N and zeta, V_mH is the mean complete return and the sampling error (m+ubar) S_H sqrt(log(1/zeta)/(2N))
+    is subtracted first (no truncation error)."""
     S_H = discounted_sum_to(beta, H)
     V = V_mH
     if N is not None and zeta is not None:
@@ -153,18 +153,18 @@ def hoeffding_lower(mean: float, N: int, zeta: float, low: float, high: float) -
 def lump_sanction_risk(V_H: float, H: int, nu: float, ubar: float, beta: float, T: int, N: Optional[int] = None,
                        zeta: Optional[float] = None, u_minus: float = 0.0) -> Bound:
     """A task that ends after H actions with a flat penalty nu charged once at the failing action (a lump sanction, the
-    frozen-multiplier form): since ubar S_H - V^(H) >= nu E[beta^tau 1{tau <= T}],
+    fixed-multiplier form): since ubar S_H - V^(H) >= nu E[beta^tau 1{tau <= T}],
         p_T <= min{1, (ubar S_H - V^(H)) / (nu beta^T)}.
-    This is the value certificate of the frozen-multiplier objective at a physical horizon, where a lump sum at
+    This is the value certificate of the fixed-multiplier objective at a physical horizon, where a lump sum at
     failure prices E[beta^tau 1{tau < H}].
-    With N and zeta, V_H is the mean complete return and is first lowered by the Hoeffding term of the return's own range,
+    With N and zeta, V_H is the mean complete return and is first lowered by the sampling error for the return's own range,
     (ubar + u_minus) S_H + nu: a penalty charged once widens the range by nu, not by a per-period price times S_H."""
     S_H = discounted_sum_to(beta, H)
     V = V_H
     if N is not None and zeta is not None:
         V = hoeffding_lower(V_H, N, zeta, -u_minus * S_H - nu, ubar * S_H)
     return Bound(f"p_{T} upper bound (lump sanction, H={H})", clip01((ubar * S_H - V) / (nu * beta ** T)),
-                 cite("value_certificate") + ", frozen-multiplier form; " + cite("physical_price"),
+                 cite("value_certificate") + ", fixed-multiplier form; " + cite("physical_price"),
                  ["the penalty nu is charged once, at the failing action; the reward before failure is the utility, unclipped",
                   "-u_minus <= u <= ubar"],
                  dict(V_H=V_H, V_used=V, H=H, nu=nu, ubar=ubar, beta=beta, T=T, N=N, zeta=zeta, u_minus=u_minus),

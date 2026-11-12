@@ -135,7 +135,7 @@ def _displace(params, delta):
 
 
 def test_decoupled_anchor_contracts_by_one_minus_lr_kappa_under_adam():
-    """With no objective gradient, Adam moves nothing and the decoupled pull contracts every coordinate toward the
+    """With no objective gradient, Adam moves nothing and the decoupled anchor contracts every coordinate toward the
     anchor by exactly 1 - lr kappa_p per step (the first implementation rule of the paper's guidance)."""
     import torch
     from barrierpg import Stage
@@ -188,8 +188,8 @@ def test_coupled_anchor_step_is_of_order_lr_whatever_the_distance():
 
 def test_anchor_and_noise_compose_pull_then_noise_in_either_order():
     """One Adam step with a zero objective gradient, a decoupled anchor and seeded noise gives exactly
-    theta_0 + (1 - lr kappa2) delta + sqrt(2 kappa1 lr) xi, whichever of the two is installed first: the pull acts
-    on the parameters after the step and the noise after the pull (the Euler-Maruyama step of the particle form)."""
+    theta_0 + (1 - lr kappa2) delta + sqrt(2 kappa1 lr) xi, whichever of the two is installed first: the drift acts
+    on the parameters after the step and the noise after the drift (the Euler-Maruyama step of the particle system)."""
     import torch
     from barrierpg import Stage
     from barrierpg.callbacks import ParameterAnchor, ParameterNoise

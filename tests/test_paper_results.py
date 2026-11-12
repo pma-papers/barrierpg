@@ -15,9 +15,9 @@ from barrierpg.examples.wear import WearModel, IncumbentRule, make_wear_env
 
 
 def test_registry():
-    assert cite("fixed_price", "ii") == "paper, 'Fixed price of failure risk' (price-risk law)"
-    assert cite("flow") == "paper, 'Fixed-stage population convergence'" and "Finite-network training" in cite("finite_training")
-    assert "Action regularization and failure risk" in cite("action_risk") and "Learning error and budget risk" in cite("learning_error")
+    assert cite("fixed_price", "ii") == "paper, 'Fixed price of failure risk' (price-risk bound)"
+    assert cite("flow") == "paper, 'Convergence of the population flow'" and "Finite-network training" in cite("finite_training")
+    assert "Action regularization and failure risk" in cite("action_risk") and "Optimization error and risk along the flow" in cite("learning_error")
     assert "supplementary" in cite("near_exhaustion")
     assert results_table().count("\n") == len(RESULTS) + 1
 
@@ -76,13 +76,13 @@ def test_new_certificates():
     fl = C.risk_floor(p_T_reference=0.1, L0=0.5, T=3)
     assert abs(fl.value - math.exp(-4.0) * 0.1) < 1e-15
     assert not C.prescribed_level_attainable(0.001, fl.value)["attainable"]
-    # the learning-error slack: the larger of the two forms
+    # the slack of the corollary's bound: the larger of the two forms
     d = C.learning_slack(m=1.0, ubar=1.0, beta=0.95, alpha=0.05, T=0, q_bar=0.0, U_bar=2.0, I_bar=0.1, R_bar=0.2, sup_U=5.0)
     d1 = 1.0 * 0.05 / 0.05 - (5.0 - 2.0 + 0.1 + 0.2); d2 = 2.0 * 0.05 / 0.05 - (1.0 / 0.05 - 2.0 + 0.1 + 0.2)
     assert abs(d - max(d1, d2)) < 1e-12
     lr = K.learning_risk_bound(0.5, m=1.0, beta=0.95, ubar=1.0, q_bar=0.0, U_bar=2.0, I_bar=0.1, R_bar=0.2, E0=3.0, Lambda=2.0, sup_U=5.0)
     lf = C.learning_form_risk(1.0, 0.95, 1.0, 0.0, 2.0, 0.1, 0.2, 3.0 * math.exp(-2.0), sup_U=5.0)
-    assert abs(lr.value - lf.value) < 1e-12 and "Learning error and budget risk" in lr.source
+    assert abs(lr.value - lf.value) < 1e-12 and "Optimization error and risk along the flow" in lr.source
     ft = K.finite_training_transfer(0.3, Lambda=-1.0, ell=2.0, m=1.0, ubar=1.0, beta=0.9, B1=0.5)
     assert abs(ft["W2"] - 0.3 * math.exp(2.0)) < 1e-12 and abs(ft["risk"] - 0.5 / 0.2 * ft["W2"]) < 1e-12
     assert abs(ft["value"] - 2.0 * 0.5 / (2 * 0.01) * ft["W2"]) < 1e-9

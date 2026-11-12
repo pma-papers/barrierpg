@@ -36,9 +36,9 @@ class BudgetSpec:
     ubar      known upper bound on the one-step utility, ubar >= 0 (needed by every certificate).
     u_minus   magnitude of a lower bound, -u_minus <= u (0 if the utility is nonnegative); the
               performance results and clipping need m >= u_minus, otherwise the clipping acts on
-              the utility itself and the frozen-multiplier form is the one to use.
+              the utility itself and the fixed-multiplier form is the one to use.
     horizon   None for an infinite physical horizon (absorbing implementation, lump -m/(1-beta) at
-              failure); an integer H for a task that ends after H actions (tail only to H).
+              failure); an integer H for a task that ends after H actions (the price is charged only to H).
     """
     budgets: Tuple[float, ...]
     beta: float
@@ -89,7 +89,7 @@ class Requirement:
             the paper insists that zeta and alpha are not interchangeable).
     kind    'finite' for p_T <= alpha; 'geometric' for q_beta <= alpha (a random service lifetime
             with survival beta per period); 'eventual' for P(tau < infinity) <= alpha, which the
-            paper certifies only with additional cost-tail structure.
+            paper certifies only with an additional bound on the future consumption.
     family  number of simultaneous statements (candidates, horizons, tests) sharing zeta.
     """
     T: int
@@ -115,12 +115,12 @@ class Requirement:
 class Stage:
     """The fixed stage (m, theta, eta, kappa) of the learning problem.
 
-    m             price of failure risk (clipping level); m = 0 is the unpriced learner.
+    m             price of failure risk (clipping level); m = 0 is training without a price.
     theta         scale of the interior barrier B(z) = theta sum_k log(1 + b_k / z_k); 0 removes it
                   (failure-only price).
     eta           weight of the action relative entropy to the action reference.
     kappa         strength of the parameter regularizer (weight decay / divergence to the prior).
-    clip_utility  True: the paper's clipped reward max{-m, u - B}. False: the frozen-multiplier
+    clip_utility  True: the paper's clipped reward max{-m, u - B}. False: the fixed-multiplier
                   form, pre-failure reward u - B unclipped, only the failure priced; use it when the
                   utility takes values below -m (for example a crash penalty).
     penalty       'price' (fixed price, the discounted total of m charged at failure) or
@@ -181,8 +181,7 @@ def failure_tail(m: float, beta: float, t: int, horizon: Optional[int] = None) -
 
 
 def price_from_multiplier_physical(nu: float, beta: float, horizon: int, typical_failure_time: float) -> float:
-    """Under a physical horizon the flat penalty nu equals the tail of the price m at the typical
-    failure time t: nu = m (1 - beta^(H - t)) / (1 - beta). Inverts that relation."""
+    """Under a physical horizon the flat penalty nu equals the total of the price m from the typical failure time t to the horizon: nu = m (1 - beta^(H - t)) / (1 - beta). Inverts that relation."""
     frac = 1.0 - float(beta) ** (int(horizon) - float(typical_failure_time))
     return float(nu) * (1.0 - float(beta)) / frac
 

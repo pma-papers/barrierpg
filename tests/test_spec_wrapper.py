@@ -67,7 +67,7 @@ def test_wrapper_modes():
     spec = BudgetSpec(budgets=[1.0], beta=0.9, ubar=1.0, horizon=5)
     w = BudgetWrapper(Counter([2.0]), lambda o, a, o2, r, i: [i["g"]], spec, Stage(m=1.0))
     w.reset(); _, r, term, _, info = w.step(0)
-    assert term and abs(r + (1 - 0.9 ** 5) / 0.1) < 1e-12          # physical-horizon tail at t = 0
+    assert term and abs(r + (1 - 0.9 ** 5) / 0.1) < 1e-12          # total of the price to the physical horizon at t = 0
     w = BudgetWrapper(Counter([2.0]), lambda o, a, o2, r, i: [i["g"]], spec, Stage(m=1.0, penalty="multiplier", multiplier=7.0))
     w.reset(); _, r, term, _, info = w.step(0)
     assert abs(r + 7.0) < 1e-12

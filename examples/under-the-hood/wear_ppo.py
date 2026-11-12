@@ -3,7 +3,7 @@
 Runtime: a Python with gymnasium, stable-baselines3 and torch (pip install -e ".[rl]").
 Configurations: fixed price m (optionally with the interior barrier), adaptive multiplier at a tolerance,
 the fixed price with a parameter anchor toward the initial actor, and the anchor with injected parameter
-noise (the noise and pull roles of the paper's study of the roles of the regularizers). The defaults are the paper's PPO settings (32 environments,
+noise (the noise and drift roles of the paper's study of the roles of the regularizers). The defaults are the paper's PPO settings (32 environments,
 minibatches of 1024, a linearly decaying learning rate) at a quarter of its budget: two million steps, about
 90 seconds per run on one CPU core.
 
@@ -35,7 +35,7 @@ ap.add_argument("--m", type=float, default=1.0); ap.add_argument("--theta", type
 ap.add_argument("--alpha", type=float, default=0.05); ap.add_argument("--dual-step", type=float, default=None)
 ap.add_argument("--kappa-p", type=float, default=10.0); ap.add_argument("--kappa1", type=float, default=0.1)
 ap.add_argument("--anchor-form", choices=["coupled", "decoupled"], default="coupled",
-                help="coupled: the pull added to the gradient before Adam's step, the paper's runs; decoupled: the toolbox default, applied after the step")
+                help="coupled: the drift added to the gradient before Adam's step, the paper's runs; decoupled: the toolbox default, applied after the step")
 ap.add_argument("--steps", type=int, default=2_000_000); ap.add_argument("--seed", type=int, default=0)
 ap.add_argument("--n-envs", type=int, default=32); ap.add_argument("--eval", type=int, default=5000)
 args = ap.parse_args()
@@ -87,7 +87,7 @@ mean = evaluate(env, sb3_policy(ppo, True), args.eval, spec=spec, stage=final_st
 print("stochastic:   " + stoch.summary().replace("\n", "\n              "))
 print("mean-action:  " + mean.summary().replace("\n", "\n              "))
 reduced = evaluate(lambda: make_wear_env(final_stage, model, true_budget_scale=0.9), sb3_policy(ppo, False), args.eval, spec=spec, stage=final_stage, seed=30_000 + args.seed, T=19)
-print(f"stochastic policy under a true allowance of 0.9 b: q_beta = {reduced.q_beta:.4g} (near-exhaustion at the nominal allowance: {stoch.near[0.05]:.3g})")
+print(f"stochastic policy under a true allowance of 0.9 b: q_beta = {reduced.q_beta:.4g} (frequency of a reserve below 5% at the nominal allowance: {stoch.near[0.05]:.3g})")
 
 exact = [Run(m=m, q_beta=q, U=U) for m, (q, U) in EXACT_FRONTIER.items()]
 gap = (interpolate_frontier(exact, stoch.q_beta) - stoch.U) / interpolate_frontier(exact, stoch.q_beta)

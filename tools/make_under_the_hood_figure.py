@@ -35,7 +35,7 @@ ax.set_xlabel("remaining budget after the action"); ax.set_ylabel("one-step rewa
 ax.set_title("A finite price on failure")
 ax.legend(fontsize=7.5, loc="lower right", bbox_to_anchor=(1.0, 0.12))
 
-# (b) the exact frontier and the price-risk law
+# (b) the exact frontier and the price-risk bound
 ax = axes[1]
 items = sorted((q, U, mm) for mm, (q, U) in EXACT_FRONTIER.items() if mm > 0)
 q = np.array([i[0] for i in items]); U = np.array([i[1] for i in items]); ms = np.array([i[2] for i in items])
@@ -55,9 +55,9 @@ ax.legend(fontsize=7.5, loc="upper left")
 ax = axes[2]
 flow = PlateauModel(n_x=80, n_s=80)
 plateau = flow.stats(0.0)["V_m"]
-for (k1, k2), col, ls, lw, z, lab in (((0.0, 1.0), GREY, "-", 3.0, 2, "pull only (a potential): units collapse"),
-                                       ((0.1, 10.0), ORANGE, "--", 1.8, 3, "small noise, strong pull: stays on the plateau"),
-                                       ((0.1, 0.0), BLUE, "-", 1.8, 1, "noise and pull (relative entropy): escapes")):
+for (k1, k2), col, ls, lw, z, lab in (((0.0, 1.0), GREY, "-", 3.0, 2, "drift only (a potential): units collapse"),
+                                       ((0.1, 10.0), ORANGE, "--", 1.8, 3, "small noise, strong drift: stays on the plateau"),
+                                       ((0.1, 0.0), BLUE, "-", 1.8, 1, "noise and drift (relative entropy): escapes")):
     r = simulate_particles(flow, k1, k2, n=1500, seed=1)
     ax.plot(r.times, r.V_m - plateau, color=col, ls=ls, lw=lw, label=lab, zorder=z)
 ax.set_xscale("log"); ax.set_xlabel("learning time (solvable flow)"); ax.set_ylabel("clipped value gained")

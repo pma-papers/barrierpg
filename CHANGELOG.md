@@ -1,5 +1,28 @@
 # Changelog
 
+## Unreleased: wording and titles of revision 76 (2026-11-12)
+
+- Revision 76 of the paper uses no name that is neither established nor defined in the paper, and the toolbox
+  follows in its printed text, docstrings, documents and notebook sources. The parts of *Fixed price of failure risk*
+  are cited as *price-risk bound* (formerly *price-risk law*) and *learned laws* (formerly *learning form*). The
+  results map carries the new titles *Convergence of the population flow*, *Optimization error and risk along the
+  flow* and *The prior and the particle system of the flow*, and two entries that no longer had a statement of their
+  own point to the sections that hold them (*Clipping the combined reward*, *The conditional value-at-risk of the
+  failure time*). The two supplementary results are *Certificate for a small reserve* and *Structural certificate for
+  the probability of ever failing*.
+- Words that changed throughout: *lower bound on the risk* (risk floor), *reserve* (margin), *a small reserve*
+  (near-exhaustion), *empirical certificate* (value-based test), *truncation error* (omitted tail), *sampling error*
+  (Hoeffding term), *fixed multiplier* (frozen multiplier), *without a price* (unpriced), *standing still* (the idle
+  policy), *drift* or *anchor* (pull), *the bound `1 - zeta^(1/N)`* or *smallest certifiable tolerance* (resolution
+  floor), *the probability of ever failing* (eventual risk), *a bound on the future consumption* (cost-tail structure).
+- Printed strings change with them: the names of two bounds (`upper bound on the probability of a small reserve`,
+  `p_T lower bound over the class`), the lines of `Plan`, `Report` and `RegularizerMix`, and the citation strings of
+  `cite`. Code that compares these strings must be updated.
+- Function, attribute, argument and configuration names are unchanged (`price_risk_law`, `risk_floor`,
+  `resolution_floor`, `near_exhaustion_bound`, `learning_form_risk`, `idle_policy`, `pull_strength`, `kappa_pull`,
+  `failure_tail`, the status `off-target`, the configurations `unpriced`). No function changes.
+  `PAPER["checked_against"]` is revision 76 (2026-11-12).
+
 ## Unreleased: wording aligned with revision 75's terminology (2026-11-06)
 
 - The printed text, docstrings, documents and notebook T3 say *threshold* (the strength `(C_m + eta C_A)/lambda_H`

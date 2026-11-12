@@ -3,7 +3,7 @@
 The report assembles, for one deployed candidate, the fixed-price reading (the fixed-price proposition), the
 certificates that apply to its measured quantities, the validation at the specified horizon (the
 deployment decision), the measured effects of the regularizers, and the explicit non-claims the paper
-draws (eventual risk, almost-sure feasibility, other horizons, other candidates, discrete stochastic
+draws (probability of ever failing, almost-sure feasibility, other horizons, other candidates, discrete stochastic
 training). If the optimization error is unknown, no optimality claim is made.
 """
 from __future__ import annotations
@@ -74,7 +74,7 @@ class Report:
                 lines.append(f"Requirement (at most {r.alpha:.2%}): not shown. The test does not prove a violation; a larger test "
                              f"may certify the policy, or the policy may not meet the tolerance.{floor}")
         lines.append(f"Utility per episode: {e.U:.4g} (standard error {e.U_se:.2g})."
-                     + (f" The reserve margin cost {e.I_m:.4g} of it." if s.theta else ""))
+                     + (f" The reserve cost {e.I_m:.4g} of it." if s.theta else ""))
         near = e.near.get(0.05)
         if near is not None:
             lines.append(f"Episodes that came within 5% of running out, or ran out: {near:.1%}.")
@@ -141,11 +141,11 @@ def interpret(spec: BudgetSpec, requirement: Requirement, stage: Stage, evaluati
 
     delta          optimization error (measured against an exact frontier, or a conservative allowance);
                    None means unknown and the optimality statements are stated conditionally.
-    sup_U          upper bound on the stopped utility over the class (price-risk law).
-    comparator     dict(U0=, I0=, q0=) of a comparison policy (idle by default) for the price-risk law;
-                   optionally also C_B= and R= for the learning form of the fixed-price proposition.
+    sup_U          upper bound on the stopped utility over the class (price-risk bound).
+    comparator     dict(U0=, I0=, q0=) of a comparison policy (standing still by default) for the price-risk bound;
+                   optionally also C_B= and R= for part (iv) of the fixed-price proposition (learned laws).
     action_entropy, reference_risk   A of the candidate and the risk of the action reference (the action-risk proposition).
-    lower_barrier  underline B(eps) at a chosen reserve threshold (near-exhaustion certificate).
+    lower_barrier  underline B(eps) at a chosen reserve threshold (certificate for a small reserve).
     multiplier     diagnosis of a dual-ascent trace (adaptive configurations).
     trends         BudgetMonitor.diagnostics() of the training run.
     training       BudgetMonitor.convergence() of the training run: whether it had stopped changing (stated in the summary).
@@ -165,7 +165,7 @@ def interpret(spec: BudgetSpec, requirement: Requirement, stage: Stage, evaluati
         val = evaluation.validate(target, requirement.zeta, requirement.family)
         bounds.append(val.bound())
         evidence.append(f"direct validation under the geometric clock: {val.failures} failures in {val.n} episodes; exact binomial upper endpoint "
-                        f"{val.upper:.4g} on q_beta at error {val.err:.3g} (resolution floor {val.floor:.3g})")
+                        f"{val.upper:.4g} on q_beta at error {val.err:.3g} (smallest certifiable tolerance {val.floor:.3g})")
         if requirement.kind != "geometric":
             b = finite_from_geometric(val.upper, beta, T); b.name = f"p_{T} upper bound (from validated q_beta)"
             b.source = cite("validation") + " of q_beta, with beta^T p_T <= q_beta"; bounds.append(b)
@@ -177,7 +177,7 @@ def interpret(spec: BudgetSpec, requirement: Requirement, stage: Stage, evaluati
         val = evaluation.validate(requirement.alpha, requirement.zeta, requirement.family)
         bounds.append(val.bound(T))
         evidence.append(f"direct validation: {val.failures} failures in {val.n} episodes through action {T}; exact binomial upper endpoint "
-                        f"{val.upper:.4g} at error {val.err:.3g} (resolution floor {val.floor:.3g}); " + ("passes" if val.passed else "does not pass")
+                        f"{val.upper:.4g} at error {val.err:.3g} (smallest certifiable tolerance {val.floor:.3g}); " + ("passes" if val.passed else "does not pass")
                         + f" the tolerance {requirement.alpha:g}")
     else:
         missing.append(f"the evaluation counted failures at T = {evaluation.T}, not at the requirement's T = {T}: re-evaluate at T to validate")
@@ -193,19 +193,19 @@ def interpret(spec: BudgetSpec, requirement: Requirement, stage: Stage, evaluati
         reading.append(f"Fixed-price reading ({cite('fixed_price', 'i')}): among the policies of its class with no greater geometric risk, "
                        f"{candidate_name} maximizes U - I_m {d}; it is optimal at the risk it attains, q_beta = {evaluation.q_beta:.4g}. "
                        "Where on the frontier it lies is not controlled by m. "
-                       + (f"Its risk is below the geometric level alpha beta^T = {requirement.alpha * beta ** T:.4g}; the unused risk costs utility at the price, "
+                       + (f"Its risk is below the geometric level alpha beta^T = {requirement.alpha * beta ** T:.4g}; the difference costs utility at the price, "
                           f"m[alpha beta^T - q]/(1-beta) = {m * (requirement.alpha * beta ** T - evaluation.q_beta) / (1 - beta):.4g} ({cite('matched_risk')})."
                           if requirement.alpha * beta ** T > evaluation.q_beta else
-                          f"Its risk is above the geometric level alpha beta^T = {requirement.alpha * beta ** T:.4g}, so it has no unused risk at that level; "
+                          f"Its risk is above the geometric level alpha beta^T = {requirement.alpha * beta ** T:.4g}, so nothing of that level is left unused; "
                           "validation decides the finite-horizon requirement."))
     elif stage.penalty == "multiplier":
         if spec.horizon is not None:
-            reading.append(f"Frozen-multiplier reading: the flat penalty nu = {stage.multiplier:g} is charged once at the failing action (a lump sanction "
+            reading.append(f"Fixed-multiplier reading: the flat penalty nu = {stage.multiplier:g} is charged once at the failing action (a lump sanction "
                            f"under the physical horizon H = {spec.horizon}); the objective is U - nu E[beta^tau], and the fixed-price results apply with "
                            f"I_m = 0 [{cite('fixed_price')}]: among the policies of its class with no greater discounted failure probability it maximizes U"
                            + (f" up to the optimization error delta = {delta:.3g}" if delta is not None else " up to its (unmeasured) optimization error") + ".")
         else:
-            reading.append(f"Frozen-multiplier reading: a multiplier that has converged to nu returns the fixed-price optimum for m = (1-beta) nu = "
+            reading.append(f"Fixed-multiplier reading: a multiplier that has converged to nu returns the fixed-price optimum for m = (1-beta) nu = "
                            f"{m:.4g} ({cite('fixed_price')} with I_m = 0): among the policies of its class with no greater geometric risk it maximizes U"
                            + (f" up to the optimization error delta = {delta:.3g}" if delta is not None else " up to its (unmeasured) optimization error")
                            + f"; it is optimal at the risk it attains, q_beta = {evaluation.q_beta:.4g}. The certificates below use the price-equivalent m.")
@@ -214,10 +214,10 @@ def interpret(spec: BudgetSpec, requirement: Requirement, stage: Stage, evaluati
             if multiplier.status != "stable":
                 missing.append("the multiplier has not converged, so the candidate is not a fixed-price optimum at any identified price")
     else:
-        reading.append("Unpriced learner (m = 0): no risk is priced; the candidate maximizes utility and has no risk bound from the formulation.")
+        reading.append("No price (m = 0): no risk is priced; the candidate maximizes utility and has no risk bound from the formulation.")
     if stage.theta > 0:
-        reading.append(f"Interior barrier: the candidate pays an interior loss I_m = {evaluation.I_m:.4g} for keeping a margin before exhaustion; "
-                       f"its near-exhaustion frequency is {evaluation.near.get(0.05, float('nan')):.3g} at 5% of the allowance.")
+        reading.append(f"Interior barrier: the candidate pays an interior loss I_m = {evaluation.I_m:.4g} for keeping a reserve before exhaustion; "
+                       f"its reserve falls to 5% of the allowance or less with frequency {evaluation.near.get(0.05, float('nan')):.3g}.")
     # --- certificates from the measured value ------------------------------------------
     if m > 0:
         V_low = evaluation.V_m - 2.0 * evaluation.V_m_se
@@ -258,7 +258,7 @@ def interpret(spec: BudgetSpec, requirement: Requirement, stage: Stage, evaluati
                        "independent validation is the operative deployment evidence. Descriptive value bounds remain conditional on a valid value lower bound")
     # --- standing non-claims --------------------------------------------------------------
     missing += [
-        f"eventual risk: a small q_beta or a certificate at T does not bound P(tau < inf) ({cite('delay_example')}); a hard almost-sure budget is the case alpha = 0 of that requirement",
+        f"probability of ever failing: a small q_beta or a certificate at T does not bound P(tau < inf) ({cite('delay_example')}); a hard almost-sure budget is the case alpha = 0 of that requirement",
         f"other horizons: certification at T = {T} does not certify a longer horizon; the finite-horizon bounds carry the factor beta^-T",
         "other candidates: the mean-action policy, a policy with reduced dispersion, or a retrained one is a different candidate and needs its own validation",
         f"convergence of this training run: the convergence theorem concerns the exact population flow [{cite('flow')}], and continuous-time "

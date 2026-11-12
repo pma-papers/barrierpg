@@ -6,7 +6,7 @@ parameter regularizer supplies the curvature kappa lambda_H. The curvature budge
 
     Lambda_m = kappa lambda_H - C_m - eta C_A,
 
-and when it is positive the population flow converges exponentially ('Fixed-stage population convergence'): W2 at rate
+and when it is positive the population flow converges exponentially ('Convergence of the population flow'): W2 at rate
 Lambda_m, the objective gap at rate 2 Lambda_m. The deficits are computed from bounds on how fast the
 policy kernel and its relative entropy to the action reference change when the units move (Proposition
 B.1): B1, B2 for the kernel, K0, K1, K2 for the relative entropy. The softmax class has B1 = L1,
@@ -103,7 +103,7 @@ def curvature_constants(constants: Constants, beta: float, m: float, ubar: float
 def gaussian_prior_curvature(sigma: float) -> float:
     """lambda_W = sigma^-2 for the prior N(x0, sigma^2 I). Relative entropy to it is negative entropy of
     weight kappa plus weight decay toward x0 of weight kappa/sigma^2, so the rate depends on (kappa, sigma)
-    only through kappa/sigma^2 while the minimizer depends on both ('The prior and the particle form of the flow')."""
+    only through kappa/sigma^2 while the minimizer depends on both ('The prior and the particle system of the flow')."""
     return 1.0 / float(sigma) ** 2
 
 
@@ -127,7 +127,7 @@ def rate(kappa: float, lambda_H: float, C_m: float, C_A: float = 0.0, eta: float
 
 
 def certified_kappa(lambda_H: float, C_m: float, C_A: float = 0.0, eta: float = 0.0, margin: float = 1.05) -> float:
-    """The threshold (C_m + eta C_A)/lambda_H of the convergence theorem, times a margin (1.05 in the paper's solvable-flow test)."""
+    """The threshold (C_m + eta C_A)/lambda_H of the convergence theorem, times a factor above one (1.05 in the paper's solvable-flow test)."""
     return margin * (C_m + eta * C_A) / lambda_H
 
 
@@ -159,7 +159,7 @@ class CurvatureBudget:
                  f"curvature supplied by the parameter regularizer: {self.supply:.4g}",
                  f"budget Lambda_m = {self.Lambda:.4g}: " + ("certified; the objective gap decays like exp(-2 Lambda l), W2 like exp(-Lambda l)"
                                                            if self.certified else "not certified by the convergence theorem (a sufficient condition; the flow may still converge)"),
-                 f"threshold (margin 1.05): kappa >= {self.kappa_certified:.4g} at curvature {self.lambda_H:.4g} per unit strength; "
+                 f"threshold (factor 1.05): kappa >= {self.kappa_certified:.4g} at curvature {self.lambda_H:.4g} per unit strength; "
                  "at that strength the minimizer lies close to the prior"]
         if self.certified:
             lines.append(f"time to shrink the objective gap by 1e-3: {time_to_fraction(self.Lambda, 1e-3):.4g}")
@@ -179,15 +179,15 @@ def curvature_budget(constants: Constants, beta: float, m: float, ubar: float, k
 
 
 # ---------------------------------------------------------------------------------------------
-# Part 1: learning error and budget risk; finite-network training under a potential
+# Part 1: optimization error and risk along the flow; finite-network training under a potential
 # ---------------------------------------------------------------------------------------------
 def learning_risk_bound(ell: float, *, m: float, beta: float, ubar: float, q_bar: float, U_bar: float, I_bar: float,
                         R_bar: float, E0: float, Lambda: float, sup_U: Optional[float] = None, T: Optional[int] = None):
-    """'Learning error and budget risk': for the flow with Lambda_m > 0 at learning time ell, both bounds of the learning form hold
-    with the learning error E0 exp(-2 Lambda ell) in place of delta and the comparison law's regularization cost R."""
+    """'Optimization error and risk along the flow': for the flow with Lambda_m > 0 at learning time ell, both bounds of part (iv) of the fixed-price proposition hold
+    with the optimization error E0 exp(-2 Lambda ell) in place of delta and the comparison law's regularization cost R."""
     from .certificates import learning_form_risk
     if Lambda <= 0:
-        raise ValueError("the learning-error bound needs Lambda_m > 0")
+        raise ValueError("the bound of the corollary needs Lambda_m > 0")
     b = learning_form_risk(m, beta, ubar, q_bar, U_bar, I_bar, R_bar, E0 * math.exp(-2.0 * Lambda * ell), sup_U=sup_U, T=T)
     b.source = cite("learning_error")
     b.inputs.update(ell=ell, E0=E0, Lambda=Lambda)
@@ -195,8 +195,7 @@ def learning_risk_bound(ell: float, *, m: float, beta: float, ubar: float, q_bar
 
 
 def learning_time_for_slack(E0: float, D: float, Lambda: float) -> float:
-    """Sufficient learning time ell >= [log(E0 / D)]_+ / (2 Lambda) for the learning-error bound to certify a target whose
-    slack is D > 0 (certificates.learning_slack); inf when D <= 0 or Lambda <= 0."""
+    """Sufficient learning time ell >= [log(E0 / D)]_+ / (2 Lambda) for the bound of the corollary to certify a tolerance that the bound meets with the slack D > 0 (certificates.learning_slack); inf when D <= 0 or Lambda <= 0."""
     if D <= 0 or Lambda <= 0:
         return math.inf
     if E0 <= 0:
@@ -332,10 +331,10 @@ def multiplier_diagnosis(trace: Sequence[dict], alpha: float, beta: float, windo
                 step fixed before its campaign); reduce the dual step, use a fixed price, or start from a controller that sometimes
                 survives;
     inactive    the multiplier is zero and the failure rate is below the tolerance: the tolerance does not constrain
-                the unpriced optimum;
+                the optimum without a price;
     trending    the multiplier is still rising or falling: train longer, or size the step from the level the
                 multiplier has to reach. A multiplier that keeps rising while the failure rate stays above the
-                tolerance is the sign of a tolerance below the risk floor of the class (then no multiplier converges);
+                tolerance is the sign of a tolerance below the lower bound on the risk of the class (then no multiplier converges);
     off-target  no detectable drift, but the failure rate is not near the tolerance: the rollouts are too few or too
                 small to resolve the tolerance;
     short       too few rollouts.
@@ -354,7 +353,7 @@ def multiplier_diagnosis(trace: Sequence[dict], alpha: float, beta: float, windo
     increases = np.mean(np.diff(nu[-w:]) > 0) if w > 1 else 0.0
     if last == 0.0 and rate_w <= alpha:
         return MultiplierDiagnosis("inactive", last, eq, rate_w, alpha,
-                                   f"multiplier at zero with failure rate {rate_w:.3g} <= tolerance {alpha:g}: the tolerance does not constrain the unpriced optimum")
+                                   f"multiplier at zero with failure rate {rate_w:.3g} <= tolerance {alpha:g}: the tolerance does not constrain the optimum without a price")
     if increases >= 0.9 and rate_w >= max(0.5, 5.0 * alpha):
         return MultiplierDiagnosis("increasing", last, eq, rate_w, alpha,
                                    f"multiplier rose in {increases:.0%} of the last {w} rollouts while the failure rate stayed at {rate_w:.2f}, far above "

@@ -3,10 +3,10 @@
 The toolbox cites the result behind every bound it returns. Statement numbers change between revisions of a
 manuscript, so the toolbox never prints or documents them. It cites each result by the title the paper gives it
 (for example "Fixed price of failure risk"), which is searchable in any revision, and names parts of a statement
-by what they say (for example "price-risk law"). All citations go through `cite`:
+by what they say (for example "price-risk bound"). All citations go through `cite`:
 
     >>> cite("fixed_price", "ii")
-    "paper, 'Fixed price of failure risk' (price-risk law)"
+    "paper, 'Fixed price of failure risk' (price-risk bound)"
 
 `RESULTS` maps a stable key to (kind, title). The kind (proposition, theorem, remark, ...) is kept for the results
 map only; it is never printed, since a revision may also change a statement's kind. `PAPER["checked_against"]`
@@ -21,7 +21,7 @@ from typing import Dict, Optional, Tuple
 PAPER = dict(
     title="The Price of Failure Risk: Clipped Barrier Policy Gradients with Convex Regularization",
     authors="Pekka Malo, Lauri Viitasaari, Antti Suominen, Eeva Vilkkumaa, Olli Tahvonen",
-    checked_against="revision 75 (2026-11-06)",
+    checked_against="revision 76 (2026-11-12)",
 )
 
 # key -> (kind, title in the paper)
@@ -44,13 +44,13 @@ RESULTS: Dict[str, Tuple[str, str]] = {
     # convergence and the prior
     "admissible": ("definition", "Admissible parameter regularizer"),
     "admissible_families": ("proposition", "Admissible families"),
-    "flow": ("theorem", "Fixed-stage population convergence"),
-    "learning_error": ("corollary", "Learning error and budget risk"),
+    "flow": ("theorem", "Convergence of the population flow"),
+    "learning_error": ("corollary", "Optimization error and risk along the flow"),
     "prior_improvement": ("remark", "Improvement over the prior policy"),
     "bias": ("remark", "The regularization bias is priced and detected"),
-    "particle": ("section", "The prior and the particle form of the flow"),
+    "particle": ("section", "The prior and the particle system of the flow"),
     "finite_training": ("proposition", "Finite-network training under a potential"),
-    "gaussian_prior": ("section", "The prior and the particle form of the flow"),
+    "gaussian_prior": ("section", "The prior and the particle system of the flow"),
     "centering": ("section", "Improvement relative to the prior policy"),
     "curvature_constants": ("proposition", "Value and action-law curvature"),
     "weight_decay": ("proposition", "Admissible families"),
@@ -64,10 +64,10 @@ RESULTS: Dict[str, Tuple[str, str]] = {
     "physical_price": ("proposition", "The risk priced by a physical horizon"),
     # related formulations (online appendix)
     "frontier_support": ("proposition", "Fixed price of failure risk"),
-    "one_shot": ("lemma", "The one-shot equivalent"),
+    "one_shot": ("section", "Clipping the combined reward"),
     "penalties": ("proposition", "Chance, time and overshoot penalties"),
     "cvar_multiplier": ("proposition", "The price as a CVaR multiplier"),
-    "cvar_failure_time": ("proposition", "CVaR of the failure time"),
+    "cvar_failure_time": ("section", "The conditional value-at-risk of the failure time"),
     "delay_example": ("example", "Delay without eventual feasibility"),
     "price_sequence": ("proposition", "Price sequences reaching a tolerance"),
     # the studies
@@ -82,12 +82,12 @@ RESULTS: Dict[str, Tuple[str, str]] = {
     "scope": ("section", "Scope of the guarantees"),
     "toolbox_appendix": ("section", "The companion toolbox"),
     # supplementary results of the toolbox
-    "near_exhaustion": ("toolbox", "near-exhaustion certificate"),
-    "eventual_risk": ("toolbox", "structural certificate for eventual risk"),
+    "near_exhaustion": ("toolbox", "certificate for a small reserve"),
+    "eventual_risk": ("toolbox", "structural certificate for the probability of ever failing"),
 }
 
-FIXED_PRICE_PARTS = {"i": "optimality at the attained risk", "ii": "price-risk law",
-                     "iii": "monotonicity in the price", "iv": "learning form", "v": "the price supports the frontier"}
+FIXED_PRICE_PARTS = {"i": "optimality at the attained risk", "ii": "price-risk bound",
+                     "iii": "monotonicity in the price", "iv": "learned laws", "v": "the price supports the frontier"}
 
 
 def cite(key: str, part: Optional[str] = None) -> str:

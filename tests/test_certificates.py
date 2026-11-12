@@ -27,12 +27,12 @@ def test_comparison_and_matched_risk():
 
 
 def test_learning_form():
-    # with zero regularization cost and no reward error the learning form is the (m+ubar) variant / the law
+    # with zero regularization cost and no reward error part (iv) is the (m+ubar) variant / the bound
     b = C.learning_form_risk(m=1.0, beta=0.95, ubar=1.0, q_bar=0.0, U_bar=0.0, I_bar=0.0, R_bar=0.0, delta=0.0, sup_U=5.35)
-    assert abs(b.value - 0.05 * 5.35) < 1e-12 and "learning form" in b.source
+    assert abs(b.value - 0.05 * 5.35) < 1e-12 and "learned laws" in b.source
     b2 = C.learning_form_risk(m=1.0, beta=0.95, ubar=1.0, q_bar=0.0, U_bar=0.0, I_bar=0.0, R_bar=2.0, delta=0.5, eps_r=0.1, sup_U=5.35)
     assert abs(b2.inputs["delta_prime"] - (0.5 + 2.0 + 4.0)) < 1e-12 and b2.value >= b.value
-    # the unclipped comparison-law form is never tighter than the learning form with I_bar <= C_B-based cost
+    # the unclipped comparison-law form is never tighter than part (iv) with I_bar <= C_B-based cost
     cb = C.comparison_law_risk(q_bar=0.01, C_B=2.0, R_bar=0.5, delta=0.1, m=10.0, ubar=1.0, beta=0.9)
     lf = C.learning_form_risk(m=10.0, beta=0.9, ubar=1.0, q_bar=0.01, U_bar=3.0, I_bar=0.5, R_bar=0.5, delta=0.1)
     assert 0.0 <= lf.value <= 1.0 and 0.0 <= cb.value <= 1.0
@@ -45,7 +45,7 @@ def test_price_risk_law_and_monotonicity():
     assert abs(b.value - 0.05 * 5.35) < 1e-12 and b.inputs["law"] == b.value
     b = C.price_risk_law(m=1.0, beta=0.95, sup_U=5.35, ubar=1.0)
     assert abs(b.inputs["variant"] - 0.5) < 1e-12 and abs(b.value - 0.2675) < 1e-12
-    # the exact wear frontier obeys the law: m=1 gives q=0.0145 <= 0.05*5.43/1
+    # the exact wear frontier obeys the bound: m=1 gives q=0.0145 <= 0.05*5.43/1
     assert 0.01453 <= C.price_risk_law(1.0, 0.95, 5.4343).value
     assert 0.00115 <= C.price_risk_law(10.0, 0.95, 5.4343).value
     assert C.price_risk_law(m=0.0, beta=0.95, sup_U=5.0).value == 1.0

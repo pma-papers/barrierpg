@@ -1,4 +1,4 @@
-"""Environment wrapper: budgets, clipped barrier reward, failure tail, multiplier mode.
+"""Environment wrapper: budgets, clipped barrier reward, the charge at failure, multiplier mode.
 
 Works as a gymnasium.Wrapper when gymnasium is installed; otherwise as a plain wrapper around any
 object with reset() -> (obs, info) and step(action) -> (obs, reward, terminated, truncated, info).
@@ -6,7 +6,7 @@ object with reset() -> (obs, info) and step(action) -> (obs, reward, terminated,
 Per step the wrapper computes the K costs g_k from a user function, updates the reserves
 z_{t+1,k} = (z_{t,k} - g_k) / gamma_k, and replaces the reward:
   before failure   r = max{-m, u - B(z_{t+1})}      (clip_utility=True, the paper's clipped reward)
-                   r = u - B(z_{t+1})               (clip_utility=False, frozen-multiplier form)
+                   r = u - B(z_{t+1})               (clip_utility=False, fixed-multiplier form)
   at failure       r = -m / (1 - beta)              (absorbing implementation, horizon None)
                    r = -m (1 - beta^(H - t)) / (1 - beta)   (physical horizon H)
                    r = -nu                          (penalty='multiplier', nu set by dual ascent)
@@ -19,7 +19,7 @@ the end of an episode a 'budget_episode' record (the key 'episode' is reserved b
 clipped_return) that barrierpg.evaluate and the training monitor consume.
 
 true_budget_scale < 1 judges failure against a reduced true allowance while the observation shows
-the nominal reserve (the misjudged-allowance test of the wear study).
+the nominal reserve (the runs of the wear study with a smaller true allowance).
 
 observe_time=True also appends the elapsed fraction of the horizon, t/H. With a fixed horizon the policy needs it to
 pace the budget: whether the remaining budget suffices depends on how much of the episode is left.
@@ -172,7 +172,7 @@ class BudgetWrapper(_Base):
         else:
             Bz = self.B(nominal_next if self.true_scale == 1.0 else true_next)
             if self.stage.theta == 0.0 and (self.penalty == "multiplier" or not self.clip_utility):
-                interior = 0.0            # failure-only price, unclipped (frozen-multiplier) form: only the failure is priced
+                interior = 0.0            # failure-only price, unclipped (fixed-multiplier) form: only the failure is priced
             else:
                 interior = interior_term(Bz, u, self.m, self.clip_utility)
                 if not np.isfinite(interior):

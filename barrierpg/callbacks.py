@@ -2,13 +2,13 @@
 
   DualAscent        adaptive multiplier toward a prescribed tolerance, with a diagnosis of its trace;
   ActionAnchor      the action relative entropy to an action reference, charged as a reward term;
-  ParameterAnchor   the pull of the particle form: weight decay toward a prior parameter theta_0
+  ParameterAnchor   the drift of the particle system: weight decay toward a prior parameter theta_0
                     (the potential term, the finite-network part of a Gaussian prior), applied to the
                     parameters after the optimizer's step (decoupled, the default) or added to the gradient
                     before it (coupled, the paper's runs);
-  ParameterNoise    the noise of the particle form: Gaussian noise of variance 2 kappa1 x lr on every actor
-                    parameter after each optimizer step and after the pull (the entropy term of relative entropy);
-  BudgetMonitor     per-rollout failure rate, stopped utility, interior loss, clipped value, near-exhaustion
+  ParameterNoise    the noise of the particle system: Gaussian noise of variance 2 kappa1 x lr on every actor
+                    parameter after each optimizer step and after the drift (the entropy term of relative entropy);
+  BudgetMonitor     per-rollout failure rate, stopped utility, interior loss, clipped value, frequency of a small reserve
                     and dispersion, with trend tests;
   fit_actor_mean, set_log_std   build a prior from an incumbent rule (the actor at theta_0 is the prior policy).
 
@@ -50,7 +50,7 @@ class DualAscent(BaseCallback):
     The step must respect the two time scales of the method: the multiplier should move by a small
     fraction of its eventual level per rollout (dual_step_suggestion). With too large a step the
     multiplier increases without bound when every episode fails, because the flat penalty then carries no gradient.
-    A tolerance below the risk floor of the class makes the multiplier increase without bound.
+    A tolerance below the lower bound on the risk of the class makes the multiplier increase without bound.
     """
 
     def __init__(self, alpha: float, step: float, multiplier0: float = 0.0, verbose: int = 0):
@@ -83,8 +83,7 @@ class DualAscent(BaseCallback):
 
 def dual_step_suggestion(expected_multiplier: float, rollouts_to_reach: int = 20) -> float:
     """A step c such that one rollout at failure rate one moves nu by expected_multiplier / rollouts_to_reach.
-    expected_multiplier is the price-equivalent penalty m/(1-beta) (absorbing) or the price's tail at the
-    typical failure time (physical horizon); take it from the fixed-price run that attains about the tolerance."""
+    expected_multiplier is the price-equivalent penalty m/(1-beta) (absorbing) or the total of the price from the typical failure time (physical horizon); take it from the fixed-price run that attains about the tolerance."""
     return float(expected_multiplier) / float(rollouts_to_reach)
 
 
@@ -139,7 +138,7 @@ class ActionAnchor(BaseCallback):
 
 
 # ---------------------------------------------------------------------------------------------
-# Parameter regularization on a finite actor: pull and noise
+# Parameter regularization on a finite actor: drift and noise
 # ---------------------------------------------------------------------------------------------
 def actor_parameters(model, include_log_std: bool = True) -> list:
     """Every parameter that shapes the policy of an SB3 ActorCriticPolicy: the actor's hidden layers, the action
@@ -152,8 +151,8 @@ def actor_parameters(model, include_log_std: bool = True) -> list:
 
 
 def _step_hooks(optimizer) -> dict:
-    """Wrap the optimizer's step once with three hook lists, run in this order: 'before' (the coupled pull, which
-    edits the gradients), the optimizer's own step, 'after' (the decoupled pull on the parameters), 'noise' (the
+    """Wrap the optimizer's step once with three hook lists, run in this order: 'before' (the coupled anchor, which
+    edits the gradients), the optimizer's own step, 'after' (the decoupled anchor on the parameters), 'noise' (the
     parameter noise, last). Anchor and noise then compose in whatever order they are installed."""
     hooks = getattr(optimizer, "_barrierpg_hooks", None)
     if hooks is None:
@@ -177,36 +176,36 @@ def _step_hooks(optimizer) -> dict:
 
 def _current_lr(optimizer) -> float:
     """The learning rate of the optimizer's first parameter group, clipped at zero (SB3's linear schedule dips below
-    zero on the last iteration). It is the step of flow time for the pull and the noise."""
+    zero on the last iteration). It is the step of flow time for the drift and the noise."""
     return max(float(optimizer.param_groups[0]["lr"]), 0.0)
 
 
 class ParameterAnchor:
-    """The pull of the particle form on a finite actor: weight decay toward a prior parameter theta_0 on every actor
+    """The drift of the particle system on a finite actor: weight decay toward a prior parameter theta_0 on every actor
     parameter, the potential regularizer (kappa_p/2) |theta - theta_0|^2, which is the part of a Gaussian prior
-    N(theta_0, sigma^2 I) a finite network can carry (kappa_p = kappa/sigma^2; 'The prior and the particle form of the flow'). Under a potential, noiseless continuous-time training is the population flow from the
+    N(theta_0, sigma^2 I) a finite network can carry (kappa_p = kappa/sigma^2; 'The prior and the particle system of the flow'). Under a potential, noiseless continuous-time training is the population flow from the
     network's own empirical law ('Finite-network training under a potential').
 
     Two forms, chosen by `decoupled` (the paper's Section 'Practical choices, scope and conclusion', the four
     implementation rules of its first subsection):
 
-    decoupled=True (default): the pull is applied to the parameters after the optimizer's step,
+    decoupled=True (default): the drift is applied to the parameters after the optimizer's step,
         theta <- theta - lr kappa_p (theta - theta_0), lr the current learning rate of the optimizer's first parameter
-        group. This is the decoupled weight decay of AdamW. The pull substep contracts every coordinate toward the
+        group. This is the decoupled weight decay of AdamW. The drift substep contracts every coordinate toward the
         anchor by the factor 1 - lr kappa_p (half-life -ln 2 / ln(1 - lr kappa_p) steps, about ln 2 / (lr kappa_p)),
-        whatever the optimizer does with the objective's gradient. Under plain gradient descent, pull plus ParameterNoise
+        whatever the optimizer does with the objective's gradient. Under plain gradient descent, drift plus ParameterNoise
         is the Euler-Maruyama step of the gradient-driven particle equation, and without an objective gradient the
         per-parameter spread settles at sqrt(kappa1 / (kappa_p (1 - lr kappa_p/2))), about sqrt(kappa1/kappa_p)
-        (roles.noise_and_anchor_spread); the injected noise adds no pull of its own. Under Adam the objective's step
+        (roles.noise_and_anchor_spread); the injected noise adds no drift of its own. Under Adam the objective's step
         stays adaptive, so the full update is not that step and the formula is only a reference: calibrate the
         strength by the measured contraction, distance and spread. Requires lr kappa_p < 1 (install raises otherwise);
-        a learning rate decayed to zero switches the pull off.
+        a learning rate decayed to zero switches the drift off.
     decoupled=False: the legacy form used by the paper's runs. kappa_p (theta - theta_0) is added to the actor's
         gradient after gradient clipping and before the optimizer's step. Under Adam, which divides each gradient
-        coordinate by its running root-mean-square, the pull is rescaled coordinate by coordinate: its step is about lr
+        coordinate by its running root-mean-square, the drift is rescaled coordinate by coordinate: its step is about lr
         whatever the distance to the anchor, it is weak where the objective's gradient is large and of fixed size where
         it is small, and it inflates the normalizer, which shrinks the objective's own step. The strength then loses
-        its meaning as a curvature, and under ParameterNoise the spread is proportional to kappa_1 whatever the pull
+        its meaning as a curvature, and under ParameterNoise the spread is proportional to kappa_1 whatever the drift
         (about sqrt(2) kappa_1 in the paper's roles study, roles.adam_stationary_spread). Use it to reproduce the
         paper's runs and the shipped campaign records; strengths are comparable only within one form.
 
@@ -217,8 +216,8 @@ class ParameterAnchor:
     the critic, which has no prior (actor_parameters excludes it).
 
     Usage: anchor = ParameterAnchor(model, kappa_p).install()  before model.learn(...), in either order with a
-    ParameterNoise (the noise is always added after the pull). theta_0 defaults to the parameters at installation.
-    Record the optimizer, its stability constant, the order of gradient clipping and pull, and the form.
+    ParameterNoise (the noise is always added after the drift). theta_0 defaults to the parameters at installation.
+    Record the optimizer, its stability constant, the order of gradient clipping and the anchor, and the form.
     """
 
     def __init__(self, model, kappa_p: float, theta0: Optional[Sequence] = None, include_log_std: bool = True,
@@ -229,16 +228,16 @@ class ParameterAnchor:
         self.decoupled = bool(decoupled)
         self.params = actor_parameters(model, include_log_std)
         self.theta0 = [p.detach().clone() for p in self.params] if theta0 is None else [torch.as_tensor(t) for t in theta0]
-        self._prior_dispersion = self.dispersion()      # the dispersion at installation, also for the mean-only case
+        self._prior_dispersion = self.dispersion()      # the dispersion at installation, also when only the mean network is anchored
         self.steps = 0
 
     @property
     def form(self) -> str:
-        """'decoupled' (pull on the parameters after the step) or 'coupled' (pull on the gradient before the step)."""
+        """'decoupled' (the anchor acts on the parameters after the step) or 'coupled' (it acts on the gradient before the step)."""
         return "decoupled" if self.decoupled else "coupled"
 
     def contraction(self, learning_rate: Optional[float] = None) -> float:
-        """The decoupled pull's per-step contraction factor 1 - lr kappa_p toward the anchor (lr the current learning
+        """The decoupled anchor's per-step contraction factor 1 - lr kappa_p toward the anchor (lr the current learning
         rate unless given). For the coupled form the factor is not defined: the step depends on the optimizer's state."""
         if not self.decoupled:
             return float("nan")
@@ -246,7 +245,7 @@ class ParameterAnchor:
         return 1.0 - lr * self.kappa_p
 
     def half_life(self, learning_rate: Optional[float] = None) -> float:
-        """ln 2 / (lr kappa_p): the number of steps over which the decoupled pull halves the distance to the anchor
+        """ln 2 / (lr kappa_p): the number of steps over which the decoupled anchor halves the distance to the anchor
         in the absence of an objective gradient (the paper's second rule: calibrate the strength by this)."""
         c = self.contraction(learning_rate)
         if not (c < 1.0):
@@ -260,7 +259,7 @@ class ParameterAnchor:
 
         if self.decoupled:
             if _current_lr(opt) * self.kappa_p > 1.0:
-                raise ValueError(f"lr kappa_p = {_current_lr(opt) * self.kappa_p:.3g} > 1: the decoupled pull would overshoot the anchor; "
+                raise ValueError(f"lr kappa_p = {_current_lr(opt) * self.kappa_p:.3g} > 1: the decoupled anchor would overshoot the anchor; "
                                  "lower kappa_p or the learning rate")
 
             def pull():
@@ -314,20 +313,20 @@ class ParameterAnchor:
 
 
 class ParameterNoise:
-    """The noise of the particle form on a finite actor: after every optimizer step, and after the pull of a
+    """The noise of the particle system on a finite actor: after every optimizer step, and after the drift of a
     ParameterAnchor if one is installed, each actor parameter receives independent Gaussian noise of variance
     2 kappa1 x lr, lr the current learning rate of the optimizer's first parameter group (the step of flow time,
     clipped at zero because SB3's linear schedule dips below zero on the last iteration). This is the finite-network
-    counterpart of the entropy term of relative entropy, which no standard learner injects (the paper's particle form
+    counterpart of the entropy term of relative entropy, which no standard learner injects (the paper's particle system
     of the flow). Combined with a ParameterAnchor of strength kappa2, kappa2 sets where the units are held and kappa1
     how far they spread (the paper's roles study).
 
-    With a decoupled anchor (the default) the pull and the noise together apply
+    With a decoupled anchor (the default) the drift and the noise together apply
     theta <- theta - lr kappa2 (theta - theta_0) + sqrt(2 kappa1 lr) xi after the optimizer's step. The noise adds no
-    pull of its own, so without an objective gradient the per-parameter spread settles at
+    drift of its own, so without an objective gradient the per-parameter spread settles at
     sqrt(kappa1 / (kappa2 (1 - lr kappa2/2))), about sqrt(kappa1/kappa2) (roles.noise_and_anchor_spread), not at the
     sqrt(kappa1/(kappa1 + kappa2)) of relative entropy plus a potential; under Adam with an objective it is a
-    reference, not a prediction. With a coupled anchor under Adam the pull passes through Adam's normalization, and
+    reference, not a prediction. With a coupled anchor under Adam the drift passes through Adam's normalization, and
     the paper's roles study, which ran that form, measured a spread growing in proportion to kappa1 (about
     sqrt(2) kappa1, roles.adam_stationary_spread, an explanation proposed after the runs). In that study risk and
     utility stayed at the anchored values while the spread was small against the policy's dispersion and then moved,
@@ -394,7 +393,7 @@ def fit_actor_mean(model, target_mean: Callable[[np.ndarray], np.ndarray], obser
     """Fit the actor's mean network (pre-clipping action variable) by least squares to an incumbent rule:
     target_mean(observations) -> (n, action_dim) means. Returns the final mean squared error. The fitted
     parameters are then theta_0 of a ParameterAnchor, and the optimizer state is reset so that training starts
-    fresh. Set the dispersion separately with set_log_std (a matched prior uses the incumbent's own dispersion)."""
+    fresh. Set the dispersion separately with set_log_std (to make the prior policy the incumbent, use the incumbent's own dispersion)."""
     import torch
     policy = model.policy
     rng = np.random.default_rng(seed)
@@ -422,10 +421,10 @@ def fit_actor_mean(model, target_mean: Callable[[np.ndarray], np.ndarray], obser
 # ---------------------------------------------------------------------------------------------
 class BudgetMonitor(BaseCallback):
     """Records, per rollout, the episode statistics the wrapper emits: failure rate, stopped utility, interior
-    loss, clipped value (with the stage's tail convention), near-exhaustion frequency, mean length, and the
+    loss, clipped value (with the stage's horizon convention), frequency of a small reserve, mean length, and the
     policy's log_std if it has one. diagnostics() then reads the traces.
 
-    beta, m, horizon: the spec's; near: reserve fraction counted as near-exhaustion. Under penalty='multiplier'
+    beta, m, horizon: the spec's; near: reserve fraction below which the reserve counts as small. Under penalty='multiplier'
     the flat penalty charged at failures is the DualAscent callback's current multiplier (dual=...) or a frozen
     value (multiplier=...).
 
@@ -515,7 +514,7 @@ class BudgetMonitor(BaseCallback):
         return plot_training(self.trace, self.convergence(), keys=keys, title=title)
 
     def diagnostics(self, window: int = 20) -> dict:
-        """Trend tests over the last `window` rollouts of V_m, U, the failure rate, near-exhaustion and log_std."""
+        """Trend tests over the last `window` rollouts of V_m, U, the failure rate, the frequency of a small reserve and log_std."""
         out = {}
         for key in ("V_m", "U", "failure_rate", "near", "log_std"):
             s = self.series(key)

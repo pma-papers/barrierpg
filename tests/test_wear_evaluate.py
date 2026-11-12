@@ -10,7 +10,7 @@ def test_idle_and_full_rate():
     ev = evaluate(lambda: make_wear_env(stage, model), idle_policy, 500, spec=spec, stage=stage, seed=1)
     assert ev.failures_any == 0 and ev.U == 0.0 and ev.q_beta == 0.0 and ev.geometric_stop
     ev = evaluate(lambda: make_wear_env(stage, model), full_rate_policy, 4000, spec=spec, stage=stage, seed=2)
-    # the exact unpriced optimum runs at full rate until breakdown: q = 0.592, U = 5.43 (grid values)
+    # the exact optimum without a price runs at full rate until breakdown: q = 0.592, U = 5.43 (grid values)
     assert abs(ev.q_beta - EXACT_FRONTIER[0.0][0]) < 0.04 and abs(ev.U - EXACT_FRONTIER[0.0][1]) < 0.3
     assert abs(ev.V_m - (ev.U - ev.I_m - 1.0 * ev.q_beta / 0.05)) < 1e-9
 

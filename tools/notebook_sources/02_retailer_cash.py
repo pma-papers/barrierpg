@@ -396,8 +396,8 @@ print(f"the prior policy: insolvency {prior_ev.p_T:.2%}, profit {prior_ev.U:.0f}
 
 # %% [markdown]
 # With `train(stage, steps, prior=prior)` the learner starts from this network, and `anchor=1.0` adds a parameter anchor
-# that pulls the weights back toward it, in the coupled form of the campaign's records (the pull added to the gradient
-# before Adam's step, the paper's form; the toolbox's default is the decoupled pull applied to the weights after the
+# that pulls the weights back toward it, in the coupled form of the campaign's records (the drift added to the gradient
+# before Adam's step, the paper's form; the toolbox's default is the decoupled anchor applied to the weights after the
 # step, under which the strength keeps its meaning, see notebook 1). Here is one short run of each.
 
 # %%
@@ -436,7 +436,7 @@ print(camp.convergence_table(["lump-5000"] + starts))
 # Started from scratch with a step of half that level, the multiplier rose far past it: the untrained policy fails in
 # most years for many batches, and with a 1% tolerance the multiplier can come down only slowly, by at most 1% of its
 # step per batch. Started from the policy and the level of the 20,000 run, with a twentieth of that level as its step,
-# it only has to correct a small error. The control continues the 20,000 run for as long at that fixed cost.
+# it only has to correct a small error. The comparison run continues the 20,000 run for as long at that fixed cost.
 
 # %%
 dual = DualAscent(alpha=0.01, step=1000.0, multiplier0=20000.0)          # as the warm start of the campaign
@@ -454,7 +454,7 @@ print(Campaign.show(camp.table(["adaptive-1pct", "adaptive-1pct-warm", "lump-200
 # %% [markdown]
 # From scratch, the multiplier ended near a million and the policies became overly cautious: they almost never go
 # insolvent and give up much of their profit. Started warm, the multiplier stayed near its level and the policies
-# match those of the control. For a tolerance, train at a few fixed costs or prices first and pick the one whose runs
+# match those of the comparison run. For a tolerance, train at a few fixed costs or prices first and pick the one whose runs
 # meet it; a multiplier, if used, should start from there. `DualAscent.diagnose` reports whether it converged.
 #
 # ## 9. Validate the candidates and report

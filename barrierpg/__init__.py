@@ -2,8 +2,7 @@
 
 Companion toolbox to "The Price of Failure Risk: Clipped Barrier Policy Gradients with Convex
 Regularization" (Malo, Viitasaari, Suominen, Vilkkumaa, Tahvonen). Keep the learner you use, add a
-reward wrapper, and know what each part does: the price sets the risk attained, the interior barrier
-buys a margin, the action term holds the policy near a trusted action reference, and the parameter term
+reward wrapper, and know what each part does: the price sets the risk attained, the interior barrier keeps a reserve, the action term holds the policy near a trusted action reference, and the parameter term
 makes the learning problem well posed and holds it near a prior policy.
 
 Three questions, three layers:

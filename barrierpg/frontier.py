@@ -1,5 +1,5 @@
-"""Checks across runs at several prices: the price-risk law, monotonicity, the frontier of U - I_m against
-q_beta, the unused risk charged at the price, and whether a sequence of prices can reach a tolerance
+"""Checks across runs at several prices: the price-risk bound, monotonicity, the frontier of U - I_m against
+q_beta, the part of the level not used and charged at the price, and whether a sequence of prices can reach a tolerance
 (the fixed-price proposition, the matched-risk comparison and the price-sequence proposition of the paper)."""
 from __future__ import annotations
 
@@ -46,7 +46,7 @@ class FrontierCheck:
         lines = []
         for row in self.table:
             lines.append(f"m={row['m']:<8g} q={row['q_beta']:.4g}  U-I={row['net_utility']:.4g}  law bound={row['law_bound']:.4g}"
-                         + ("  (violates the price-risk law)" if row["violates_law"] else ""))
+                         + ("  (violates the price-risk bound)" if row["violates_law"] else ""))
         if self.monotonicity_violations:
             lines += [f"monotonicity ({cite('fixed_price', 'iii')}) violated: " + v for v in self.monotonicity_violations]
         else:
@@ -60,8 +60,8 @@ class FrontierCheck:
 
 def check_runs(runs: Sequence[Run], beta: float, sup_U: float, U0: float = 0.0, I0: float = 0.0, q0: float = 0.0,
                delta: float = 0.0, ubar: Optional[float] = None, u_minus: float = 0.0, tol: float = 0.0) -> FrontierCheck:
-    """For runs at prices m >= u_minus: compare each attained q_beta with the price-risk law (with the
-    comparison policy (U0, I0, q0), idle by default), check monotonicity between consecutive prices
+    """For runs at prices m >= u_minus: compare each attained q_beta with the price-risk bound (with the
+    comparison policy (U0, I0, q0), standing still by default), check monotonicity between consecutive prices
     using delta as each run's optimization error (and the observed interior losses for Delta), and
     flag runs dominated in (q_beta, U - I_m). tol is an additive slack for Monte Carlo error in q; a run whose
     extra carries q_se (the standard error of its estimated q_beta) gets a further slack of two standard errors."""
@@ -143,7 +143,7 @@ class PriceSequenceCheck:
 def price_sequence_check(prices: Sequence[float], shortfalls: Sequence[float], *, interior_loss: Optional[Sequence[float]] = None,
                          regularization_cost: float = 0.0, ratio_tolerance: float = 0.8) -> PriceSequenceCheck:
     """Can raising the price reach a tolerance? 'Price sequences reaching a tolerance': a sequence of prices m_k reaches it when some
-    comparison policy has geometric risk strictly below the target and the charged terms, its interior loss, the
+    comparison policy has geometric risk strictly below the tolerance and the charged terms, its interior loss, the
     regularization cost and the optimization error delta_k, grow slower than the price. This reads that condition on
     measured runs: shortfalls[k] is the optimization error at prices[k] (for example the gap to an exact optimum),
     interior_loss[k] the comparison policy's interior loss at that price. The charged total divided by the price

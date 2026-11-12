@@ -1,5 +1,5 @@
 # %% [markdown]
-# # 3. A legged robot on a battery: what the policy must observe, the price, and a reserve margin
+# # 3. A legged robot on a battery: what the policy must observe, the price, and a reserve
 #
 # A robot runs forward (MuJoCo's HalfCheetah) on a mission of 1000 steps. It now carries a battery: each step draws an
 # idle load plus the resistive losses of its motors, which grow with the square of the torques, scaled by an
@@ -14,7 +14,7 @@
 # 2. decide what the policy must observe: the charge left and the time left;
 # 3. check the wrapped task, and train PPO;
 # 4. compare prices in the full campaign;
-# 5. test a reserve margin against a battery that holds less than the robot believes;
+# 5. test a reserve against a battery that holds less than the robot believes;
 # 6. validate and report.
 #
 # Notes marked **Theory** say what the results behind the method imply at each step. The training here is short; the
@@ -194,7 +194,7 @@ print(camp.convergence_table(prices + ["barrier"]))
 # policy is, up to the learner's shortfall, the best among those stranded no more often than it is. The tolerance
 # decides which price is enough; training at a few prices and validating each finds it.
 #
-# ## 5. A reserve margin against a weaker battery
+# ## 5. A reserve against a weaker battery
 #
 # Every configuration was also evaluated with a battery that holds 10% less than the robot believes: the wrapper's
 # `true_budget_scale=0.9` judges failure against the smaller battery while the robot sees the nominal charge. The
@@ -214,7 +214,7 @@ for cfg in ["unpriced", "price-1", "price-3", "price-10", "barrier"]:
 
 # %% [markdown]
 # With a battery that holds 10% less, every policy is stranded more often. A policy that meets the tolerance with room
-# to spare (the price of 10) keeps a margin under the weaker battery as well. The interior barrier at a lower price (3)
+# to spare (the price of 10) keeps a reserve under the weaker battery as well. The interior barrier at a lower price (3)
 # lowered stranding in two of three seeds, under both batteries, but its results varied widely across seeds; on this
 # problem a higher price was the more reliable way to a reserve.
 #

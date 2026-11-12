@@ -42,7 +42,7 @@ class FuelLander(gym.Env):
     def step(self, action):
         o, r, terminated, truncated, info = self.inner.step(action)
         g = fuel_use(action)
-        utility = float(r)                          # native reward, fuel charge included
+        utility = float(r)                          # the task's reward, fuel charge included
         self.reserve -= g
         self.used += g
         failed = self.reserve < 0.0

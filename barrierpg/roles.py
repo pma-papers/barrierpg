@@ -1,5 +1,5 @@
-"""What each parameter regularizer does to one unit: the particle form of the flow (the paper's 'The prior and the
-particle form of the flow').
+"""What each parameter regularizer does to one unit: the particle system of the flow (the paper's 'The prior and the
+particle system of the flow').
 
 Take the admissible regularizer
 
@@ -17,31 +17,31 @@ Each term has its own role:
   noise     the entropy part of the relative entropy is Langevin noise of variance 2 kappa1 per unit time on
             every parameter; no standard learner injects it, and it is what lets units leave a region where
             the value gradient vanishes;
-  pull      the prior's potential W pulls deterministically toward the prior (for N(x0, sigma^2 I), weight
-            decay toward x0 of weight kappa1/sigma^2), and a potential P is a second pull toward a reference of
+  drift     the prior's potential W pulls deterministically toward the prior (for N(x0, sigma^2 I), weight
+            decay toward x0 of weight kappa1/sigma^2), and a potential P is a second drift toward a reference of
             one's choice (an anchor), with no noise attached;
   spread    a faster-growing integrand G pushes units out of regions crowded relative to the prior; it needs a
             density, so a finite network carries it only through a density estimate.
 
-Relative entropy alone (omega = 0, kappa2 = 0) ties noise and pull to one strength. The general class unties
-them: kappa1 sets the noise, kappa2 the pull, the integrand the spread, and all add to the curvature budget,
+Relative entropy alone (omega = 0, kappa2 = 0) ties noise and drift to one strength. The general class unties
+them: kappa1 sets the noise, kappa2 the drift, the integrand the spread, and all add to the curvature budget,
 kappa1 lambda_W + kappa2 lambda_P. On the solvable flow a potential alone collapses the units to the prior's
 center and never leaves the plateau; relative entropy escapes; the sum escapes once its stationary spread is
 comparable to the plateau's width (the paper's study of the roles of the regularizers).
 
-Finite networks. The anchor (callbacks.ParameterAnchor) is a quadratic pull of strength K; injected Gaussian noise
+Finite networks. The anchor (callbacks.ParameterAnchor) is a linear drift of strength K; injected Gaussian noise
 of variance 2 kappa1 times the learning rate after each optimizer step (callbacks.ParameterNoise) is the noise term.
-The injected noise carries no pull of its own, unlike relative entropy, whose prior pulls at kappa1/sigma^2. Under
-plain gradient descent with step h, pull plus noise is the Euler-Maruyama step of the gradient-driven particle
+The injected noise carries no drift of its own, unlike relative entropy, whose prior pulls at kappa1/sigma^2. Under
+plain gradient descent with step h, drift plus noise is the Euler-Maruyama step of the gradient-driven particle
 equation, and without an objective gradient the stationary variance per parameter is kappa1/(K (1 - h K/2)) for
 0 < h K < 2, about kappa1/K for a small step (noise_and_anchor_spread). It equals the flow's
-kappa1/(kappa1/sigma^2 + kappa2 lambda_P) only when the anchor also carries the prior's pull,
-K = kappa1/sigma^2 + kappa2 lambda_P. The anchor's default form is decoupled: the pull is applied to the parameters
-after the optimizer's step, so the pull substep contracts every coordinate by 1 - lr K whatever the optimizer. Under
+kappa1/(kappa1/sigma^2 + kappa2 lambda_P) only when the anchor also carries the prior's drift,
+K = kappa1/sigma^2 + kappa2 lambda_P. The anchor's default form is decoupled: the drift is applied to the parameters
+after the optimizer's step, so the drift substep contracts every coordinate by 1 - lr K whatever the optimizer. Under
 an adaptive optimizer such as Adam the objective's step stays adaptive, so the full update is not that
-Euler-Maruyama step and its spread does not follow from the flow's theory: the formula is a zero-objective reference,
+Euler-Maruyama step and its spread does not follow from the flow's theory: the formula is the stationary spread without the value drift,
 and the strength is calibrated by the measured contraction, parameter distance and spread. A changing learning rate
-has no single fixed-step stationary law. The paper's runs used the coupled form, the pull added to the gradient
+has no single fixed-step stationary law. The paper's runs used the coupled form, the drift added to the gradient
 before an Adam step, which rescales it coordinate by coordinate; there the measured spread grew in proportion to
 kappa1 (about sqrt(2) kappa1 in its study, adam_stationary_spread, an explanation proposed after the runs).
 """
@@ -77,7 +77,7 @@ class RegularizerMix:
 
     @property
     def pull_strength(self) -> float:
-        """Total linear pull per parameter, kappa1/sigma^2 + kappa2 lambda_P (toward a common center when same_center)."""
+        """Total linear drift per parameter, kappa1/sigma^2 + kappa2 lambda_P (toward a common center when same_center)."""
         return self.kappa1 / self.sigma ** 2 + self.kappa2 * self.lambda_P
 
     @property
@@ -86,7 +86,7 @@ class RegularizerMix:
         return self.kappa1 / self.sigma ** 2 + self.kappa2 * self.lambda_P
 
     def stationary_spread(self) -> float:
-        """Per-parameter standard deviation of the units around the common center under a gradient pull, ignoring
+        """Per-parameter standard deviation of the units around the common center under plain gradient steps, ignoring
         the value gradient: sqrt(kappa1 / (kappa1/sigma^2 + kappa2 lambda_P)); sqrt(kappa1/(kappa1+kappa2)) for the
         paper's N(0,1) prior with weight decay. Zero without noise (the units collapse)."""
         if self.kappa1 == 0.0:
@@ -108,9 +108,9 @@ class RegularizerMix:
         out = []
         if self.kappa1 > 0:
             out.append(f"noise: add N(0, 2 x {self.kappa1:g} x lr) to every actor parameter after each optimizer step (ParameterNoise)")
-            out.append(f"prior pull: weight decay toward the prior center with weight {self.kappa1 / self.sigma ** 2:g} (ParameterAnchor)")
+            out.append(f"prior's drift: weight decay toward the prior center with weight {self.kappa1 / self.sigma ** 2:g} (ParameterAnchor)")
         if self.kappa2 > 0:
-            out.append(f"potential pull: theta <- theta - lr x {self.kappa2 * self.lambda_P:g} (theta - theta_ref) after each step (ParameterAnchor, decoupled)")
+            out.append(f"potential's drift: theta <- theta - lr x {self.kappa2 * self.lambda_P:g} (theta - theta_ref) after each step (ParameterAnchor, decoupled)")
         if self.omega > 0:
             out.append("integrand: no finite-network form without a density estimate of the units")
         return out
@@ -120,16 +120,16 @@ class RegularizerMix:
                  f"kappa2 = {self.kappa2:g} (potential, curvature {self.lambda_P:g})",
                  f"  noise: variance {self.noise_variance_rate:g} per unit time per parameter"
                  + (" (none: units cannot leave a region where the value gradient vanishes)" if self.kappa1 == 0 else ""),
-                 f"  pull: {self.pull_strength:g} per parameter toward " + ("the common center" if self.same_center else "two centers (prior and reference)"),
+                 f"  drift: {self.pull_strength:g} per parameter toward " + ("the common center" if self.same_center else "two centers (prior and reference)"),
                  f"  curvature supplied: {self.curvature:g}",
-                 f"  stationary spread under a gradient pull: {self.stationary_spread():.4g} per parameter"]
+                 f"  stationary spread under plain gradient steps: {self.stationary_spread():.4g} per parameter"]
         if self.collapses:
             lines.append(f"  a potential alone collapses the population to one point mass above the threshold [{cite('collapse')}]")
         if self.kappa1 > 0:
-            lines.append(f"  with the coupled pull under Adam (the paper's runs) the measured spread was about sqrt(2) kappa1 = "
+            lines.append(f"  with the coupled anchor under Adam (the paper's runs) the measured spread was about sqrt(2) kappa1 = "
                          f"{adam_stationary_spread(self.kappa1):.3g} instead (post-hoc explanation, not a result) [{cite('roles')}]")
         if self.kappa1 > 0 and self.kappa2 == 0 and self.omega == 0:
-            lines.append("  relative entropy alone: noise and pull tied to one strength")
+            lines.append("  relative entropy alone: noise and drift tied to one strength")
         lines.append(f"  [{cite('particle')}]")
         return "\n".join(lines)
 
@@ -137,17 +137,17 @@ class RegularizerMix:
 def stationary_spread(kappa1: float, kappa2: float, sigma: float = 1.0, lambda_P: float = 1.0) -> float:
     """sqrt(kappa1 / (kappa1/sigma^2 + kappa2 lambda_P)): the flow's stationary spread with relative entropy and a
     potential, without the value gradient (RegularizerMix.stationary_spread). For ParameterNoise with a ParameterAnchor
-    use noise_and_anchor_spread: the injected noise carries no pull of its own."""
+    use noise_and_anchor_spread: the injected noise carries no drift of its own."""
     return RegularizerMix(kappa1, kappa2, sigma, lambda_P).stationary_spread()
 
 
 def noise_and_anchor_spread(kappa1: float, kappa_pull: float, step: Optional[float] = None) -> float:
-    """The zero-objective reference spread per parameter of ParameterNoise (variance 2 kappa1 x step per step) with a
-    quadratic pull of total strength K = kappa_pull applied as theta <- theta - step K (theta - theta_0), as a decoupled
+    """The stationary spread per parameter, without the value drift, of ParameterNoise (variance 2 kappa1 x step per step) with a
+    linear drift of total strength K = kappa_pull applied as theta <- theta - step K (theta - theta_0), as a decoupled
     ParameterAnchor does: sqrt(kappa1 / (K (1 - step K/2))) for 0 < step K < 2, and sqrt(kappa1/K) as step -> 0 (step
     None). Exact for plain gradient descent at a constant step without an objective gradient (the paper's toolbox
     appendix). With an objective gradient, under an adaptive optimizer, or with a changing learning rate it is a
-    reference to compare the measured spread with, not a prediction; with the coupled pull under Adam see
+    reference to compare the measured spread with, not a prediction; with the coupled anchor under Adam see
     adam_stationary_spread."""
     K = float(kappa_pull)
     if K <= 0.0:
@@ -161,8 +161,8 @@ def noise_and_anchor_spread(kappa1: float, kappa_pull: float, step: Optional[flo
 
 
 def adam_stationary_spread(kappa1: float) -> float:
-    """sqrt(2) kappa1: the stationary spread of a random walk of diffusion 2 kappa1 lr against a pull of fixed step
-    size lr, a Laplace law independent of kappa2 and lr. It describes the COUPLED form of the anchor (the pull added to
+    """sqrt(2) kappa1: the stationary spread of a random walk of diffusion 2 kappa1 lr against a drift of fixed step
+    size lr, a Laplace law independent of kappa2 and lr. It describes the COUPLED form of the anchor (the drift added to
     the gradient before an Adam step, ParameterAnchor(decoupled=False), the form of the paper's PPO runs), where Adam's
     per-coordinate normalization makes the restoring step about lr whatever the distance. The explanation the paper
     gave after its runs; post hoc, one example. For the decoupled form (the default) see noise_and_anchor_spread."""
@@ -170,8 +170,8 @@ def adam_stationary_spread(kappa1: float) -> float:
 
 
 def kappa1_for_spread(spread: float, kappa2: float, sigma: float = 1.0, lambda_P: float = 1.0) -> float:
-    """The noise strength giving a target stationary spread s under a gradient pull: kappa1 = s^2 kappa2 lambda_P /
-    (1 - s^2/sigma^2); needs s < sigma (with the prior's own pull alone the spread cannot exceed sigma)."""
+    """The noise strength giving a chosen stationary spread s under plain gradient steps: kappa1 = s^2 kappa2 lambda_P /
+    (1 - s^2/sigma^2); needs s < sigma (with the prior's own drift alone the spread cannot exceed sigma)."""
     s2 = spread ** 2
     if s2 >= sigma ** 2:
         return math.inf

@@ -8,11 +8,11 @@ action reference rho and keeps the trajectory risk within kl(q || q_rho) <= A of
 credits it with no curvature and charges it the deficit eta C_A.
 
 The parameter regularizer (strength kappa) acts on the law of the network's units. It supplies the
-curvature that makes the population flow converge ('Fixed-stage population convergence'), and its bias is toward the prior policy,
-whose risk and utility the learner inherits ('The prior and the particle form of the flow'). In the particle form of the flow its parts play
+curvature that makes the population flow converge ('Convergence of the population flow'), and its bias is toward the prior policy,
+whose risk and utility the learner inherits ('The prior and the particle system of the flow'). In the particle system of the flow its parts play
 different roles: a divergence injects noise into every unit's parameters, the prior's potential and any
 added potential pull them toward a reference, and an integrand of faster growth limits how far the law
-spreads (barrierpg.roles). Relative entropy alone ties noise and pull to one strength; admissible regularizers
+spreads (barrierpg.roles). Relative entropy alone ties noise and drift to one strength; admissible regularizers
 add, so the roles can be weighted separately with one convergence argument for all of them.
 
 Joint use: the action term pulls toward rho, the parameter term toward pi_Gamma; they coincide under the
@@ -53,7 +53,7 @@ class RegularizerAdvice:
     curvature: Optional[CurvatureBudget] = None
 
     def explain(self) -> str:
-        lines = ["Regularizers (recommended by condition; a regularizer creates no safety its target lacks):"]
+        lines = ["Regularizers (recommended by condition; a regularizer creates no safety its reference lacks):"]
         lines += ["  - " + r.line() for r in self.recommendations]
         if self.curvature is not None:
             lines.append("  curvature budget:\n    " + self.curvature.explain().replace("\n", "\n    "))
@@ -93,7 +93,7 @@ def advise_regularizers(spec: BudgetSpec, stage: Stage, *, action_reference_trus
     if action_reference_trusted and (price_trusted is False or model_trusted is False):
         R.append(Recommendation("action anchor", f"charge eta [log pi - log rho] toward the trusted action reference (eta > 0; current eta = {stage.eta:g})",
                                 "the reference is trusted and the price or the model is not: the anchor keeps the trajectory risk within "
-                                "kl(q || q_rho) <= A of the reference's, which protects against a mispriced failure risk; it is not a substitute for the price",
+                                "kl(q || q_rho) <= A of the reference's, which protects when the price of failure risk is set too low; it is not a substitute for the price",
                                 f"{cite('action_risk')}; {cite('wear_study')}; {cite('guidance')}"))
         C.append("the action anchor bounds departure from the reference's risk, not improvement over it; its bound is informative only for small A, "
                  "that is, when the learned policy stays close to the reference and gains little")
@@ -104,7 +104,7 @@ def advise_regularizers(spec: BudgetSpec, stage: Stage, *, action_reference_trus
     elif action_reference_trusted is False and stage.eta > 0:
         C.append(f"a high-risk action reference argues against a large eta: the anchor pulls the learner toward the reference's risk [{cite('action_risk')}]")
     if stage.eta > 0:
-        C.append("the action relative entropy is a reshaped reward: it convexifies the action-law problem, not the network's, so the convergence "
+        C.append("the action relative entropy acts as a reward term: it convexifies the action-law problem, not the network's, so the convergence "
                  f"budget credits it with no curvature and charges it eta C_A; an entropy bonus is the case of a uniform action reference [{cite('flow')}]")
     # --- the prior: what the parameter regularizer is toward ------------------------------
     if incumbent_available:
@@ -126,7 +126,7 @@ def advise_regularizers(spec: BudgetSpec, stage: Stage, *, action_reference_trus
                                 "nothing is trusted: the neutral prior toward which the parameter regularizer and the action relative entropy pull alike, "
                                 "differing only in geometry",
                                 f"{cite('centering')}; {cite('particle')}"))
-    R.append(Recommendation("prior policy", "evaluate the policy the prior induces as a candidate before training (its q_beta, U, near-exhaustion)",
+    R.append(Recommendation("prior policy", "evaluate the policy the prior induces as a candidate before training (its q_beta, U, frequency of a small reserve)",
                             "the regularized solution inherits the prior policy's risk and utility; specify the prior as the policy accepted when learning gains nothing",
                             f"{cite('particle')}; {cite('prior_improvement')}"))
     # --- strength ------------------------------------------------------------------------
@@ -143,18 +143,18 @@ def advise_regularizers(spec: BudgetSpec, stage: Stage, *, action_reference_trus
         lam = gaussian_prior_curvature(prior_sigma)
         R.append(Recommendation("Gaussian prior width", f"sigma = {prior_sigma:g}: weight-decay weight kappa/sigma^2 = {stage.kappa * lam:.4g} at kappa = {stage.kappa:g}",
                                 "kappa KL(. || N(x0, sigma^2 I)) is negative entropy of weight kappa (the noise) plus weight decay toward x0 of weight kappa/sigma^2 "
-                                "(the pull); the rate depends on (kappa, sigma) only through kappa/sigma^2, the minimizer on both; the width also changes the "
+                                "(the drift); the rate depends on (kappa, sigma) only through kappa/sigma^2, the minimizer on both; the width also changes the "
                                 "induced prior policy unless the features are centered at the prior, so do not concentrate the units where the features are flat",
                                 f"{cite('gaussian_prior')}; {cite('flow_test')}"))
-    # --- roles: noise, pull, spread --------------------------------------------------------
+    # --- roles: noise, drift, spread --------------------------------------------------------
     if stalls_where_gradient_vanishes:
         R.append(Recommendation("noise", "inject parameter noise of variance 2 kappa1 x lr after each optimizer step (ParameterNoise), with an anchor kappa2 "
                                 "holding the units; vary kappa1 and measure the per-parameter spread",
                                 "a regularizer without noise cannot move units off a region where the value gradient vanishes: a potential alone collapses the "
-                                "units to the prior's center and never leaves the plateau; noise lets them reach where the feature acts. With the coupled pull "
+                                "units to the prior's center and never leaves the plateau; noise lets them reach where the feature acts. With the coupled anchor "
                                 "under Adam (the paper's runs) the measured spread grew in proportion to kappa1, and seeds split once it approached the "
-                                "policy's dispersion; with the decoupled pull (the default) compare the measured spread with sqrt(kappa1/kappa2) "
-                                "(roles.noise_and_anchor_spread; the injected noise adds no pull of its own)",
+                                "policy's dispersion; with the decoupled anchor (the default) compare the measured spread with sqrt(kappa1/kappa2) "
+                                "(roles.noise_and_anchor_spread; the injected noise adds no drift of its own)",
                                 f"{cite('particle')}; {cite('roles')}; {cite('collapse')}"))
     if starting_from_finite_network:
         R.append(Recommendation("regularizer family", "a convex potential on the parameters: plain weight decay |x|^2/2 or an anchor |x - x_ref|^2/2 (curvature one)",
@@ -243,7 +243,7 @@ def regularizer_effects(spec: BudgetSpec, stage: Stage, candidate: Dict, *, acti
                        + f" [{cite('action_risk')}]")
         if not b.informative:
             E.flags.append("the action-anchor bound is uninformative at this A: the learned policy has moved far from the reference; the anchor is not protecting the reference's risk")
-    # parameter anchor (the pull)
+    # parameter anchor (the drift)
     if parameter_distance is not None:
         esc = False
         if dispersion_final is not None and dispersion_prior is not None and dispersion_prior > 0:
@@ -256,7 +256,7 @@ def regularizer_effects(spec: BudgetSpec, stage: Stage, candidate: Dict, *, acti
             line += f"; action dispersion {dispersion_prior:.3g} -> {dispersion_final:.3g}" + ("" if dispersion_anchored else " (not anchored)")
         E.lines.append(line + f" [{cite('gaussian_prior')}; {cite('anchor_study')}]")
         if esc:
-            E.flags.append("dispersion escape: the mean network stayed near theta_0 while the unanchored dispersion changed by more than 50%; a distance negligible "
+            E.flags.append("dispersion escape: the mean network stayed near theta_0 while the dispersion, which was not anchored, changed by more than 50%; a distance negligible "
                            "in parameter space is then the whole distance between the prior policy and the optimum in behavior; anchor every parameter that shapes the policy")
     # injected noise (the noise role)
     if noise_kappa1 is not None and spread is not None:
@@ -264,16 +264,16 @@ def regularizer_effects(spec: BudgetSpec, stage: Stage, candidate: Dict, *, acti
         nominal = noise_and_anchor_spread(noise_kappa1, k2) if k2 > 0 else float("nan")
         adam = adam_stationary_spread(noise_kappa1)
         E.noise = dict(kappa1=noise_kappa1, kappa2=k2, spread=spread, nominal_gradient_spread=nominal, adam_spread=adam)
-        line = (f"parameter noise (kappa1 = {noise_kappa1:g}" + (f", pull kappa2 = {k2:g}" if k2 > 0 else ", no pull") + f"): per-parameter spread {spread:.3g}")
+        line = (f"parameter noise (kappa1 = {noise_kappa1:g}" + (f", drift kappa2 = {k2:g}" if k2 > 0 else ", no drift") + f"): per-parameter spread {spread:.3g}")
         if k2 > 0:
-            line += f"; a gradient pull without an objective would hold it at sqrt(kappa1/kappa2) = {nominal:.3g}"
-        line += f"; with the coupled pull under Adam the paper measured about sqrt(2) kappa1 = {adam:.3g} [{cite('roles')}]"
+            line += f"; plain gradient steps without an objective would hold it at sqrt(kappa1/kappa2) = {nominal:.3g}"
+        line += f"; with the coupled anchor under Adam the paper measured about sqrt(2) kappa1 = {adam:.3g} [{cite('roles')}]"
         E.lines.append(line)
         if dispersion_final is not None and spread >= 0.5 * dispersion_final:
             E.flags.append("the parameter spread is comparable to the action dispersion: in the paper's study risk and utility moved away from the anchored values "
-                           "there, with seeds splitting between drift toward the unanchored control and degenerate policies; check every seed")
+                           "there, with seeds splitting between drift toward the policy trained without the anchor and degenerate policies; check every seed")
         if k2 == 0:
-            E.flags.append("noise without a pull abandons the prior: in the paper's study it acted as exploration, raised the clipped objective and moved the "
+            E.flags.append("noise without a drift abandons the prior: in the paper's study it acted as exploration, raised the clipped objective and moved the "
                            "policy far from the incumbent")
     # inheritance
     if prior_policy is not None:
@@ -314,7 +314,7 @@ def regularizer_effects(spec: BudgetSpec, stage: Stage, candidate: Dict, *, acti
     # joint
     if stage.eta > 0 and stage.kappa > 0:
         E.joint = ("both anchors act: the action term pulls the action law toward rho, the parameter term pulls the unit law toward pi_Gamma"
-                   + ("; under the centering construction these coincide, so the two pulls have one target and differ only in geometry" if centered else
+                   + ("; under the centering construction these coincide, so the two terms have one target and differ only in geometry" if centered else
                       "; without centering the two targets differ and the learner ends between them")
                    + "; the biases add in every certificate and the action term adds eta C_A to the curvature the parameter term must supply")
         E.lines.append("joint effect: " + E.joint + f" [{cite('centering')}; {cite('flow')}]")

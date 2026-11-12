@@ -7,12 +7,12 @@
 #   policy near an **action reference** $\rho$ and keeps the trajectory risk within $\mathrm{kl}(q\,\|\,q_\rho)\le\mathcal A$
 #   of the reference's risk (*Action regularization and failure risk*). It adds no curvature to the learning problem.
 # * The **parameter regularizer** $\mathcal H$ (strength $\kappa$) acts on the *law of the network's units*. It supplies
-#   the curvature that makes the population learning problem converge (*Fixed-stage population convergence*), and its
+#   the curvature that makes the population learning problem converge (*Convergence of the population flow*), and its
 #   bias is toward a **prior policy**, whose risk and utility the learner inherits (*Improvement over the prior policy*).
 #
-# In the particle form of the flow (*The prior and the particle form of the flow*) the parameter regularizer splits into **roles**: a divergence
+# In the particle system of the flow (*The prior and the particle system of the flow*) the parameter regularizer splits into **roles**: a divergence
 # injects **noise** into every unit's parameters, a potential **pulls** them toward a reference, and a
-# faster-growing integrand limits their **spread**. Relative entropy alone ties noise and pull to one strength;
+# faster-growing integrand limits their **spread**. Relative entropy alone ties noise and drift to one strength;
 # the general class unties them.
 #
 # Part A shows the roles on the paper's solvable flow (numpy only, seconds). Parts B to E show the finite-network
@@ -61,11 +61,11 @@ print(advice.explain())
 # $[-1,1]$: units there do not affect the policy, so the value gradient vanishes. Starting from the **plateau
 # initial law** (all units in $[-1/2,1/2]$), unregularized transport cannot move. Only the regularizers can.
 #
-# The particle form with relative entropy to $N(0,1)$ at strength $\kappa_1$ and the potential $x^2/2$ at strength
+# The particle system with relative entropy to $N(0,1)$ at strength $\kappa_1$ and the potential $x^2/2$ at strength
 # $\kappa_2$ moves each unit by
 # $$dx_i=\big[V_m'(c_n)\chi'(x_i)-(\kappa_1+\kappa_2)x_i\big]\,d\ell+\sqrt{2\kappa_1}\,dB_i .$$
 # Without noise ($\kappa_1=0$) the units collapse to the prior's center (*Finite-network training under a potential*). With noise they reach the
-# region where the feature acts. Under the combined pull the stationary spread is $\sqrt{\kappa_1/(\kappa_1+\kappa_2)}$.
+# region where the feature acts. Under the combined drift the stationary spread is $\sqrt{\kappa_1/(\kappa_1+\kappa_2)}$.
 
 # %%
 flow = PlateauModel()                      # eps = 0.2, m = 1, beta = 0.9, gamma = 1/2: the paper's parameters
@@ -85,11 +85,11 @@ for name, (k1, k2) in configs.items():
     r = runs[name]
     pred = stationary_spread(k1, k2) if k2 > 0 else float("nan")
     print(f"{name:34s} final V_m = {r.V_m[-1]:+.4f}  spread = {r.spread[-1]:.3f}  from the formula = {pred:.3f}")
-print(f"plateau value: {plateau_value:.4f}")
+print(f"clipped value on the plateau: {plateau_value:.4f}")
 
 # %% [markdown]
-# The potential alone collapses the units and never leaves the plateau value; relative entropy escapes; the sum
-# escapes only once its stationary spread is comparable to the plateau's width. Varying the noise at a fixed pull
+# The potential alone collapses the units and never leaves the value on the plateau; relative entropy escapes; the sum
+# escapes only once its stationary spread is comparable to the plateau's width. Varying the noise at a fixed drift
 # shows the threshold.
 
 # %%
@@ -97,7 +97,7 @@ k1s = [0.01, 0.03, 0.1, 0.3, 1.0, 3.0]
 flows = [simulate_particles(flow, k1, 1.0, n=1000, seed=2) for k1 in k1s]
 fig, ax = plt.subplots(figsize=(5.5, 3.2))
 ax.semilogx(k1s, [r.V_m[-1] for r in flows], "o-", label="final $V_m$")
-ax.set_xlabel("noise strength $\\kappa_1$ (pull $\\kappa_2=1$)"); ax.set_ylabel("final clipped value")
+ax.set_xlabel("noise strength $\\kappa_1$ (potential strength $\\kappa_2=1$)"); ax.set_ylabel("final clipped value")
 ax2 = ax.twinx(); ax2.semilogx(k1s, [r.spread[-1] for r in flows], "s:", color="0.5"); ax2.set_ylabel("final spread", color="0.5")
 plt.tight_layout(); plt.show()
 print(RegularizerMix(kappa1=0.1, kappa2=1.0).explain())
@@ -180,7 +180,7 @@ print(f"incumbent rule: q_beta = {q_ref:.4f}, U = {rule_eval.U:.3f}")
 # ## Part C. The action anchor
 #
 # `ActionAnchor` charges $\eta[\log\pi(a\mid y)-\log\rho(a\mid y)]$ at every decision up to and including the
-# failing one, the sample form of $\mathcal A$. At this low price the unanchored learner heads for the risky optimum;
+# failing one, the sample form of $\mathcal A$. At this low price the learner without the anchor heads for the risky optimum;
 # the anchor holds it near the incumbent.
 
 # %%
@@ -206,13 +206,13 @@ plt.tight_layout(); plt.show()
 
 # %% [markdown]
 # The bound holds in every run and is informative only when $\mathcal A$ is small, that is, when the learner stays
-# close to the incumbent and gains little. The anchor protects against a mispriced failure risk when the reference
+# close to the incumbent and gains little. The anchor protects against a price of failure risk set too low when the reference
 # is trusted; at a correct price it costs utility, and it is not a substitute for the price.
 #
 # ## Part D. The parameter anchor: the prior is a policy
 #
-# A finite network carries the pull part of a Gaussian prior: weight decay toward parameters $\theta_0$
-# (`ParameterAnchor`; the paper's *The prior and the particle form of the flow*). We fit the actor's mean to the incumbent rule (`fit_actor_mean`) and set its
+# A finite network carries the drift part of a Gaussian prior: weight decay toward parameters $\theta_0$
+# (`ParameterAnchor`; the paper's *The prior and the particle system of the flow*). We fit the actor's mean to the incumbent rule (`fit_actor_mean`) and set its
 # dispersion to the incumbent's (`set_log_std`): the actor at $\theta_0$ is then the **prior policy**. The learner
 # inherits the prior policy's risk and utility, so we evaluate it as a candidate before training.
 #
@@ -236,8 +236,8 @@ prior_eval, prior_A = assess(ppo0, seed=30)
 print(f"fit error {mse:.2e}; prior policy: q_beta = {prior_eval.q_beta:.4f}, U = {prior_eval.U:.3f}, A = {prior_A:.3f}")
 
 param_runs = {}
-for label, kappa_p, logstd in (("control, kappa_p = 0", 0.0, True), ("anchor, kappa_p = 10", 10.0, True),
-                               ("anchor, kappa_p = 100", 100.0, True), ("mean-only anchor, kappa_p = 100", 100.0, False)):
+for label, kappa_p, logstd in (("no anchor, kappa_p = 0", 0.0, True), ("anchor, kappa_p = 10", 10.0, True),
+                               ("anchor, kappa_p = 100", 100.0, True), ("anchor on the mean network only, kappa_p = 100", 100.0, False)):
     ppo, _ = prior_ppo()
     anchor = ParameterAnchor(ppo, kappa_p, include_log_std=logstd, decoupled=False).install()   # the paper's coupled form
     ppo.learn(STEPS)
@@ -249,33 +249,33 @@ for label, kappa_p, logstd in (("control, kappa_p = 0", 0.0, True), ("anchor, ka
 # %%
 cand = lambda e: dict(q_beta=e.q_beta, U=e.U, q_se=e.q_se, U_se=e.U_se, V_m=e.V_m, V_se=e.V_m_se)
 prior_c = cand(prior_eval)
-for label in ("anchor, kappa_p = 100", "mean-only anchor, kappa_p = 100"):
+for label in ("anchor, kappa_p = 100", "anchor on the mean network only, kappa_p = 100"):
     e, A, anchor = param_runs[label]
     eff = regularizer_effects(spec, low_price.with_(kappa=anchor.kappa_p), cand(e), prior_policy=prior_c, **anchor.effects_inputs())
     print(label); print(eff.explain(), "\n")
 path = [dict(kappa=k, q_beta=param_runs[l][0].q_beta, U=param_runs[l][0].U) for l, k in
-        (("control, kappa_p = 0", 0.0), ("anchor, kappa_p = 10", 10.0), ("anchor, kappa_p = 100", 100.0))]
+        (("no anchor, kappa_p = 0", 0.0), ("anchor, kappa_p = 10", 10.0), ("anchor, kappa_p = 100", 100.0))]
 print(regularizer_effects(spec, low_price.with_(kappa=10.0), cand(param_runs["anchor, kappa_p = 10"][0]), path=path).explain())
 
 # %% [markdown]
-# The anchor moves the learner back from the control toward the prior policy as $\kappa_p$ grows, in risk and utility
+# The anchor moves the learner back from the run without the anchor toward the prior policy as $\kappa_p$ grows, in risk and utility
 # together; at the strongest anchor the candidate sits at the prior policy. In this one-million-step run the free
-# dispersion of the mean-only anchor moved only a little. In the paper's study (eight million steps, starting from the
+# dispersion of the anchor on the mean network only moved only a little. In the paper's study (eight million steps, starting from the
 # learner's wider default dispersion) it grew from 0.37 to 7.5 while the mean network stayed at $\theta_0$, and the
 # policy became bang-bang with a third of the episodes breaking down. The flag in `regularizer_effects` fires when an
-# unanchored dispersion moves by more than half; whether it does depends on the run, which is why the prior should
+# dispersion left free moves by more than half; whether it does depends on the run, which is why the prior should
 # cover the dispersion in the first place.
 #
-# ## Part E. The roles on PPO: pull and noise
+# ## Part E. The roles on PPO: drift and noise
 #
 # The finite-network counterpart of the entropy term is Gaussian noise of variance $2\kappa_1$ times the learning
-# rate after each optimizer step (`ParameterNoise`). The injected noise carries no pull of its own: only the anchor
+# rate after each optimizer step (`ParameterNoise`). The injected noise carries no drift of its own: only the anchor
 # pulls. Under plain gradient descent without an objective, the anchor $\kappa_2$ and the noise give the
 # per-parameter spread $\sqrt{\kappa_1/\kappa_2}$ (`roles.noise_and_anchor_spread`), not the flow's
 # $\sqrt{\kappa_1/(\kappa_1+\kappa_2)}$, in which relative entropy pulls too. The paper's runs used the coupled form
-# of the anchor (`ParameterAnchor(decoupled=False)`, the pull added to the gradient before Adam's step), and measured a
+# of the anchor (`ParameterAnchor(decoupled=False)`, the drift added to the gradient before Adam's step), and measured a
 # spread growing in proportion to $\kappa_1$ (about $\sqrt2\,\kappa_1$); the paper proposes Adam's normalization of
-# the pull as an explanation, after the runs. The toolbox's default is the decoupled pull, applied to the parameters
+# the drift as an explanation, after the runs. The toolbox's default is the decoupled anchor, applied to the parameters
 # after the step. Under Adam the objective's step stays adaptive, so $\sqrt{\kappa_1/\kappa_2}$ is a reference to
 # compare with, not a prediction. This part reproduces the paper's form. Here: the anchor $\kappa_2=10$ with noise $\kappa_1\in\{0.01,0.1\}$, and noise alone.
 
@@ -294,7 +294,7 @@ e, spread = noise_runs[(0.1, 0.0)]
 print("\n" + regularizer_effects(spec, low_price, cand(e), noise_kappa1=0.1, anchor_kappa2=0.0, spread=spread, prior_policy=prior_c).explain())
 
 # %% [markdown]
-# The pull $\kappa_2$ sets where the units are held and the noise $\kappa_1$ how far they spread. Noise without a pull
+# The drift $\kappa_2$ sets where the units are held and the noise $\kappa_1$ how far they spread. Noise without a drift
 # abandons the prior and acts as exploration. Treat $\kappa_1$ as a knob to vary and measure, not one to set from the formula.
 #
 # ## Joint use
@@ -320,8 +320,8 @@ print(f"joint: q_beta = {e.q_beta:.4f}, U = {e.U:.3f}, A = {A:.3f}\n"); print(jo
 # | Regularizer | Acts on | What it does | Toolbox |
 # |---|---|---|---|
 # | action relative entropy $\eta\mathcal A$ | the action law | holds the policy near $\rho$; risk within $\mathrm{kl}\le\mathcal A$ of $\rho$'s; no curvature | `ActionAnchor` |
-# | prior's potential / anchor (pull) | the unit law | holds the units near $\theta_0$; supplies curvature; the learner inherits the prior policy | `ParameterAnchor` |
-# | entropy of relative entropy (noise) | the unit law | spreads the units; lets them leave flat regions; exploration without a pull | `ParameterNoise` |
+# | prior's potential / anchor (drift) | the unit law | holds the units near $\theta_0$; supplies curvature; the learner inherits the prior policy | `ParameterAnchor` |
+# | entropy of relative entropy (noise) | the unit law | spreads the units; lets them leave flat regions; exploration without a drift | `ParameterNoise` |
 # | faster-growing integrand (spread) | the unit law | limits crowding relative to the prior; needs a density | population flow only |
 #
 # * Specify the prior as a policy, through every parameter that shapes it, and evaluate it before training.

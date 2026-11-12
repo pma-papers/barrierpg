@@ -6,10 +6,10 @@
 # Certificates from the value are useful too, but they are informative only in some regimes. This notebook goes
 # through both, with numpy only:
 #
-# 1. the direct binomial test and its **resolution floor**,
+# 1. the direct binomial test and **what zero failures certify**,
 # 2. why the validation error is **allocated before** selecting among candidates,
 # 3. the geometric clock versus a fixed horizon, and what the geometric risk says about when failures occur,
-# 4. when the **value-based certificate** is informative,
+# 4. when the **value certificate** is informative,
 # 5. a task with a physical horizon and a **lump sanction**, evaluated by your own vectorized simulator,
 # 6. the anatomy of the report: what is established and what is not.
 
@@ -25,11 +25,11 @@ from barrierpg.examples.wear import WearModel, WearCore, wear_cost, make_wear_en
 plt.rcParams.update({"figure.dpi": 110, "axes.spines.top": False, "axes.spines.right": False, "font.size": 10})
 
 # %% [markdown]
-# ## 1. The direct test and its resolution floor
+# ## 1. The direct test and what zero failures certify
 #
 # Draw $N$ fresh, independent episodes of the fixed candidate through action $T$ and count the failures $k$. The
 # one-sided exact binomial upper bound at error $\zeta$ is the $(1-\zeta)$ quantile of $\mathrm{Beta}(k+1,N-k)$.
-# With zero failures it is $1-\zeta^{1/N}$: **the resolution floor**. No sample certifies a tolerance below its floor,
+# With zero failures it is $1-\zeta^{1/N}$. **No sample certifies a tolerance below this bound**,
 # and failure to certify does not prove a violation.
 
 # %%
@@ -39,7 +39,7 @@ for fam, ls in ((1, "-"), (10, "--"), (100, ":")):
     ax.loglog(N, [V.resolution_floor(int(n), 0.05 / fam) for n in N], ls, color="C0", label=f"family of {fam}")
 for a in (0.05, 0.01):
     ax.axhline(a, color="C3", lw=0.6)
-ax.set_xlabel("validation episodes $N$"); ax.set_ylabel("resolution floor at $\\zeta=0.05$"); ax.legend(fontsize=8)
+ax.set_xlabel("validation episodes $N$"); ax.set_ylabel("$1-\\zeta^{1/N}$ at $\\zeta=0.05$"); ax.legend(fontsize=8)
 plt.tight_layout(); plt.show()
 print(" alpha   expected rate   episodes needed (zeta = 0.05)")
 for alpha in (0.1, 0.05, 0.01, 0.001):
@@ -63,7 +63,7 @@ k_min = rng.binomial(n, p_true, size=(trials, K)).min(axis=1)
 upper_naive = stats.beta.ppf(1 - zeta, k_min + 1, n - k_min)
 upper_alloc = stats.beta.ppf(1 - zeta / K, k_min + 1, n - k_min)
 print(f"probability of certifying a candidate that violates the tolerance: {np.mean(upper_naive <= alpha):.3f} with error zeta per test, "
-      f"{np.mean(upper_alloc <= alpha):.3f} with zeta/K per test (the target is at most {zeta})")
+      f"{np.mean(upper_alloc <= alpha):.3f} with zeta/K per test (it should be at most {zeta})")
 
 # %% [markdown]
 # `Requirement(family=K)` and `validate_direct(..., family=K)` do this allocation.
@@ -107,13 +107,13 @@ for eps in (0.05, 0.1, 0.5):
     print(earliest_failures_time(vg.upper, spec.beta, eps).statement())
 
 # %% [markdown]
-# ## 4. When is the value-based certificate informative?
+# ## 4. When is the value certificate informative?
 #
 # The value certificate (the paper's *Value and objective certificates*) bounds the risk by the clipped value:
 # $p_T\le(\bar u-(1-\beta)V_m)/((m+\bar u)\beta^T)$. With validation
 # data, $V_m$ is replaced by a Hoeffding lower bound from returns truncated after $H$ actions. The factor $\beta^{-T}$
 # makes the bound grow with the horizon: it is informative only when $T$ is not large against $1/(1-\beta)$, and $H$
-# must exceed $T$ by enough that the omitted tail $\beta^{H-T}$ lies below the tolerance. Increasing the price helps
+# must exceed $T$ by enough that the truncation error $\beta^{H-T}$ lies below the tolerance. Increasing the price helps
 # the numerator but cannot repair a failed resolution check.
 
 # %%
@@ -191,7 +191,7 @@ for buffer in (0.0, 1.0, 2.0):
 #   makes no optimality claim.
 # * **Certificates and validation.** Each bound carries its source and the assumptions it needs. The direct test at the specified
 #   horizon is the deployment decision.
-# * **What is not established.** Eventual risk, other horizons, other candidates, convergence of the training run,
+# * **What is not established.** Probability of ever failing, other horizons, other candidates, convergence of the training run,
 #   and model error.
 
 # %%
@@ -207,9 +207,9 @@ print(rep.text())
 #
 # Both are proved in `docs/under-the-hood/supplementary-results.md` of the toolbox; neither is stated in the paper.
 #
-# * **Near-exhaustion.** An interior barrier charges small reserves, so the clipped value also bounds the probability of
+# * **A small reserve.** An interior barrier charges small reserves, so the clipped value also bounds the probability of
 #   coming within $\varepsilon$ of exhaustion: `certificates.near_exhaustion_bound` with `LogBarrier.lower_level`.
-# * **Eventual risk.** A small $q_\beta$ or a certificate at one $T$ does not bound $P(\tau<\infty)$ (the paper's example *Delay without eventual feasibility*).
+# * **Probability of ever failing.** A small $q_\beta$ or a certificate at one $T$ does not bound $P(\tau<\infty)$ (the paper's example *Delay without eventual feasibility*).
 #   With bounded costs and cost discounts below one, a reserve above $\bar g_k/(1-\gamma_k)$ can never fail again, and
 #   $P(\tau<\infty)\le p_T+P(E_T)$ with both terms observable from $T+1$ actions: `certificates.eventual_risk_structural`.
 
@@ -227,7 +227,7 @@ print(eventual_risk_structural(p_T=0.004, P_unresolved=0.002).statement())
 # ## Summary
 #
 # * Validate the deployed candidate directly, at its horizon, with the error allocated over every candidate inspected.
-# * Zero failures certify the resolution floor, not zero; size $N$ before training.
+# * Zero failures certify $1-\zeta^{1/N}$, not zero; size $N$ before training.
 # * The value certificate needs no optimization guarantee but degrades like $\beta^{-T}$.
 # * Under geometric stopping, $p_T$ is censored: validate $q_\beta$, or evaluate over a fixed horizon.
 #

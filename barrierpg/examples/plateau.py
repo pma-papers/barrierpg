@@ -7,13 +7,13 @@ The barrier is B(z) = log(1 + 1/z). The feature is psi(a, theta) = a chi(theta),
 on [-1, 1] and smooth outside it, so a law mu of unit parameters acts only through its tilt
 c = int chi dmu, and the policy has density proportional to exp(c a).
 
-From the plateau initial law (units in [-1/2, 1/2]) the value gradient is zero: unregularized transport
+From the initial law on the plateau (units in [-1/2, 1/2]) the value gradient is zero: unregularized transport
 cannot move. This makes the example the place where the roles of the regularizers are visible: only noise
 lets units reach |theta| > 1, where the feature acts.
 
 PlateauModel computes the clipped value V_m, the stopped utility, the interior loss and the geometric risk as
-functions of the tilt by quadrature (no simulation); simulate_particles runs the particle form of the flow.
-The paper's parameters are eps = 0.2, m = 1, beta = 0.9, gamma = 1/2 (plateau value V_m = -2.2533).
+functions of the tilt by quadrature (no simulation); simulate_particles runs the particle system of the flow.
+The paper's parameters are eps = 0.2, m = 1, beta = 0.9, gamma = 1/2 (clipped value on the plateau V_m = -2.2533).
 """
 from __future__ import annotations
 
@@ -91,7 +91,7 @@ class PlateauModel:
         Bt = np.log1p(1.0 / zs)
         R[surv] += np.sum(disc[None, :] * np.maximum(-m, -Bt), axis=1)
         I[surv] += np.sum(disc[None, :] * np.minimum(Bt, m), axis=1)
-        R[self.fail] = -m / (1.0 - beta)                            # absorbing failure tail, exact
+        R[self.fail] = -m / (1.0 - beta)                            # discounted total of the price at an absorbing failure, exact
         self.R, self.I = R, I
         self.U = np.where(surv, self.a, 0.0)
 
@@ -138,15 +138,15 @@ class ParticleRun:
 def simulate_particles(model: PlateauModel, kappa1: float, kappa2: float, *, n: int = 2000, seed: int = 0,
                        horizon: Optional[float] = None, dt: Optional[float] = None, prior_sigma: float = 1.0,
                        n_record: int = 80, initial: Optional[np.ndarray] = None) -> ParticleRun:
-    """Euler-Maruyama for the particle form with relative entropy to N(0, prior_sigma^2) at strength kappa1 and the
+    """Euler-Maruyama for the particle system with relative entropy to N(0, prior_sigma^2) at strength kappa1 and the
     potential x^2/2 at strength kappa2:
         dx_i = [V_m'(c_n) chi'(x_i) - (kappa1/sigma^2 + kappa2) x_i] dl + sqrt(2 kappa1) dB_i,  c_n = mean chi(x_j).
-    Defaults follow the paper: horizon 40/(pull), step 0.02/(pull)."""
-    pull = kappa1 / prior_sigma ** 2 + kappa2
-    if pull <= 0:
+    Defaults follow the paper: horizon 40/(drift), step 0.02/(drift)."""
+    drift = kappa1 / prior_sigma ** 2 + kappa2
+    if drift <= 0:
         raise ValueError("need kappa1 > 0 or kappa2 > 0")
-    horizon = 40.0 / pull if horizon is None else horizon
-    dt = 0.02 / pull if dt is None else dt
+    horizon = 40.0 / drift if horizon is None else horizon
+    dt = 0.02 / drift if dt is None else dt
     rng = np.random.default_rng(seed)
     x = plateau_initial_law(n, rng) if initial is None else np.array(initial, dtype=float)
     rec = np.unique(np.concatenate([[0.0], np.geomspace(horizon * 1e-4, horizon, n_record)]))
@@ -160,7 +160,7 @@ def simulate_particles(model: PlateauModel, kappa1: float, kappa2: float, *, n: 
             break
         h = min(dt, rec[i] - l)
         c = float(np.mean(chi(x)))
-        x = x + (model.dV(c) * chi_prime(x) - pull * x) * h + math.sqrt(2.0 * kappa1 * h) * rng.standard_normal(x.size)
+        x = x + (model.dV(c) * chi_prime(x) - drift * x) * h + math.sqrt(2.0 * kappa1 * h) * rng.standard_normal(x.size)
         l += h
     return ParticleRun(np.array(T), np.array(V), np.array(Q), np.array(S), x)
 

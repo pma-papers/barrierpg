@@ -16,7 +16,7 @@ toward a tolerance), the number of training steps, the regularizers, and where t
 a network fitted to an incumbent rule, or from the trained policy of another configuration).
 
 `record.json` holds the configuration, the PPO settings (the anchored configurations were trained with the coupled
-form of the parameter anchor, the pull added to the gradient before Adam's step, which `Config.anchor_decoupled=False`
+form of the parameter anchor, the drift added to the gradient before Adam's step, which `Config.anchor_decoupled=False`
 pins; records written from 0.6.1 on say so under `regularizers.anchor_form`), the training traces per rollout (failure rate, utility,
 dispersion, and the multiplier when it adapts), and the evaluation of the trained stochastic policy on fresh
 episodes, one entry per episode: whether and when it failed, its utility, and the problem's own measures (landed or

@@ -9,7 +9,7 @@ problems, each with its own notebook:
 |---|---|---|
 | [A lunar lander with a fuel tank](../notebooks/01_lander_fuel_tank.ipynb) | fuel | imposing a budget on a controller already in use; what to anchor to |
 | [A retailer that finances its stock from cash](../notebooks/02_retailer_cash.ipynb) | cash | a failure with a known cost; an incumbent rule as the starting point and as a benchmark |
-| [A legged robot on a battery](../notebooks/03_robot_battery.ipynb) | charge | what the policy must observe (a clock); prices; a reserve margin against an uncertain battery |
+| [A legged robot on a battery](../notebooks/03_robot_battery.ipynb) | charge | what the policy must observe (a clock); prices; a reserve against an uncertain battery |
 | [A navigation robot with a damage allowance](../notebooks/04_navigation_allowance.ipynb) | allowance of damage | which requirement the task means; a price that is too high |
 
 Each notebook builds its problem and trains it in view, with notes on what the theory implies at each step;
@@ -109,7 +109,7 @@ env = BudgetWrapper(gym.make("LunarLanderContinuous-v3"), cost=fuel_cost, spec=s
 * If your task has large negative rewards (a crash penalty, a write-off), set `clip_utility=False`: only the failure
   is priced and the task's own rewards are left as they are.
 * `true_budget_scale=0.9` judges failure against a budget 10% smaller than the one the policy observes. Use it to
-  test how a policy copes with a misjudged budget.
+  test how a policy copes with a budget smaller than the planned one.
 
 `barrierpg.problems` contains the four problems of this guide; each module documents its mapping from the task to the
 budget problem and can serve as a template.
@@ -147,11 +147,10 @@ comes down only slowly: the retailer's multiplier for a 1% tolerance ended fifty
 the policies gave up much of their profit. Train at a few fixed prices first; a multiplier, if you use one, should
 start from the policy and the level of the fixed-price run that comes closest to the tolerance.
 `DualAscent.diagnose` reports whether the multiplier has converged (stable), is still moving (trending), or rose
-while every episode failed (increasing). Set the target
-below the tolerance by the width of the validation's confidence bound: a policy whose failure rate equals the
+while every episode failed (increasing). Aim the multiplier below the tolerance by the width of the validation's confidence bound: a policy whose failure rate equals the
 tolerance cannot pass a test at that tolerance.
 
-## Step 6. Add a reserve margin when the budget is uncertain
+## Step 6. Add a reserve when the budget is uncertain
 
 A price on failure alone produces policies that use the budget up whenever that pays, and such policies fail often
 when the budget turns out to be smaller than assumed. The interior barrier (`Stage(theta=...)`) keeps a graded
@@ -188,7 +187,7 @@ How to choose, by what you have:
 * **A controller in use** (the lander). Start training from it. If its behavior violates the new requirement, do not
   anchor its weights: the learner inherits the prior policy's risk. The lander's controller ran dry under the new
   tank, and a parameter anchor to it kept it running dry at every strength tried, down to 0.01 (runs with the coupled
-  form of the anchor under Adam, the form of the paper's runs, where the pull's step is about the learning rate
+  form of the anchor under Adam, the form of the paper's runs, where the drift's step is about the learning rate
   whatever its strength; see the end of this step). An action anchor to the controller, which charges departures of
   the action distribution instead, let it learn to save fuel while keeping its landings; its effect on crashes was
   mixed across seeds. When a parameter anchor is appropriate (a prior whose behavior you accept), anchor every
@@ -211,24 +210,24 @@ Treat a policy that fails validation as the signal to lower the anchor or raise 
 How the anchor enters the learner must match the optimizer (the paper's guidance, its four implementation rules).
 `ParameterAnchor` has two forms:
 
-* **Decoupled** (`decoupled=True`, the default): the pull is applied to the weights after the optimizer's step,
+* **Decoupled** (`decoupled=True`, the default): the drift is applied to the weights after the optimizer's step,
   `theta <- theta - lr kappa_p (theta - theta_0)`, the weight decay of AdamW. Every weight then moves toward the
   anchor by the factor `1 - lr kappa_p` per step whatever Adam does with the policy gradient, so the strength keeps
   its meaning: calibrate it by the half-life, about `ln 2 / (lr kappa_p)` steps (`ParameterAnchor.half_life()`), and
   by the measured distance. With `ParameterNoise`, compare the measured spread with `sqrt(kappa1/kappa_p)`
-  (`roles.noise_and_anchor_spread`): the injected noise adds no pull of its own. Under Adam this is a reference, not
-  a prediction, since the policy-gradient step stays adaptive. A learning rate decayed to zero switches the pull off
+  (`roles.noise_and_anchor_spread`): the injected noise adds no drift of its own. Under Adam this is a reference, not
+  a prediction, since the policy-gradient step stays adaptive. A learning rate decayed to zero switches the drift off
   with it.
-* **Coupled** (`decoupled=False`): the pull is added to the policy gradient before the step, the form of the paper's
+* **Coupled** (`decoupled=False`): the drift is added to the policy gradient before the step, the form of the paper's
   runs and of the shipped campaign records. Adam divides every gradient coordinate by its running root-mean-square, so
-  the pull's step is about the learning rate whatever the distance to the anchor and whatever the strength, it is weak
+  the drift's step is about the learning rate whatever the distance to the anchor and whatever the strength, it is weak
   where the policy gradient is large and of fixed size where it is small, and it inflates Adam's normalizer, which
   shrinks the policy gradient's own step. The strength then loses its meaning as a curvature, and the spread under
-  noise is proportional to the noise strength whatever the pull. Use this form to reproduce the paper's runs.
+  noise is proportional to the noise strength whatever the drift. Use this form to reproduce the paper's runs.
 
 Strengths are comparable only within one form. Pull the actor's weights including the action dispersion (unless the
 dispersion is meant to be free) and never the critic, which has no prior; `ParameterAnchor` does both. Record the
-optimizer, its stability constant, the order of gradient clipping and pull, and the form.
+optimizer, its stability constant, the order of gradient clipping and the anchor, and the form.
 
 ## Step 8. Validate the policy you deploy
 
@@ -250,7 +249,7 @@ optimizer, its stability constant, the order of gradient clipping and pull, and 
 * **Test at the specified horizon.** A test at one horizon does not certify a longer one.
 * **Share the error.** `validation.validate_direct(failures, n, alpha, zeta, family)` uses an exact binomial bound
   with the error divided among all the candidates you inspected.
-* **Mind the resolution.** No failures in `N` episodes certify the floor `1 - zeta^(1/N)`, never zero, and a failed
+* **Mind the resolution.** No failures in `N` episodes certify the bound `1 - zeta^(1/N)`, never zero, and a failed
   test does not prove a violation. `validation.episodes_for_tolerance` sizes the test.
 * **Certificates from the value** bound the risk without a validation run, but over long horizons they are valid and
   uninformative; the direct test then carries the decision (the navigation notebook shows this).

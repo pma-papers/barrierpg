@@ -94,13 +94,13 @@ print("largest per-episode difference:", float(np.max(np.abs(ev.clipped_returns 
 # shared by a **family** of statements.
 #
 # `plan` turns this into a configuration with reasons. It derives a conservative starting price from the
-# **price–risk law** (a part of the paper's *Fixed price of failure risk*), using a comparison policy that never fails
+# **price–risk bound** (a part of the paper's *Fixed price of failure risk*), using a comparison policy that never fails
 # (standing still) and an upper bound on the utility at stake. It also sizes the validation sample and states the
 # cases of the paper's *Which formulation to prefer* in which another method is the better choice.
 
 # %%
 req = Requirement(T=19, alpha=0.05, zeta=0.05, family=6)   # six candidates will be inspected
-sup_U = EXACT_FRONTIER[0.0][1]          # utility of the unpriced optimum: an upper bound on the utility at stake
+sup_U = EXACT_FRONTIER[0.0][1]          # utility of the optimum without a price: an upper bound on the utility at stake
 p = plan(spec, req, sup_U=sup_U, expected_failure_rate=0.01, validation_H=300, validation_N=20000,
          allowance_error_known=False, failure_permissible_at_deployment=True, model_known_and_small=True)
 print(p.explain())
@@ -110,9 +110,9 @@ print(p.explain())
 # programming, so for this problem the exact program is the better choice. Here it serves as the benchmark against
 # which the candidates are measured; the workflow below is the one for problems without such a solution.
 #
-# The conservative price is large because the law charges the entire utility at stake to the risk. It is a safe
+# The conservative price is large because the bound charges the entire utility at stake to the risk. It is a safe
 # start, not the price to aim for: the certificates and validation bound the risk actually attained, and in the
-# wear study the law was conservative by a factor of twenty to thirty. Below we use the price $m=1$.
+# wear study the bound was conservative by a factor of twenty to thirty. Below we use the price $m=1$.
 
 # %% [markdown]
 # ## Candidates against the exact frontier
@@ -126,12 +126,12 @@ print(p.explain())
 # %%
 stage = Stage(m=1.0)
 env = lambda: make_wear_env(stage, model)
-candidates = {"idle": idle_policy}
+candidates = {"standing still": idle_policy}
 for span in (1.0, 1.5, 2.0, 3.0, 5.0):
     candidates[f"rule, span {span:g}"] = IncumbentRule(span=span, std=0.1, seed=1)
 evals = {name: evaluate(env, pol, 6000, spec=spec, stage=stage, seed=10, T=19) for name, pol in candidates.items()}
 for name, e in evals.items():
-    print(f"{name:14s} q_beta = {e.q_beta:.4f}   U = {e.U:.3f}   near-exhaustion (5% of b) = {e.near[0.05]:.3f}")
+    print(f"{name:14s} q_beta = {e.q_beta:.4f}   U = {e.U:.3f}   reserve below 5% of b =  {e.near[0.05]:.3f}")
 
 # %%
 qf = np.array([v[0] for k, v in EXACT_FRONTIER.items()]); Uf = np.array([v[1] for k, v in EXACT_FRONTIER.items()])
@@ -141,7 +141,7 @@ ax.plot(qf[order], Uf[order], color="0.2", lw=1.5, label="exact frontier (failur
 qb = [v[0] for v in EXACT_BARRIER.values()]; Ub = [v[1] for v in EXACT_BARRIER.values()]
 ax.plot(qb, Ub, color="C2", ls="--", marker=".", label="exact barrier optima, $\\theta=0.1$")
 for name, e in evals.items():
-    if name != "idle":
+    if name != "standing still":
         ax.plot(e.q_beta, e.U, "o", color="C0", ms=5)
         ax.annotate(name.replace("rule, ", ""), (e.q_beta, e.U), textcoords="offset points", xytext=(4, -10), fontsize=7)
 ax.axvline(0.05, color="C3", ls=":", lw=1, label="tolerance 0.05")
@@ -150,13 +150,13 @@ ax.legend(fontsize=8, loc="lower right"); plt.tight_layout(); plt.show()
 
 # %% [markdown]
 # The hand-made rules sit inside the frontier: at their risk, a fixed-price optimum earns more. The barrier optima
-# sit lower still at nominal conditions: their interior loss keeps a reserve against a misjudged allowance
-# (notebook T2 measures that margin).
+# sit lower still at nominal conditions: their interior loss keeps a reserve for the case of a smaller true allowance
+# (notebook T2 measures that reserve).
 #
-# ## The price–risk law on the exact solutions
+# ## The price–risk bound on the exact solutions
 #
-# `frontier.check_runs` compares runs at several prices with the price–risk law and with monotonicity in the price
-# (the price–risk law and monotonicity in the price). With exact optimizers the optimization error is zero.
+# `frontier.check_runs` compares runs at several prices with the price–risk bound and with monotonicity in the price
+# (the price–risk bound and monotonicity in the price). With exact optimizers the optimization error is zero.
 
 # %%
 from barrierpg.frontier import Run, check_runs
@@ -166,7 +166,7 @@ print("consistent with the fixed-price results:", chk.consistent)
 ms = np.array([r["m"] for r in chk.table]); qs = np.array([r["q_beta"] for r in chk.table]); law = np.array([r["law_bound"] for r in chk.table])
 fig, ax = plt.subplots(figsize=(5, 3.2))
 ax.loglog(ms, qs, "o-", color="0.2", label="exact breakdown probability")
-ax.loglog(ms, law, "--", color="C1", label="price–risk law, $(1-\\beta)\\sup U/m$")
+ax.loglog(ms, law, "--", color="C1", label="price–risk bound, $(1-\\beta)\\sup U/m$")
 ax.set_xlabel("price $m$"); ax.set_ylabel("$q_\\beta$"); ax.legend(fontsize=8); plt.tight_layout(); plt.show()
 print("law / exact at m = 1, 10:", [round(float(l / q), 1) for l, q, mm in zip(law, qs, ms) if mm in (1.0, 10.0)])
 
@@ -176,8 +176,7 @@ print("law / exact at m = 1, 10:", [round(float(l / q), 1) for l, q, mm in zip(l
 # ## Validate the candidate that would be deployed
 #
 # Validation is the deployment decision. Draw fresh episodes of the fixed candidate and compute a one-sided exact
-# binomial upper bound on its failure probability. Zero failures in $N$ episodes certify the **resolution floor**
-# $1-\zeta^{1/N}$, never zero. The error $\zeta$ is split over the family of candidates inspected, before any is
+# binomial upper bound on its failure probability. Zero failures in $N$ episodes certify the bound # $1-\zeta^{1/N}$, never zero. The error $\zeta$ is split over the family of candidates inspected, before any is
 # selected. Failure to certify does not prove a violation.
 #
 # Under geometric stopping the episode clock censors the finite-horizon risk $p_T$, so the toolbox validates
@@ -204,7 +203,7 @@ print(rep.text())
 # %% [markdown]
 # ## Summary
 #
-# * The price sets the risk attained; it does not prescribe a level. The price–risk law gives a safe starting price.
+# * The price sets the risk attained; it does not prescribe a level. The price–risk bound gives a safe starting price.
 # * The identity $V_m=U-\mathcal I_m-\tfrac{m}{1-\beta}q_\beta$ is exact; every certificate rests on it.
 # * Validation of the deployed candidate, with the error shared across the candidates inspected, is the deployment decision.
 #

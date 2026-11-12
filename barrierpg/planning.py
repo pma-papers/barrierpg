@@ -1,7 +1,7 @@
 """Before training: turn a requirement into a configuration and a validation budget, with reasons.
 
 The plan follows the paper's 'A workflow for practitioners': specify the requirement first; fix the price, then certify;
-buy margin deliberately; choose regularizers for their role and the prior from the problem; validate the
+keep a reserve deliberately; choose regularizers for their role and the prior from the problem; validate the
 deployed candidate. It recommends by conditions and states, before anything else, the conditions of
 the paper's 'Which formulation to prefer' under which another method is the better choice.
 """
@@ -56,18 +56,18 @@ def when_to_use_another_method(*, failure_permissible_at_deployment: Optional[bo
     that concern the requirement and the problem, and two that concern the barrier itself. The clipped barrier is the
     choice when failures can be permitted in simulation and deployment tolerates a positive failure probability or
     carries a finite failure cost, when the tolerance is uncertain or may be unattainable, when the failure cost is
-    known, and when a reserve margin is worth its cost. The paper quantifies these choices; it does not assert an
+    known, and when a reserve is worth its cost. The paper quantifies these choices; it does not assert an
     advantage over other methods."""
     no_failure = None if failure_permissible_at_deployment is None else (not failure_permissible_at_deployment)
     return [
         Condition("no failure is permissible and a controlled-invariant set is known", _both(no_failure, controlled_invariant_set_known),
                   "an almost-sure method (an infinite failure penalty, a control-barrier safety layer, or a method that learns which actions keep "
                   "probability-one budget constraints)",
-                  "a finite price prices failure risk and does not prohibit failure; a class of full-support policies can have a positive risk floor"),
+                  "a finite price prices failure risk and does not prohibit failure; a class of full-support policies can have a positive lower bound on its risk"),
         Condition("a prescribed level is attainable with slack and the multiplier's step can be tuned",
                   _both(prescribed_level_attainable_with_slack, multiplier_step_tunable),
                   "an adaptive multiplier (a Lagrangian chance-constrained policy gradient)",
-                  "a fixed price leaves the attained risk to the optimizer, and unused risk costs utility; with too large a step the multiplier "
+                  "a fixed price leaves the attained risk to the optimizer, and a risk below the tolerance costs utility; with too large a step the multiplier "
                   "increases without bound when the initial policy fails often, as in the fuel-tank study"),
         Condition("violations during training matter", violations_during_training_matter,
                   "constrained policy optimization",
@@ -82,8 +82,8 @@ def when_to_use_another_method(*, failure_permissible_at_deployment: Optional[bo
                   "reward normalization or a prescribed-level formulation",
                   "a large price degraded the controllers of the fuel-tank study; increasing the price is not an optimization guarantee"),
         Condition("the size of a possible allowance error is known", allowance_error_known,
-                  "a correspondingly tightened allowance instead of the interior margin",
-                  "the interior barrier is the graded margin for an error of unknown size; a known error is covered more cheaply by tightening"),
+                  "a correspondingly reduced allowance instead of the interior barrier",
+                  "the interior barrier keeps a graded reserve for an error of unknown size; a known error is covered more cheaply by reducing the allowance"),
     ]
 
 
@@ -119,33 +119,33 @@ class Plan:
         if s.penalty == "multiplier":
             lines.append(f"Stage: flat failure penalty nu = {s.multiplier:g}" + (f", interior barrier theta = {s.theta:g} (clipping at -m, m = {s.m:g})" if s.theta else "")
                          + (f", action relative entropy eta = {s.eta:g}" if s.eta else "") + (f", parameter regularizer kappa = {s.kappa:g}" if s.kappa else "")
-                         + "; the frozen-multiplier objective U - nu q_beta.")
+                         + "; the fixed-multiplier objective U - nu q_beta.")
         else:
             lines.append(f"Stage: price m = {s.m:g}" + (f", interior barrier theta = {s.theta:g}" if s.theta else ", failure-only price")
                          + (f", action relative entropy eta = {s.eta:g}" if s.eta else "") + (f", parameter regularizer kappa = {s.kappa:g}" if s.kappa else "")
-                         + ("" if s.clip_utility else ", frozen-multiplier form (pre-failure reward unclipped)") + ".")
+                         + ("" if s.clip_utility else ", fixed-multiplier form (pre-failure reward unclipped)") + ".")
         if self.price_bound is not None:
             lines.append(("Penalty: " if s.penalty == "multiplier" else "Price: ") + self.price_bound.statement())
         if s.penalty == "multiplier":
             lines.append(f"Failure charge: the flat penalty nu = {s.multiplier:g}, charged once at the failing action whatever its time "
                          "(a lump sanction); it is the fixed-price optimum at m = (1-beta) nu only in the absorbing form.")
         elif sp.horizon is not None:
-            lines.append(f"Failure tail under the physical horizon H = {sp.horizon}: m(1-beta^(H-t))/(1-beta) at a failure at action t, "
+            lines.append(f"Charge at a failure under the physical horizon H = {sp.horizon}: m(1-beta^(H-t))/(1-beta) at a failure at action t, "
                          f"{failure_tail(s.m, sp.beta, 0, sp.horizon):.4g} at t = 0. A flat penalty nu matches it only at one failure time "
                          "(spec.price_from_multiplier_physical).")
         else:
-            lines.append(f"Failure tail charged at a failure: {discounted_total(s.m, sp.beta):.4g} (absorbing). A multiplier method that converges to "
+            lines.append(f"Discounted total of the price charged at a failure: {discounted_total(s.m, sp.beta):.4g} (absorbing). A multiplier method that converges to "
                          f"nu = {self.multiplier_equivalent:.4g} returns the same optimum.")
         if self.dual_step is not None:
             lines.append(f"Dual-ascent step for an adaptive multiplier at tolerance {r.alpha:g}: about {self.dual_step:.4g} per rollout "
                          f"(moves nu by a twentieth of its expected level when every episode fails).")
         lines.append(f"Validation: {self.validation_episodes} fresh episodes of the deployed candidate through action {r.T} are needed "
                      f"for the direct binomial test to be able to certify {r.alpha:g} at error {r.error_per_statement:.3g} "
-                     f"(resolution floor of that many failure-free episodes: {self.direct_floor:.3g}).")
+                     f"(smallest tolerance that this many failure-free episodes can certify: {self.direct_floor:.3g}).")
         if self.value_check is not None:
             vc = self.value_check
-            lines.append(("The necessary condition for the value-based test to certify the tolerance holds"
-                          if vc["attainable"] else "The value-based test cannot certify the tolerance")
+            lines.append(("The necessary condition for the empirical certificate to certify the tolerance holds"
+                          if vc["attainable"] else "The empirical certificate cannot certify the tolerance")
                          + f" with the stated N and H: the condition's left side is {vc['floor']:.3g} against alpha = {r.alpha:g} "
                          f"(tail term {vc['tail_term']:.3g}, statistical term {vc['statistical_term']:.3g})."
                          + ("" if vc["attainable"] else " Increasing m cannot repair this; longer validation or the direct test can."))
@@ -171,16 +171,16 @@ def plan(spec: BudgetSpec, requirement: Requirement, *, sup_U: Optional[float] =
          episode_earnings: Optional[float] = None, regularizers: Optional[dict] = None) -> Plan:
     """Build a Plan.
 
-    sup_U         an upper bound on the stopped utility over the class (for example the unpriced optimum's utility, or
+    sup_U         an upper bound on the stopped utility over the class (for example the utility of the optimum without a price, or
                   ubar/(1-beta)); needed for the conservative price or penalty.
-    comparator    dict(U0=, I0=, q0=) of a comparison policy of the class (default the idle policy with q0 = U0 = I0 = 0,
+    comparator    dict(U0=, I0=, q0=) of a comparison policy of the class (default standing still, with q0 = U0 = I0 = 0,
                   valid when standing still never fails).
     delta         optimization error to allow for.
     stage         a stage to assess; if None, the conservative price is used with no barrier.
     expected_failure_rate  the failure rate the candidate is expected to have (below alpha), to size the validation sample.
-    validation_H, validation_N  for the value-based test's resolution check.
+    validation_H, validation_N  for the necessary condition of the empirical certificate.
     features, lambda_H  FeatureConstants or KernelConstants and the regularizer's curvature, for the curvature budget.
-    allowance_error_known  whether the size of a possible allowance error is known (margin advice).
+    allowance_error_known  whether the size of a possible allowance error is known (advice on the reserve).
     failure_permissible_at_deployment, controlled_invariant_set_known, prescribed_level_attainable_with_slack,
     multiplier_step_tunable, violations_during_training_matter, loss_grows_with_excess_consumption, model_known_and_small,
     episode_earnings
@@ -203,13 +203,13 @@ def plan(spec: BudgetSpec, requirement: Requirement, *, sup_U: Optional[float] =
         else:
             price_bound = conservative_price(alpha_geo, beta, sup_U, comp["U0"], comp["I0"], comp["q0"], delta, u_minus)
         if requirement.kind == "finite":
-            notes.append(f"the price-risk law bounds q_beta; the finite-horizon target p_T <= alpha was converted to q_beta <= alpha beta^T = {alpha_geo:.4g}, "
+            notes.append(f"the price-risk bound bounds q_beta; the finite-horizon requirement p_T <= alpha was converted to q_beta <= alpha beta^T = {alpha_geo:.4g}, "
                          "which can be very conservative at large T; validation at T is the sharper route")
         if stage is None:
             stage = Stage(m=price_bound.value if math.isfinite(price_bound.value) else 0.0)
     if stage is None:
         stage = Stage(m=0.0)
-        warnings.append("no price given and no sup_U to derive one: the stage is the unpriced policy, which has no risk bound")
+        warnings.append("no price given and no sup_U to derive one: the stage has no price, and its policy has no risk bound")
     # --- the cases of 'Which formulation to prefer' -----------------------------------------------
     exceeds = None
     if episode_earnings is not None and episode_earnings > 0:
@@ -237,23 +237,23 @@ def plan(spec: BudgetSpec, requirement: Requirement, *, sup_U: Optional[float] =
                         "constrained policy optimization addresses violations during training")
     if requirement.kind == "eventual":
         warnings.append("an eventual requirement P(tau < inf) <= alpha is not certified by a small q_beta or by a finite-horizon test "
-                        f"[{cite('delay_example')}]; it needs cost-tail structure ({cite('eventual_risk')}) or almost-sure feasibility")
+                        f"[{cite('delay_example')}]; it needs a bound on the future consumption ({cite('eventual_risk')}) or almost-sure feasibility")
     if no_failure:
         warnings.append("no failure is permissible: a positive price never prohibits failure, no multiplier converges when every policy of the "
-                        "class has positive risk, and a zero-failure validation certifies only the resolution floor"
+                        "class has positive risk, and a zero-failure validation certifies only the bound 1 - zeta^(1/N)"
                         + ("; with a known controlled-invariant set an almost-sure method is the better choice" if controlled_invariant_set_known else
                            "; an almost-sure method needs a known controlled-invariant set"))
     if stage.penalty == "price" and stage.m < u_minus and stage.clip_utility:
         warnings.append(f"m = {stage.m:g} is below u_minus = {u_minus:g}: clipping at -m erases utility values below -m (for example a crash penalty); "
-                        "choose m >= u_minus or use the frozen-multiplier form (clip_utility=False)")
+                        "choose m >= u_minus or use the fixed-multiplier form (clip_utility=False)")
     if stage.theta > 0:
-        notes.append("the interior barrier buys graded protection against a misjudged allowance at a utility cost bounded by its interior loss; "
+        notes.append("the interior barrier gives graded protection when the true allowance is smaller than the planned one, at a utility cost bounded by its interior loss; "
                      f"the fixed-price results apply net of that loss [{cite('fixed_price')}]")
         if allowance_error_known:
-            notes.append("the size of the allowance error is known: a correspondingly tightened allowance is the more economical margin")
+            notes.append("the size of the allowance error is known: a correspondingly reduced allowance is the more economical protection")
     elif allowance_error_known is not None:
         notes.append("a failure-only price leaves no reserve: its optimal policies exhaust the allowance whenever profitable; "
-                     + ("tighten the allowance by the known error" if allowance_error_known else "an interior barrier (theta > 0) is the graded margin for an error of unknown size"))
+                     + ("tighten the allowance by the known error" if allowance_error_known else "an interior barrier (theta > 0) keeps a graded reserve for an error of unknown size"))
     # --- validation -----------------------------------------------------------------------------
     err = requirement.error_per_statement
     try:

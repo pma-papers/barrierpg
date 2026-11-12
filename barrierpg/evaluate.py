@@ -9,8 +9,8 @@ the clipped return. From n fresh episodes the evaluation estimates
   q_beta    mean of beta^tau 1{failed} (the geometric risk), or the plain failure frequency when
             the wrapper ends episodes by geometric stopping,
   U, I_m    stopped utility and interior loss,
-  V_m       U - I_m - m E[tail weight] with the tail convention of the spec (absorbing or physical
-            horizon) or the frozen-multiplier form when the stage does not clip,
+  V_m       U - I_m - m E[weight of the price after failure] with the horizon convention of the spec (absorbing or physical
+            horizon) or the fixed-multiplier form when the stage does not clip,
   near      frequency of coming within a fraction of the allowance of exhaustion (failures included).
 
 Under geometric stopping the episode may end by the clock before action T, so p_T is censored and
@@ -80,7 +80,7 @@ class Evaluation:
              f"U={self.U:.4g}±{self.U_se:.2g}, I_m={self.I_m:.4g}, V_m={self.V_m:.4g}±{self.V_m_se:.2g}"
              + (f", mean length {self.mean_length:.1f}" if self.mean_length == self.mean_length else ""))
         near = ", ".join(f"{k:g}b: {v:.3g}" for k, v in self.near.items())
-        return s + f"\nnear-exhaustion (min reserve <=): {near}"
+        return s + f"\nsmall reserve (min reserve <=): {near}"
 
 
 def sb3_policy(model, deterministic: bool = False) -> Callable:
@@ -97,7 +97,7 @@ def evaluate(env_factory: Callable[[], object], policy: Callable, n: int, *, spe
     """n fresh episodes of `policy` in `env_factory()` (a BudgetWrapper), seeds seed, seed+1, ...
 
     T: last action index for p_T; None counts every failure within the episode.
-    The clipped value uses the stage's price and the spec's tail convention. If the policy is
+    The clipped value uses the stage's price and the spec's horizon convention. If the policy is
     stochastic and samples with numpy's global state, set policy_seed for reproducibility.
     """
     env = env_factory()
@@ -146,7 +146,7 @@ def evaluation_from_episodes(failed, tau, U, I, *, spec: BudgetSpec, stage: Stag
         tail = np.array([failure_tail(m, beta, int(t), H) if f else 0.0 for f, t in zip(failed, tau)])
     V = U - I - tail
     if stage.penalty == "multiplier":
-        V = U - I - stage.multiplier * weight            # frozen-multiplier value U - nu q (I is the barrier part only)
+        V = U - I - stage.multiplier * weight            # fixed-multiplier value U - nu q (I is the barrier part only)
     clipped = V.copy() if clipped_returns is None else np.asarray(clipped_returns, dtype=float)
     if geo:
         sel, event, pT = failed, "q_beta", float("nan")        # the clock censors p_T; the episode event is q_beta

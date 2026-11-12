@@ -28,7 +28,7 @@ step. The comparisons use the shipped policies of each problem's full campaign, 
 |---|---|---|
 | [1. Lander with a fuel tank](notebooks/01_lander_fuel_tank.ipynb) | Gymnasium's LunarLander with a tank smaller than its controller needs | adding a budget to a task you already train; continuing from a controller in use, and what to anchor to |
 | [2. Retailer with a cash balance](notebooks/02_retailer_cash.ipynb) | a three-line retailer that pays suppliers from cash; insolvency is the failure | writing your own simulator; a resource that is also replenished; a failure with a known cost; a rule in use as the prior and as a benchmark |
-| [3. Robot on a battery](notebooks/03_robot_battery.ipynb) | MuJoCo's HalfCheetah with a battery whose efficiency varies by mission | what the policy must observe (a clock), the price, and a reserve margin against a battery that holds less than expected |
+| [3. Robot on a battery](notebooks/03_robot_battery.ipynb) | MuJoCo's HalfCheetah with a battery whose efficiency varies by mission | what the policy must observe (a clock), the price, and a reserve against a battery that holds less than expected |
 | [4. Navigation with a damage allowance](notebooks/04_navigation_allowance.ipynb) | Safety-Gymnasium's PointGoal1 with its cost limit read as an allowance | which requirement a task means; a price that charges more than an episode earns |
 
 The [practitioner guide](docs/practitioner-guide.md) goes through the same decisions step by step, with what the
@@ -106,7 +106,7 @@ print(interpret(spec, req, stage, ev, training=monitor.convergence()).summary())
 
 Regularizers that use a policy you trust (a parameter anchor, an action anchor, a prior fitted to a rule in use) are
 optional; the template and notebooks 1 and 2 show them in code. The wrapper appends the remaining budget to the
-observation, ends the episode when the budget is exhausted, and charges the price there. Options cover a reserve margin (`Stage(theta=...)`), a lump sum charged once at failure
+observation, ends the episode when the budget is exhausted, and charges the price there. Options cover a reserve before exhaustion (`Stage(theta=...)`), a lump sum charged once at failure
 (`Stage(penalty="multiplier", multiplier=F)`), an adaptive multiplier toward a tolerance (the `DualAscent`
 callback), a budget that is smaller than the policy believes (`true_budget_scale=0.9`), and a resource that is also
 replenished, such as cash (`RunningMaxCost`). The modules in [`barrierpg/problems/`](barrierpg/problems) show the

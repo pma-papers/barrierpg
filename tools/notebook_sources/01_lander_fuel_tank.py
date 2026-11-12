@@ -352,9 +352,9 @@ print(camp.convergence_table(regs))
 # weights the lander keeps running dry, at every strength tried, down to 0.01. The prior policy here is one the new
 # requirement rejects, and the learner inherits its risk.
 #
-# These runs, and the short ones above, use the coupled form of the anchor (`decoupled=False`): the pull is added to
+# These runs, and the short ones above, use the coupled form of the anchor (`decoupled=False`): the drift is added to
 # the policy gradient before Adam's step, the form of the paper's runs. Adam divides every gradient coordinate by its
-# running root-mean-square, so the pull's step is about the learning rate whatever the distance to the anchor and
+# running root-mean-square, so the drift's step is about the learning rate whatever the distance to the anchor and
 # whatever the strength, and the strength does not read as a curvature. The toolbox's default is the decoupled form,
 # `theta <- theta - lr kappa_p (theta - theta_0)` applied to the weights after the step, under which every weight
 # contracts toward the anchor by `1 - lr kappa_p` per step and the strength keeps its meaning (the paper's guidance;

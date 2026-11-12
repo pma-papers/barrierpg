@@ -27,7 +27,7 @@ class LogBarrier:
 
     def lower_level(self, eps: Sequence[float]) -> float:
         """underline B(eps) = inf{B(z): z_k <= eps_k for some k} = theta min_k log(1 + b_k / eps_k),
-        the quantity of the near-exhaustion certificate (certificates.near_exhaustion_bound)."""
+        the quantity of the certificate for a small reserve (certificates.near_exhaustion_bound)."""
         e = np.asarray(eps, dtype=float).reshape(-1)
         if self.theta == 0.0:
             return 0.0

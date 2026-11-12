@@ -18,7 +18,7 @@ def test_advice_by_condition():
     c = advise_regularizers(spec, Stage(m=1.0, eta=0.1, kappa=1.0), features=FeatureConstants.tanh_unit(1.0, 2.0), lambda_H=1.0)
     assert c.curvature is not None and any(r.mechanism == "joint effect" for r in c.recommendations)
     assert any(r.mechanism == "prior" and "centering" in r.setting for r in c.recommendations)
-    txt = c.explain(); assert "Fixed-stage population convergence" in txt
+    txt = c.explain(); assert "Convergence of the population flow" in txt
     p = plan(spec, Requirement(T=19, alpha=0.05), sup_U=5.4, stage=Stage(m=1.0, kappa=1.0),
              regularizers=dict(incumbent_available=True, prior_sigma=0.5))
     assert p.regularizers is not None and "Regularizers" in p.explain()
@@ -35,7 +35,7 @@ def test_effects_readings():
     assert e.action["informative"] is False and any("uninformative" in f for f in e.flags)
     assert e.inheritance["at_prior"] and e.parameter["dispersion_escape"] is False
     assert e.bias["R"] == 0.1 * 0.5 + 100.0 * 0.01 and e.joint is not None and len(e.path) == 3
-    # mean-only prior: dispersion escape
+    # anchor on the mean network only: dispersion escape
     e2 = regularizer_effects(spec, Stage(m=0.03, kappa=100.0), dict(q_beta=0.34, U=4.0), parameter_distance=0.002,
                              dispersion_final=7.5, dispersion_prior=0.37, dispersion_anchored=False)
     assert e2.parameter["dispersion_escape"] and any("dispersion escape" in f for f in e2.flags)
@@ -46,8 +46,8 @@ def test_effects_readings():
 
 
 def test_noise_and_anchor_spread():
-    """Pull plus injected noise without an objective: the AR(1) x+ = (1 - hK) x + sqrt(2 kappa1 h) xi has variance
-    kappa1/(K (1 - hK/2)); the noise carries no pull, so the flow's sqrt(kappa1/(kappa1 + kappa2)) does not apply."""
+    """Drift plus injected noise without an objective: the AR(1) x+ = (1 - hK) x + sqrt(2 kappa1 h) xi has variance
+    kappa1/(K (1 - hK/2)); the noise carries no drift, so the flow's sqrt(kappa1/(kappa1 + kappa2)) does not apply."""
     import math
     import numpy as np
     from barrierpg.roles import noise_and_anchor_spread, stationary_spread
@@ -55,7 +55,7 @@ def test_noise_and_anchor_spread():
     assert abs(noise_and_anchor_spread(k1, K, h) ** 2 - 2 * k1 * h / (1 - (1 - h * K) ** 2)) < 1e-12
     assert abs(noise_and_anchor_spread(k1, K) - math.sqrt(k1 / K)) < 1e-12
     assert noise_and_anchor_spread(k1, 0.0) == math.inf and noise_and_anchor_spread(k1, K, 0.3) == math.inf
-    assert abs(noise_and_anchor_spread(k1, k1 + K) - stationary_spread(k1, K)) < 1e-12   # with the prior's pull added
+    assert abs(noise_and_anchor_spread(k1, k1 + K) - stationary_spread(k1, K)) < 1e-12   # with the prior's drift added
     rng = np.random.default_rng(0)
     x = np.zeros(20000)
     for _ in range(400):

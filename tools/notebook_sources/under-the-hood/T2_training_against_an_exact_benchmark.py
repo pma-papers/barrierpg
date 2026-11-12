@@ -9,9 +9,9 @@
 # * training traces that show whether the run has converged,
 # * the deployed candidates (stochastic and mean-action) evaluated separately,
 # * the optimization error, measured against the exact frontier that this problem happens to have,
-# * training at several prices, checked against the price–risk law and the price-sequence condition,
+# * training at several prices, checked against the price–risk bound and the price-sequence condition,
 # * an adaptive multiplier toward a prescribed level, with a diagnosis of its trace,
-# * the margin bought by the interior barrier under a misjudged allowance,
+# * the reserve kept by the interior barrier when the true allowance is smaller than planned,
 # * the report.
 #
 # Requires the RL extras: `pip install -e ".[rl]"`. Each run here trains for two million steps (about a minute and
@@ -42,7 +42,7 @@ req = Requirement(T=19, alpha=0.05, zeta=0.05, family=12)       # every learned 
 # ## A training helper
 #
 # The environment is the wrapper of notebook T1. PPO uses algorithmic discount one: the wrapper's geometric stopping
-# implements $\beta$ exactly. Reward normalization keeps the scale of the failure tail $m/(1-\beta)$ manageable,
+# implements $\beta$ exactly. Reward normalization keeps the scale of the charge at failure, $m/(1-\beta)$, manageable,
 # which matters when the price is large. The settings are the paper's: 32 environments, rollouts of 256 steps,
 # minibatches of 1024, ten epochs, a learning rate decaying linearly to zero, no entropy bonus.
 
@@ -97,7 +97,7 @@ ev_d = evaluate(env, sb3_policy(ppo, deterministic=True), 10_000, spec=spec, sta
 for name, e in (("stochastic", ev_s), ("mean-action", ev_d)):
     delta = exact_value(1.0) - e.V_m
     print(f"{name:11s} q_beta = {e.q_beta:.4f}  U = {e.U:.3f}  V_m = {e.V_m:.3f}  delta = {delta:+.3f}  "
-          f"near-exhaustion = {e.near[0.05]:.3f}")
+          f"reserve below 5% of b = {e.near[0.05]:.3f}")
 print(f"exact optimum at m = 1: q_beta = {EXACT_FRONTIER[1.0][0]:.4f}, U = {EXACT_FRONTIER[1.0][1]:.3f}, V_m = {exact_value(1.0):.3f}")
 
 # %% [markdown]
@@ -105,7 +105,7 @@ print(f"exact optimum at m = 1: q_beta = {EXACT_FRONTIER[1.0][0]:.4f}, U = {EXAC
 #
 # The price selects a point on the frontier; it does not prescribe a risk level. Training at three prices, with a
 # second seed at $m=1$, shows the price–risk trade-off on the learned policies. `check_runs` compares them with the
-# price–risk law and with monotonicity in the price, and flags runs that are dominated (a sign of optimization
+# price–risk bound and with monotonicity in the price, and flags runs that are dominated (a sign of optimization
 # error, not of the formulation).
 
 # %%
@@ -204,16 +204,16 @@ print(f"adaptive candidate: q_beta = {ev_a.q_beta:.4f}, U = {ev_a.U:.3f}, final 
 # themselves: their mean over the last rollouts is its drift. *Trending* means the multiplier was still moving when
 # training stopped: the candidate is not a fixed-price optimum at any identified price, and longer training or a step
 # sized from the level the multiplier has to reach is needed. A multiplier that keeps rising while the failure rate
-# stays above the tolerance is the sign of a tolerance below the risk floor of the class, where no multiplier
+# stays above the tolerance is the sign of a tolerance below the lower bound on the risk of the class, where no multiplier
 # converges. *Increasing* means the multiplier rose while every episode failed, so the flat penalty carried no
 # gradient (the fuel-tank study). *Off-target* means no drift but a failure rate away from the tolerance: the
 # rollouts are too few or too small to resolve it.
 #
-# ## Buying a margin: the interior barrier under a misjudged allowance
+# ## Keeping a reserve: the interior barrier when the true allowance is smaller than planned
 #
 # A failure-only price leaves no reserve: its optimal policies run close to exhaustion whenever that pays. If the
 # true allowance is ten percent smaller than the one the policy observes, breakdowns rise sharply. The interior
-# barrier ($\theta>0$) keeps a graded margin at a utility cost bounded by its interior loss. The wrapper option
+# barrier ($\theta>0$) keeps a graded reserve at a utility cost bounded by its interior loss. The wrapper option
 # `true_budget_scale=0.9` judges failure against the reduced allowance while the policy sees the nominal reserve.
 
 # %%
@@ -229,9 +229,8 @@ for r in rows:
     print(f"{r[0]:20s} {r[1]:8.4f} {r[2]:6.3f} {r[3]:6.3f} {r[4]:6.3f} {r[5]:10.4f}")
 
 # %% [markdown]
-# The barrier gives up utility at the nominal allowance and keeps breakdowns low when the allowance is misjudged.
-# If the size of the possible error is known, planning with a correspondingly tightened allowance is the more
-# economical margin; the barrier is the graded margin for an error of unknown size.
+# The barrier gives up utility at the nominal allowance and keeps breakdowns low when the true allowance is smaller than planned.
+# If the size of the possible error is known, planning with a correspondingly reduced allowance is the more # economical protection; the barrier keeps a graded reserve for an error of unknown size.
 #
 # ## Validate and report
 #
@@ -272,6 +271,6 @@ print("\n".join(rep_fixed.text().split("\n")[:12]))
 # * The learned fixed-price policies follow the price and fall short of the exact optimum by an optimization error
 #   that this problem lets us measure. On a new problem there is no exact frontier: the four problem notebooks (01 to 04) show what can be said then.
 # * A multiplier method targets a level, needs a step that respects the time scales, and should aim below the tolerance.
-# * The barrier secures a measurable margin against a misjudged allowance.
+# * The barrier keeps a measurable reserve for a smaller true allowance.
 #
 # Next: **notebook T3** looks at the two regularizers and the roles of their parts.

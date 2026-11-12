@@ -161,8 +161,7 @@ for m in (0.03, 0.1):
 # The direct test on fresh episodes does not depend on it. We validate the three policies trained at the price of 0.03,
 # on the 300 fresh episodes of their records, with the error shared among the fifteen trained policies.
 #
-# **Theory.** The exact binomial test holds for any fixed policy; zero failures certify the resolution floor of the
-# sample, never zero, and a failed test does not prove a violation.
+# **Theory.** The exact binomial test holds for any fixed policy; zero failures certify the bound # $1-\zeta^{1/N}$, never zero, and a failed test does not prove a violation.
 
 # %%
 req = Requirement(T=spec.horizon - 1, alpha=0.2, zeta=0.05, family=15)
