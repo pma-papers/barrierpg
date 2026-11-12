@@ -1,6 +1,6 @@
-navigation unpriced 1
-navigation unpriced 2
-navigation unpriced 3
+navigation no-price 1
+navigation no-price 2
+navigation no-price 3
 navigation price-0.003 1
 navigation price-0.003 2
 navigation price-0.003 3

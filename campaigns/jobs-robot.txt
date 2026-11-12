@@ -1,9 +1,9 @@
 robot no-battery 1
 robot no-battery 2
 robot no-battery 3
-robot unpriced 1
-robot unpriced 2
-robot unpriced 3
+robot no-price 1
+robot no-price 2
+robot no-price 3
 robot price-1 1
 robot price-1 2
 robot price-1 3

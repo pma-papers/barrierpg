@@ -2,7 +2,7 @@
 
     from records import Campaign
     c = Campaign("retailer")
-    c.table(["unpriced", "lump-5000"])           # one row per configuration: failure rate and utility over seeds
+    c.table(["no-price", "lump-5000"])           # one row per configuration: failure rate and utility over seeds
     ev = c.evaluation("lump-5000", seed=1)        # a barrierpg.Evaluation rebuilt from the record's episodes
     policy = c.policy("lump-5000", seed=1)        # obs -> action, the trained network (stochastic by default)
 """
@@ -35,13 +35,16 @@ class Campaign:
     def __init__(self, problem: str, results: Path = RESULTS):
         import problems as P
         self.problem = P.get(problem)
+        self._current = P.current_name
         self.root = Path(results) / problem
 
     # --- records ---------------------------------------------------------------------------------------------------
     def seeds(self, config: str) -> List[int]:
+        config = self._current(config)
         return sorted(int(p.name[4:]) for p in (self.root / config).glob("seed*") if (p / "record.json").exists())
 
     def record(self, config: str, seed: int) -> dict:
+        config = self._current(config)
         return json.loads((self.root / config / f"seed{seed}" / "record.json").read_text())
 
     def records(self, config: str) -> List[dict]:
@@ -120,12 +123,13 @@ class Campaign:
     def model(self, config: str, seed: int):
         """The trained stable_baselines3 PPO model of a run (for training further, or as a reference or a prior)."""
         from stable_baselines3 import PPO
+        config = self._current(config)
         return PPO.load(str(self.root / config / f"seed{seed}" / "model.zip"), device="cpu", custom_objects=LOAD_OBJECTS)
 
     def policy(self, config: str, seed: int, deterministic: bool = False):
         """The trained network of a run as obs -> action (observations normalized as in training when needed)."""
         from stable_baselines3 import PPO
-        d = self.root / config / f"seed{seed}"
+        d = self.root / self._current(config) / f"seed{seed}"
         model = PPO.load(str(d / "model.zip"), device="cpu", custom_objects=LOAD_OBJECTS)
         norm = None
         if (d / "vecnormalize.pkl").exists():
@@ -142,7 +146,7 @@ class Campaign:
     def env(self, stage: Optional[Stage] = None, config: Optional[str] = None, **env_kw):
         """A fresh environment of the problem under a stage (default: the stage of `config`)."""
         if stage is None:
-            stage = self.problem.configs[config].stage
+            stage = self.problem.configs[self._current(config)].stage
         return self.problem.make_env(stage, **env_kw)
 
 

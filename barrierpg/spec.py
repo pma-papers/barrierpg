@@ -17,6 +17,7 @@ from dataclasses import dataclass, field, replace
 from typing import Optional, Sequence, Tuple
 
 import numpy as np
+from ._deprecation import module_getattr
 
 
 def _tuple(x, K=None) -> Tuple[float, ...]:
@@ -168,7 +169,7 @@ def multiplier_from_price(m: float, beta: float) -> float:
     return discounted_total(m, beta)
 
 
-def failure_tail(m: float, beta: float, t: int, horizon: Optional[int] = None) -> float:
+def failure_charge(m: float, beta: float, t: int, horizon: Optional[int] = None) -> float:
     """Discounted total of the per-period price charged at a failure at action index t:
     m / (1 - beta) for an infinite horizon, m (1 - beta^(H - t)) / (1 - beta) under a physical
     horizon H (the failing action t and the periods t+1, ..., H-1)."""
@@ -192,4 +193,8 @@ def discounted_sum_to(beta: float, H: int) -> float:
 
 
 __all__ = ["BudgetSpec", "Requirement", "Stage", "discounted_total", "price_from_multiplier",
-           "multiplier_from_price", "failure_tail", "price_from_multiplier_physical", "discounted_sum_to"]
+           "multiplier_from_price", "failure_charge", "price_from_multiplier_physical", "discounted_sum_to"]
+
+
+# names of version 0.7.1 and earlier, kept with a DeprecationWarning
+__getattr__ = module_getattr(__name__, {"failure_tail": "failure_charge"}, globals())

@@ -1,9 +1,9 @@
 retailer lump-20000 1
 retailer lump-20000 2
 retailer lump-20000 3
-retailer unpriced 1
-retailer unpriced 2
-retailer unpriced 3
+retailer no-price 1
+retailer no-price 2
+retailer no-price 3
 retailer lump-2000 1
 retailer lump-2000 2
 retailer lump-2000 3

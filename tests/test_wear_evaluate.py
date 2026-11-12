@@ -1,13 +1,13 @@
 import numpy as np
 from barrierpg import BudgetSpec, Requirement, Stage, evaluate, interpret, plan
-from barrierpg.examples.wear import EXACT_FRONTIER, INCUMBENT, IncumbentRule, WearModel, full_rate_policy, idle_policy, make_wear_env
+from barrierpg.examples.wear import EXACT_FRONTIER, INCUMBENT, IncumbentRule, WearModel, full_rate_policy, standing_still_policy, make_wear_env
 from barrierpg.evaluate import stopped_action_relative_entropy
 from barrierpg.convergence import FeatureConstants
 
 
 def test_idle_and_full_rate():
     model = WearModel(); spec = model.spec(); stage = Stage(m=1.0)
-    ev = evaluate(lambda: make_wear_env(stage, model), idle_policy, 500, spec=spec, stage=stage, seed=1)
+    ev = evaluate(lambda: make_wear_env(stage, model), standing_still_policy, 500, spec=spec, stage=stage, seed=1)
     assert ev.failures_any == 0 and ev.U == 0.0 and ev.q_beta == 0.0 and ev.geometric_stop
     ev = evaluate(lambda: make_wear_env(stage, model), full_rate_policy, 4000, spec=spec, stage=stage, seed=2)
     # the exact optimum without a price runs at full rate until breakdown: q = 0.592, U = 5.43 (grid values)

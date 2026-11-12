@@ -291,7 +291,7 @@ print(f"\nafter 1 million steps: insolvency {short.p_T:.2%}, profit {short.U:.0f
 
 # %%
 fig, ax = plt.subplots(1, 2, figsize=(9, 3))
-for cfg, col in (("unpriced", "0.6"), ("lump-20000", "C0")):
+for cfg, col in (("no-price", "0.6"), ("lump-20000", "C0")):
     for r in camp.records(cfg):
         st = np.array([t["steps"] for t in r["monitor"]]) / 1e6
         ax[0].plot(st, [t["U"] for t in r["monitor"]], color=col, lw=0.6, label=r["note"] if r["seed"] == 1 else None)
@@ -301,7 +301,7 @@ for x in ax: x.set_xlabel("million steps")
 ax[0].legend(fontsize=7); plt.tight_layout(); plt.show()
 
 print("Convergence at the end of training (the toolbox's check on each run's record):")
-print(camp.convergence_table(["unpriced", "lump-20000"]))
+print(camp.convergence_table(["no-price", "lump-20000"]))
 
 # %% [markdown]
 # Check the learning curves, and the convergence check, before comparing candidates. Even after 10 million steps, some
@@ -315,7 +315,7 @@ print(camp.convergence_table(["unpriced", "lump-20000"]))
 # them. With 2,000 years, a risk of 1% is measured to within about half a percentage point.
 
 # %%
-costs = ["unpriced", "lump-2000", "lump-5000", "lump-20000"]
+costs = ["no-price", "lump-2000", "lump-5000", "lump-20000"]
 print(Campaign.show(camp.table(costs)))
 
 fig, ax = plt.subplots(figsize=(6.4, 3.8))

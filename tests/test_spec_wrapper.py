@@ -1,6 +1,6 @@
 import math
 import numpy as np
-from barrierpg.spec import BudgetSpec, Requirement, Stage, discounted_total, failure_tail, price_from_multiplier, price_from_multiplier_physical
+from barrierpg.spec import BudgetSpec, Requirement, Stage, discounted_total, failure_charge, price_from_multiplier, price_from_multiplier_physical
 from barrierpg.barrier import LogBarrier
 from barrierpg.wrapper import BudgetWrapper
 
@@ -23,9 +23,9 @@ def test_spec_and_conversions():
     assert s.K == 2 and s.gammas == (1.0, 1.0)
     assert abs(discounted_total(0.5, 0.9) - 5.0) < 1e-12
     assert abs(price_from_multiplier(5.0, 0.9) - 0.5) < 1e-12
-    assert abs(failure_tail(1.0, 0.5, 0, horizon=3) - (1 - 0.125) / 0.5) < 1e-12
-    assert failure_tail(1.0, 0.5, 3, horizon=3) == 0.0
-    nu = failure_tail(0.5, 0.999, 300, 1000)
+    assert abs(failure_charge(1.0, 0.5, 0, horizon=3) - (1 - 0.125) / 0.5) < 1e-12
+    assert failure_charge(1.0, 0.5, 3, horizon=3) == 0.0
+    nu = failure_charge(0.5, 0.999, 300, 1000)
     assert abs(price_from_multiplier_physical(nu, 0.999, 1000, 300) - 0.5) < 1e-9
     r = Requirement(T=19, alpha=0.05, zeta=0.05, family=120)
     assert abs(r.error_per_statement - 0.05 / 120) < 1e-15

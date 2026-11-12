@@ -84,7 +84,7 @@ def test_frontier_checks():
     chk2 = F.check_runs(bad, beta=0.95, sup_U=5.4343, delta=0.0)
     assert any("poor learner" in d for d in chk2.dominated)
     viol = [F.Run(m=10.0, q_beta=0.2, U=3.0)]
-    assert F.check_runs(viol, beta=0.95, sup_U=5.4343).law_violations
+    assert F.check_runs(viol, beta=0.95, sup_U=5.4343).bound_violations
     pts = F.frontier_points(runs)
     assert len(pts) == len(runs) and abs(F.interpolate_frontier(runs, 0.01453) - 4.6131) < 1e-9
     assert abs(F.complementarity_gap(0.05, 0.01, 1.0, 0.95) - 0.8) < 1e-12

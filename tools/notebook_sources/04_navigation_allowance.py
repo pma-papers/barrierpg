@@ -116,7 +116,7 @@ else:
 # per step from the exhaustion to the end of the episode, and evaluated each policy on 300 fresh episodes.
 
 # %%
-configs = ["unpriced", "price-0.003", "price-0.01", "price-0.03", "price-0.1"]
+configs = ["no-price", "price-0.003", "price-0.01", "price-0.03", "price-0.1"]
 print(Campaign.show(camp.table(configs, extras=("cost", "ret")), extras=("cost", "ret")))
 print("\nConvergence at the end of training (the toolbox's check on each run's record):")
 print(camp.convergence_table(configs))
@@ -148,7 +148,7 @@ plt.tight_layout(); plt.show()
 # it. `plan` compares what a failure is charged with what an episode earns, before anything is trained:
 
 # %%
-earns = np.mean([np.mean(r["evaluation"]["ret"]) for r in camp.records("unpriced")])
+earns = np.mean([np.mean(r["evaluation"]["ret"]) for r in camp.records("no-price")])
 for m in (0.03, 0.1):
     p = plan(spec, Requirement(T=spec.horizon - 1, alpha=0.2), stage=Stage(m=m, clip_utility=False), episode_earnings=earns)
     print(f"price {m}: " + ("; ".join(p.warnings) if p.warnings else "; ".join(n for n in p.notes if "earns" in n)))

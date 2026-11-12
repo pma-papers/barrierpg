@@ -12,8 +12,8 @@ from dataclasses import dataclass, field
 from typing import List, Optional
 
 from .bounds import Bound
-from .certificates import (action_risk_bound, comparison_law_risk, finite_from_geometric, near_exhaustion_bound,
-                           price_risk_law, risk_from_value)
+from .certificates import (action_risk_bound, comparison_law_risk, finite_from_geometric, small_reserve_bound,
+                           price_risk_bound, risk_from_value)
 from .convergence import MultiplierDiagnosis, SeedDispersion, TrainingConvergence, TrendTest
 from .evaluate import Evaluation
 from .regularizers import RegularizerEffects
@@ -70,9 +70,9 @@ class Report:
             if v.passed:
                 lines.append(f"Requirement (at most {r.alpha:.2%}): met.")
             else:
-                floor = (f" With this sample, even no failures would show no less than {v.floor:.3%}." if v.failures == 0 else "")
+                least = (f" With this sample, even no failures would show no less than {v.zero_failure_bound:.3%}." if v.failures == 0 else "")
                 lines.append(f"Requirement (at most {r.alpha:.2%}): not shown. The test does not prove a violation; a larger test "
-                             f"may certify the policy, or the policy may not meet the tolerance.{floor}")
+                             f"may certify the policy, or the policy may not meet the tolerance.{least}")
         lines.append(f"Utility per episode: {e.U:.4g} (standard error {e.U_se:.2g})."
                      + (f" The reserve cost {e.I_m:.4g} of it." if s.theta else ""))
         near = e.near.get(0.05)
@@ -94,7 +94,7 @@ class Report:
                           "trending": "The adaptive multiplier was still moving when training ended.",
                           "increasing": "The adaptive multiplier rose while every episode failed; the run did not learn to avoid failure.",
                           "inactive": "The adaptive multiplier stayed at zero: the tolerance did not constrain the policy.",
-                          "off-target": "The adaptive multiplier stopped moving away from the tolerance.",
+                          "off-tolerance": "The adaptive multiplier stopped moving away from the tolerance.",
                           "short": "The adaptive multiplier's record is too short to judge."}[self.multiplier.status])
         lines += ["", "What this test does not show:",
                   "  - that the policy is the best possible at this risk: how far training fell short of the optimum is not measured;",
@@ -165,7 +165,7 @@ def interpret(spec: BudgetSpec, requirement: Requirement, stage: Stage, evaluati
         val = evaluation.validate(target, requirement.zeta, requirement.family)
         bounds.append(val.bound())
         evidence.append(f"direct validation under the geometric clock: {val.failures} failures in {val.n} episodes; exact binomial upper endpoint "
-                        f"{val.upper:.4g} on q_beta at error {val.err:.3g} (smallest certifiable tolerance {val.floor:.3g})")
+                        f"{val.upper:.4g} on q_beta at error {val.err:.3g} (smallest certifiable tolerance {val.zero_failure_bound:.3g})")
         if requirement.kind != "geometric":
             b = finite_from_geometric(val.upper, beta, T); b.name = f"p_{T} upper bound (from validated q_beta)"
             b.source = cite("validation") + " of q_beta, with beta^T p_T <= q_beta"; bounds.append(b)
@@ -177,7 +177,7 @@ def interpret(spec: BudgetSpec, requirement: Requirement, stage: Stage, evaluati
         val = evaluation.validate(requirement.alpha, requirement.zeta, requirement.family)
         bounds.append(val.bound(T))
         evidence.append(f"direct validation: {val.failures} failures in {val.n} episodes through action {T}; exact binomial upper endpoint "
-                        f"{val.upper:.4g} at error {val.err:.3g} (smallest certifiable tolerance {val.floor:.3g}); " + ("passes" if val.passed else "does not pass")
+                        f"{val.upper:.4g} at error {val.err:.3g} (smallest certifiable tolerance {val.zero_failure_bound:.3g}); " + ("passes" if val.passed else "does not pass")
                         + f" the tolerance {requirement.alpha:g}")
     else:
         missing.append(f"the evaluation counted failures at T = {evaluation.T}, not at the requirement's T = {T}: re-evaluate at T to validate")
@@ -226,7 +226,7 @@ def interpret(spec: BudgetSpec, requirement: Requirement, stage: Stage, evaluati
         bounds.append(b)
         if sup_U is not None and delta is not None:
             comp = dict(U0=0.0, I0=0.0, q0=0.0) if comparator is None else comparator
-            bounds.append(price_risk_law(m, beta, sup_U, comp.get("U0", 0.0), comp.get("I0", 0.0), comp.get("q0", 0.0), delta or 0.0, ubar))
+            bounds.append(price_risk_bound(m, beta, sup_U, comp.get("U0", 0.0), comp.get("I0", 0.0), comp.get("q0", 0.0), delta or 0.0, ubar))
             bounds.append(finite_from_geometric(bounds[-1].value, beta, T))
             if "C_B" in comp and "R" in comp:
                 bounds.append(comparison_law_risk(comp.get("q0", 0.0), comp["C_B"], comp["R"], delta or 0.0, m, ubar, beta, T=T))
@@ -237,7 +237,7 @@ def interpret(spec: BudgetSpec, requirement: Requirement, stage: Stage, evaluati
             bounds.append(lump_sanction_risk(evaluation.V_m, spec.horizon, stage.multiplier, ubar, beta, T, N=evaluation.n,
                                              zeta=requirement.error_per_statement, u_minus=spec.u_minus))
         if lower_barrier is not None and stage.theta > 0:
-            bounds.append(near_exhaustion_bound(V_low, m, ubar, beta, T, lower_barrier))
+            bounds.append(small_reserve_bound(V_low, m, ubar, beta, T, lower_barrier))
     if action_entropy is not None and reference_risk is not None:
         bounds.append(action_risk_bound(action_entropy, reference_risk, beta))
         evidence.append(f"action relative entropy A = {action_entropy:.4g} to the action reference (risk {reference_risk:.4g}): the departure bound "

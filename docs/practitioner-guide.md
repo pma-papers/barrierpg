@@ -272,5 +272,5 @@ behavior under a different simulator.
 | Price | `plan`, `frontier.check_runs`, `frontier.price_sequence_check`, `DualAscent`, `callbacks.dual_step_suggestion`, `DualAscent.diagnose` |
 | Reserve | `Stage(theta=...)`, `BudgetWrapper(true_budget_scale=...)` |
 | Regularizers | `ActionAnchor`, `ParameterAnchor`, `ParameterNoise`, `fit_actor_mean`, `set_log_std`, `advise_regularizers`, `regularizer_effects` |
-| Validation | `BudgetMonitor.convergence`, `BudgetMonitor.plot`, `evaluate`, `evaluation_from_episodes`, `Evaluation.validate`, `validation.validate_direct`, `validation.resolution_floor`, `validation.episodes_for_tolerance` |
+| Validation | `BudgetMonitor.convergence`, `BudgetMonitor.plot`, `evaluate`, `evaluation_from_episodes`, `Evaluation.validate`, `validation.validate_direct`, `validation.zero_failure_bound`, `validation.episodes_for_tolerance` |
 | Report | `interpret(...).summary()`, `interpret(...).text()`, `plan(...).explain()` |

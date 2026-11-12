@@ -30,7 +30,7 @@ from stable_baselines3.common.vec_env import DummyVecEnv
 
 from barrierpg import BudgetSpec, Requirement, Stage, BudgetWrapper, evaluate, interpret, plan
 from barrierpg.callbacks import BudgetMonitor, ParameterAnchor, ActionAnchor
-from barrierpg.spec import failure_tail
+from barrierpg.spec import failure_charge
 
 sys.path.insert(0, str(Path("..").resolve() / "campaigns"))
 from records import Campaign                     # the records of the full campaign
@@ -91,7 +91,7 @@ req = Requirement(T=spec.horizon - 1, alpha=0.05, zeta=0.05, family=10)
 # %%
 stage = Stage(m=0.5, clip_utility=False)
 for t in (0, 500, 900):
-    print(f"a failure at frame {t} is charged {failure_tail(stage.m, spec.beta, t, spec.horizon):6.1f}")
+    print(f"a failure at frame {t} is charged {failure_charge(stage.m, spec.beta, t, spec.horizon):6.1f}")
 
 # %% [markdown]
 # ### The wrapper
@@ -135,7 +135,7 @@ for t in range(1000):
     if terminated or truncated:
         break
 print(f"ran dry at frame {info['t']}: failure = {info['failure']}, reward = {reward:.1f}, "
-      f"the price's charge at that frame = {-failure_tail(stage.m, spec.beta, info['t'], spec.horizon):.1f}")
+      f"the price's charge at that frame = {-failure_charge(stage.m, spec.beta, info['t'], spec.horizon):.1f}")
 
 # %% [markdown]
 # `plan` states, before anything is trained, whether another method is the better choice, how many validation
@@ -258,7 +258,7 @@ print("fresh landings:", {k: f"{v:.1%}" for k, v in landings(model, tank_alone).
 
 # %%
 fig, ax = plt.subplots(figsize=(6.4, 2.8))
-for r in camp.records("tank-unpriced"):
+for r in camp.records("tank-no-price"):
     ax.plot([t["steps"] / 1e6 for t in r["monitor"]], [t["failure_rate"] for t in r["monitor"]], lw=0.7, label=f"seed {r['seed']}")
 ax.axhline(req.alpha, color="C3", ls=":", lw=1)
 ax.set_xlabel("million frames"); ax.set_ylabel("ran dry (per batch)"); ax.set_title("the tank alone, the full campaign", fontsize=9)
@@ -273,7 +273,7 @@ ax.legend(fontsize=7); plt.tight_layout(); plt.show()
 # ## 4. The full campaign: prices
 
 # %%
-prices = ["tank-unpriced", "price-0.25", "price-0.5", "price-1", "price-2"]
+prices = ["tank-no-price", "price-0.25", "price-0.5", "price-1", "price-2"]
 print(Campaign.show(camp.table(prices, extras=("landed", "crashed"))))
 
 fig, ax = plt.subplots(1, 2, figsize=(9, 3))

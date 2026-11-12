@@ -36,7 +36,7 @@ plt.rcParams.update({"figure.dpi": 110, "axes.spines.top": False, "axes.spines.r
 N = np.logspace(1, 5, 200)
 fig, ax = plt.subplots(figsize=(5.5, 3.3))
 for fam, ls in ((1, "-"), (10, "--"), (100, ":")):
-    ax.loglog(N, [V.resolution_floor(int(n), 0.05 / fam) for n in N], ls, color="C0", label=f"family of {fam}")
+    ax.loglog(N, [V.zero_failure_bound(int(n), 0.05 / fam) for n in N], ls, color="C0", label=f"family of {fam}")
 for a in (0.05, 0.01):
     ax.axhline(a, color="C3", lw=0.6)
 ax.set_xlabel("validation episodes $N$"); ax.set_ylabel("$1-\\zeta^{1/N}$ at $\\zeta=0.05$"); ax.legend(fontsize=8)
@@ -208,20 +208,20 @@ print(rep.text())
 # Both are proved in `docs/under-the-hood/supplementary-results.md` of the toolbox; neither is stated in the paper.
 #
 # * **A small reserve.** An interior barrier charges small reserves, so the clipped value also bounds the probability of
-#   coming within $\varepsilon$ of exhaustion: `certificates.near_exhaustion_bound` with `LogBarrier.lower_level`.
+#   coming within $\varepsilon$ of exhaustion: `certificates.small_reserve_bound` with `LogBarrier.lower_level`.
 # * **Probability of ever failing.** A small $q_\beta$ or a certificate at one $T$ does not bound $P(\tau<\infty)$ (the paper's example *Delay without eventual feasibility*).
 #   With bounded costs and cost discounts below one, a reserve above $\bar g_k/(1-\gamma_k)$ can never fail again, and
-#   $P(\tau<\infty)\le p_T+P(E_T)$ with both terms observable from $T+1$ actions: `certificates.eventual_risk_structural`.
+#   $P(\tau<\infty)\le p_T+P(E_T)$ with both terms observable from $T+1$ actions: `certificates.ever_failing_bound`.
 
 # %%
 from barrierpg import LogBarrier
-from barrierpg.certificates import near_exhaustion_bound, unresolved_threshold, eventual_risk_structural
+from barrierpg.certificates import small_reserve_bound, unresolved_threshold, ever_failing_bound
 B = LogBarrier(0.1, [1.0])
 for V in (4.0, 19.9):
-    print(near_exhaustion_bound(V_m=V, m=1.0, ubar=1.0, beta=0.95, T=0, lower_barrier=B.lower_level([0.05])).statement())
+    print(small_reserve_bound(V_m=V, m=1.0, ubar=1.0, beta=0.95, T=0, lower_barrier=B.lower_level([0.05])).statement())
 print("(informative only for values close to the maximum ubar/(1-beta) = 20, because the barrier level at 5% of b is small)")
 print("reserve that can never fail again with gbar = 0.1, gamma = 0.9:", unresolved_threshold(0.1, 0.9))
-print(eventual_risk_structural(p_T=0.004, P_unresolved=0.002).statement())
+print(ever_failing_bound(p_T=0.004, P_unresolved=0.002).statement())
 
 # %% [markdown]
 # ## Summary

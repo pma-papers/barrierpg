@@ -9,8 +9,9 @@ from typing import List, Optional, Sequence
 import numpy as np
 
 from .bounds import Bound
-from .certificates import price_monotonicity, price_risk_law
+from .certificates import price_monotonicity, price_risk_bound
 from .paper import cite
+from ._deprecation import RenamedKeys, renamed_attribute
 
 
 @dataclass
@@ -32,21 +33,24 @@ class Run:
 
 @dataclass
 class FrontierCheck:
-    law_bounds: List[Bound]
-    law_violations: List[str]
+    price_risk_bounds: List[Bound]
+    bound_violations: List[str]
     monotonicity_violations: List[str]
     dominated: List[str]
     table: List[dict]
 
+    law_bounds = renamed_attribute("law_bounds", "price_risk_bounds")
+    law_violations = renamed_attribute("law_violations", "bound_violations")
+
     @property
     def consistent(self) -> bool:
-        return not self.law_violations and not self.monotonicity_violations
+        return not self.bound_violations and not self.monotonicity_violations
 
     def explain(self) -> str:
         lines = []
         for row in self.table:
-            lines.append(f"m={row['m']:<8g} q={row['q_beta']:.4g}  U-I={row['net_utility']:.4g}  law bound={row['law_bound']:.4g}"
-                         + ("  (violates the price-risk bound)" if row["violates_law"] else ""))
+            lines.append(f"m={row['m']:<8g} q={row['q_beta']:.4g}  U-I={row['net_utility']:.4g}  bound={row['price_risk_bound']:.4g}"
+                         + ("  (violates the price-risk bound)" if row["violates_bound"] else ""))
         if self.monotonicity_violations:
             lines += [f"monotonicity ({cite('fixed_price', 'iii')}) violated: " + v for v in self.monotonicity_violations]
         else:
@@ -68,13 +72,13 @@ def check_runs(runs: Sequence[Run], beta: float, sup_U: float, U0: float = 0.0, 
     rs = sorted(runs, key=lambda r: (r.m, r.seed if r.seed is not None else 0))
     bounds, viol, table = [], [], []
     for r in rs:
-        b = price_risk_law(r.m, beta, sup_U, U0, I0, q0, delta, ubar)
+        b = price_risk_bound(r.m, beta, sup_U, U0, I0, q0, delta, ubar)
         bounds.append(b)
         v = r.q_beta > b.value + tol + 2.0 * r.extra.get("q_se", 0.0)
         if v:
             viol.append(f"m={r.m:g}{(' ' + r.label) if r.label else ''}: q={r.q_beta:.4g} > bound {b.value:.4g}; the policy is not a delta-optimizer "
                         f"at this price (or sup_U/delta are misstated)")
-        table.append(dict(m=r.m, q_beta=r.q_beta, U=r.U, I_m=r.I_m, net_utility=r.net_utility, law_bound=b.value, violates_law=v, label=r.label))
+        table.append(RenamedKeys(renamed={"law_bound": "price_risk_bound", "violates_law": "violates_bound"}, m=r.m, q_beta=r.q_beta, U=r.U, I_m=r.I_m, net_utility=r.net_utility, price_risk_bound=b.value, violates_bound=v, label=r.label))
     mono = []
     by_m = {}
     for r in rs:

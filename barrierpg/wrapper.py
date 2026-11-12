@@ -31,7 +31,7 @@ from typing import Callable, Optional, Sequence
 import numpy as np
 
 from .barrier import LogBarrier, interior_term
-from .spec import BudgetSpec, Stage, failure_tail
+from .spec import BudgetSpec, Stage, failure_charge
 
 try:  # optional dependency
     import gymnasium as gym
@@ -130,7 +130,7 @@ class BudgetWrapper(_Base):
     def failure_reward(self) -> float:
         if self.penalty == "multiplier":
             return -self.multiplier
-        return -failure_tail(self.m, self.beta, self.t, self.horizon)
+        return -failure_charge(self.m, self.beta, self.t, self.horizon)
 
     # --- gym API --------------------------------------------------------------------------
     def reset(self, *, seed=None, options=None, **kwargs):

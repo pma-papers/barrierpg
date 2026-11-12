@@ -19,7 +19,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import barrierpg
 from barrierpg import BudgetSpec, Requirement, Stage, plan, evaluate, interpret, LogBarrier
-from barrierpg.examples.wear import WearModel, make_wear_env, idle_policy, IncumbentRule, EXACT_FRONTIER, EXACT_BARRIER
+from barrierpg.examples.wear import WearModel, make_wear_env, standing_still_policy, IncumbentRule, EXACT_FRONTIER, EXACT_BARRIER
 
 plt.rcParams.update({"figure.dpi": 110, "axes.spines.top": False, "axes.spines.right": False, "font.size": 10})
 print("barrierpg", barrierpg.__version__, "| checked against the paper's", barrierpg.PAPER["checked_against"])
@@ -126,7 +126,7 @@ print(p.explain())
 # %%
 stage = Stage(m=1.0)
 env = lambda: make_wear_env(stage, model)
-candidates = {"standing still": idle_policy}
+candidates = {"standing still": standing_still_policy}
 for span in (1.0, 1.5, 2.0, 3.0, 5.0):
     candidates[f"rule, span {span:g}"] = IncumbentRule(span=span, std=0.1, seed=1)
 evals = {name: evaluate(env, pol, 6000, spec=spec, stage=stage, seed=10, T=19) for name, pol in candidates.items()}
@@ -163,7 +163,7 @@ from barrierpg.frontier import Run, check_runs
 runs = [Run(m=mm, q_beta=q, U=U, label="exact") for mm, (q, U) in EXACT_FRONTIER.items() if mm > 0]
 chk = check_runs(runs, beta=spec.beta, sup_U=sup_U, delta=0.0)
 print("consistent with the fixed-price results:", chk.consistent)
-ms = np.array([r["m"] for r in chk.table]); qs = np.array([r["q_beta"] for r in chk.table]); law = np.array([r["law_bound"] for r in chk.table])
+ms = np.array([r["m"] for r in chk.table]); qs = np.array([r["q_beta"] for r in chk.table]); law = np.array([r["price_risk_bound"] for r in chk.table])
 fig, ax = plt.subplots(figsize=(5, 3.2))
 ax.loglog(ms, qs, "o-", color="0.2", label="exact breakdown probability")
 ax.loglog(ms, law, "--", color="C1", label="price–risk bound, $(1-\\beta)\\sup U/m$")
@@ -186,7 +186,7 @@ print("law / exact at m = 1, 10:", [round(float(l / q), 1) for l, q, mm in zip(l
 for name, e in evals.items():
     v = e.validate(req.alpha * spec.beta ** req.T, req.zeta, req.family)
     print(f"{name:14s} {v.failures:4d} failures / {v.n}: upper bound on q_beta {v.upper:.4f} -> "
-          f"{'certifies' if v.passed else 'does not certify'} p_19 <= 0.05 (floor {v.floor:.4f})")
+          f"{'certifies' if v.passed else 'does not certify'} p_19 <= 0.05 (zero failures would certify {v.zero_failure_bound:.4f})")
 
 # %% [markdown]
 # ## The report

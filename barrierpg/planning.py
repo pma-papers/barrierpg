@@ -16,8 +16,9 @@ from .certificates import conservative_multiplier, conservative_price
 from .convergence import CurvatureBudget, curvature_budget
 from .paper import cite
 from .regularizers import RegularizerAdvice, advise_regularizers
-from .spec import BudgetSpec, Requirement, Stage, discounted_total, failure_tail
-from .validation import episodes_for_tolerance, resolution_floor, value_resolution_check
+from .spec import BudgetSpec, Requirement, Stage, discounted_total, failure_charge
+from .validation import episodes_for_tolerance, zero_failure_bound, value_resolution_check
+from ._deprecation import renamed_attribute
 
 
 # ---------------------------------------------------------------------------------------------
@@ -94,7 +95,7 @@ class Plan:
     stage: Stage
     price_bound: Optional[Bound]
     validation_episodes: int
-    direct_floor: float
+    direct_zero_failure_bound: float
     value_check: Optional[dict]
     multiplier_equivalent: float
     dual_step: Optional[float]
@@ -103,6 +104,8 @@ class Plan:
     conditions: List[Condition] = field(default_factory=list)
     notes: List[str] = field(default_factory=list)
     warnings: List[str] = field(default_factory=list)
+
+    direct_floor = renamed_attribute("direct_floor", "direct_zero_failure_bound")
 
     @property
     def another_method_preferable(self) -> bool:
@@ -131,7 +134,7 @@ class Plan:
                          "(a lump sanction); it is the fixed-price optimum at m = (1-beta) nu only in the absorbing form.")
         elif sp.horizon is not None:
             lines.append(f"Charge at a failure under the physical horizon H = {sp.horizon}: m(1-beta^(H-t))/(1-beta) at a failure at action t, "
-                         f"{failure_tail(s.m, sp.beta, 0, sp.horizon):.4g} at t = 0. A flat penalty nu matches it only at one failure time "
+                         f"{failure_charge(s.m, sp.beta, 0, sp.horizon):.4g} at t = 0. A flat penalty nu matches it only at one failure time "
                          "(spec.price_from_multiplier_physical).")
         else:
             lines.append(f"Discounted total of the price charged at a failure: {discounted_total(s.m, sp.beta):.4g} (absorbing). A multiplier method that converges to "
@@ -141,13 +144,13 @@ class Plan:
                          f"(moves nu by a twentieth of its expected level when every episode fails).")
         lines.append(f"Validation: {self.validation_episodes} fresh episodes of the deployed candidate through action {r.T} are needed "
                      f"for the direct binomial test to be able to certify {r.alpha:g} at error {r.error_per_statement:.3g} "
-                     f"(smallest tolerance that this many failure-free episodes can certify: {self.direct_floor:.3g}).")
+                     f"(smallest tolerance that this many failure-free episodes can certify: {self.direct_zero_failure_bound:.3g}).")
         if self.value_check is not None:
             vc = self.value_check
             lines.append(("The necessary condition for the empirical certificate to certify the tolerance holds"
                           if vc["attainable"] else "The empirical certificate cannot certify the tolerance")
-                         + f" with the stated N and H: the condition's left side is {vc['floor']:.3g} against alpha = {r.alpha:g} "
-                         f"(tail term {vc['tail_term']:.3g}, statistical term {vc['statistical_term']:.3g})."
+                         + f" with the stated N and H: the condition's left side is {vc['left_side']:.3g} against alpha = {r.alpha:g} "
+                         f"(tail term {vc['truncation_error']:.3g}, statistical term {vc['statistical_term']:.3g})."
                          + ("" if vc["attainable"] else " Increasing m cannot repair this; longer validation or the direct test can."))
         if self.regularizers is not None:
             lines.append(self.regularizers.explain())
@@ -213,7 +216,7 @@ def plan(spec: BudgetSpec, requirement: Requirement, *, sup_U: Optional[float] =
     # --- the cases of 'Which formulation to prefer' -----------------------------------------------
     exceeds = None
     if episode_earnings is not None and episode_earnings > 0:
-        charge = stage.multiplier if stage.penalty == "multiplier" else failure_tail(stage.m, beta, 0, spec.horizon)
+        charge = stage.multiplier if stage.penalty == "multiplier" else failure_charge(stage.m, beta, 0, spec.horizon)
         ratio = charge / episode_earnings
         exceeds = ratio > 3.0
         if exceeds:
@@ -237,7 +240,7 @@ def plan(spec: BudgetSpec, requirement: Requirement, *, sup_U: Optional[float] =
                         "constrained policy optimization addresses violations during training")
     if requirement.kind == "eventual":
         warnings.append("an eventual requirement P(tau < inf) <= alpha is not certified by a small q_beta or by a finite-horizon test "
-                        f"[{cite('delay_example')}]; it needs a bound on the future consumption ({cite('eventual_risk')}) or almost-sure feasibility")
+                        f"[{cite('delay_example')}]; it needs a bound on the future consumption ({cite('ever_failing')}) or almost-sure feasibility")
     if no_failure:
         warnings.append("no failure is permissible: a positive price never prohibits failure, no multiplier converges when every policy of the "
                         "class has positive risk, and a zero-failure validation certifies only the bound 1 - zeta^(1/N)"
@@ -263,8 +266,8 @@ def plan(spec: BudgetSpec, requirement: Requirement, *, sup_U: Optional[float] =
         warnings.append("the expected failure rate is not below the tolerance: no validation sample certifies it; retrain at a higher price")
     if validation_N is not None and validation_N < N:
         warnings.append(f"the planned validation sample N = {validation_N} is below the {N} episodes the direct test needs at this tolerance "
-                        f"(floor {resolution_floor(validation_N, err):.3g})")
-    floor = resolution_floor(max(N, 1), err)
+                        f"(zero failures in that sample certify {zero_failure_bound(validation_N, err):.3g})")
+    zero_bound = zero_failure_bound(max(N, 1), err)
     value_check = None
     if validation_H is not None and validation_N is not None:
         value_check = value_resolution_check(beta, validation_H, requirement.T, validation_N, err, requirement.alpha)
@@ -276,7 +279,7 @@ def plan(spec: BudgetSpec, requirement: Requirement, *, sup_U: Optional[float] =
         nu = stage.multiplier
         dual_step = (price_bound.value / 20.0) if (price_bound is not None and math.isfinite(price_bound.value)) else None
     else:
-        nu = discounted_total(stage.m, beta) if spec.horizon is None else failure_tail(stage.m, beta, 0, spec.horizon)
+        nu = discounted_total(stage.m, beta) if spec.horizon is None else failure_charge(stage.m, beta, 0, spec.horizon)
         dual_step = nu / 20.0 if stage.m > 0 else None
     notes.append("a prescribed level has to be set below the tolerance by the width of the confidence bound (a multiplier that converges at the tolerance "
                  "itself does not pass validation at that tolerance), just as a fixed price has to be chosen with one")
@@ -298,7 +301,7 @@ def plan(spec: BudgetSpec, requirement: Requirement, *, sup_U: Optional[float] =
     advice = None
     if regularizers is not None:
         advice = advise_regularizers(spec, stage, features=features, lambda_H=lambda_H, **regularizers)
-    return Plan(spec, requirement, stage, price_bound, N, floor, value_check, nu, dual_step, curv, advice, conditions, notes, warnings)
+    return Plan(spec, requirement, stage, price_bound, N, zero_bound, value_check, nu, dual_step, curv, advice, conditions, notes, warnings)
 
 
 __all__ = ["Condition", "when_to_use_another_method", "Plan", "plan"]

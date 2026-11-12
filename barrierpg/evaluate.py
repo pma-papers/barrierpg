@@ -28,7 +28,7 @@ from typing import Callable, Dict, Optional, Sequence
 
 import numpy as np
 
-from .spec import BudgetSpec, Stage, failure_tail
+from .spec import BudgetSpec, Stage, failure_charge
 from .validation import DirectValidation, validate_direct
 
 
@@ -143,7 +143,7 @@ def evaluation_from_episodes(failed, tau, U, I, *, spec: BudgetSpec, stage: Stag
         tail = m / (1.0 - beta) * weight
     else:
         weight = np.where(failed, beta ** np.where(failed, tau, 0), 0.0)
-        tail = np.array([failure_tail(m, beta, int(t), H) if f else 0.0 for f, t in zip(failed, tau)])
+        tail = np.array([failure_charge(m, beta, int(t), H) if f else 0.0 for f, t in zip(failed, tau)])
     V = U - I - tail
     if stage.penalty == "multiplier":
         V = U - I - stage.multiplier * weight            # fixed-multiplier value U - nu q (I is the barrier part only)

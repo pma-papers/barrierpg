@@ -117,7 +117,7 @@ class PlateauModel:
         return self.dV(c) * chi_prime(theta)
 
 
-def plateau_initial_law(n: int, rng: np.random.Generator) -> np.ndarray:
+def initial_law_on_plateau(n: int, rng: np.random.Generator) -> np.ndarray:
     """N(0, 1) conditioned on [-1/2, 1/2]: units inside the flat region of the feature."""
     out = np.empty(0)
     while out.size < n:
@@ -148,7 +148,7 @@ def simulate_particles(model: PlateauModel, kappa1: float, kappa2: float, *, n: 
     horizon = 40.0 / drift if horizon is None else horizon
     dt = 0.02 / drift if dt is None else dt
     rng = np.random.default_rng(seed)
-    x = plateau_initial_law(n, rng) if initial is None else np.array(initial, dtype=float)
+    x = initial_law_on_plateau(n, rng) if initial is None else np.array(initial, dtype=float)
     rec = np.unique(np.concatenate([[0.0], np.geomspace(horizon * 1e-4, horizon, n_record)]))
     T, V, Q, S = [], [], [], []
     l, i = 0.0, 0
@@ -174,5 +174,11 @@ PAPER_ROLES_TABLE = [  # (regularizer, kappa1, kappa2, final V_m, final spread, 
     ("sum", 0.1, 10.0, -2.2533, 0.100, 0.100),
 ]
 
-__all__ = ["chi", "chi_prime", "chi_second", "feature_bounds", "PlateauModel", "plateau_initial_law", "ParticleRun",
+__all__ = ["chi", "chi_prime", "chi_second", "feature_bounds", "PlateauModel", "initial_law_on_plateau", "ParticleRun",
            "simulate_particles", "PAPER_ROLES_TABLE"]
+
+
+# names of version 0.7.1 and earlier, kept with a DeprecationWarning
+from .._deprecation import module_getattr  # noqa: E402
+
+__getattr__ = module_getattr(__name__, {"plateau_initial_law": "initial_law_on_plateau"}, globals())

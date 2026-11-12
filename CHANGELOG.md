@@ -18,10 +18,33 @@
 - Printed strings change with them: the names of two bounds (`upper bound on the probability of a small reserve`,
   `p_T lower bound over the class`), the lines of `Plan`, `Report` and `RegularizerMix`, and the citation strings of
   `cite`. Code that compares these strings must be updated.
-- Function, attribute, argument and configuration names are unchanged (`price_risk_law`, `risk_floor`,
-  `resolution_floor`, `near_exhaustion_bound`, `learning_form_risk`, `idle_policy`, `pull_strength`, `kappa_pull`,
-  `failure_tail`, the status `off-target`, the configurations `unpriced`). No function changes.
-  `PAPER["checked_against"]` is revision 76 (2026-11-12).
+- Names follow the wording. Every old name keeps working and raises a `DeprecationWarning` that states the new one
+  (`barrierpg/_deprecation.py`; `tests/test_deprecated_names.py` checks each of them). No computed value changes.
+
+  | Old name | New name |
+  |---|---|
+  | `certificates.price_risk_law` | `price_risk_bound` |
+  | `certificates.risk_floor`; argument `risk_floor_value` and key `floor` of `prescribed_level_attainable` | `risk_lower_bound`; `risk_lower_bound_value`, `risk_lower_bound` |
+  | `certificates.frozen_multiplier_value` | `fixed_multiplier_value` |
+  | `certificates.learning_form_risk` | `learned_law_risk` |
+  | `certificates.near_exhaustion_bound` | `small_reserve_bound` |
+  | `certificates.eventual_risk_structural` | `ever_failing_bound` |
+  | `certificates.width_for_target`, `width_for_direct_target` | `width_for_tolerance`, `width_for_direct_tolerance` |
+  | `validation.resolution_floor`; `DirectValidation.floor`; `Plan.direct_floor` | `zero_failure_bound`; `.zero_failure_bound`; `.direct_zero_failure_bound` |
+  | keys `floor`, `tail_term` of `validation.value_resolution_check` | `left_side`, `truncation_error` |
+  | `spec.failure_tail` (also `barrierpg.failure_tail`) | `failure_charge` |
+  | `RegularizerMix.pull_strength`; argument `kappa_pull` of `roles.noise_and_anchor_spread` | `drift_strength`; `kappa_drift` |
+  | `FrontierCheck.law_bounds`, `law_violations`; table keys `law_bound`, `violates_law` | `price_risk_bounds`, `bound_violations`; `price_risk_bound`, `violates_bound` |
+  | `MultiplierDiagnosis.target`; status `'off-target'` | `.tolerance`; `'off-tolerance'` (compares equal to the old spelling, with the warning) |
+  | `examples.plateau.plateau_initial_law`, `examples.wear.idle_policy` | `initial_law_on_plateau`, `standing_still_policy` |
+  | keys `risk_floor`, `learning_error`, `near_exhaustion`, `eventual_risk` of `paper.cite` | `risk_lower_bound`, `optimization_error`, `small_reserve`, `ever_failing` |
+  | campaign configurations `unpriced`, `tank-unpriced`, `unpriced-no-clock` | `no-price`, `tank-no-price`, `no-price-no-clock` |
+
+  The folders of the stored campaign records are renamed with their configurations; each `record.json` keeps the
+  name under which it was run. Unchanged on purpose: the names with `slack`, the argument `margin` of
+  `certified_kappa` (a factor), `Evaluation.near` (the column of the paper's table), the requirement kind
+  `'eventual'` (the paper's word), `Stage`.
+- `PAPER["checked_against"]` is revision 76 (2026-11-12).
 
 ## Unreleased: wording aligned with revision 75's terminology (2026-11-06)
 

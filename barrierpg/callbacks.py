@@ -25,7 +25,7 @@ import numpy as np
 
 from .convergence import MultiplierDiagnosis, multiplier_diagnosis, plot_training, training_convergence, trend_test
 from .paper import cite
-from .spec import failure_tail
+from .spec import failure_charge
 
 try:
     from stable_baselines3.common.callbacks import BaseCallback
@@ -470,7 +470,7 @@ class BudgetMonitor(BaseCallback):
                 elif rec.get("geometric_stop", False):
                     tail = self.m / (1.0 - self.beta)
                 else:
-                    tail = failure_tail(self.m, self.beta, int(rec["tau"]), self.horizon)
+                    tail = failure_charge(self.m, self.beta, int(rec["tau"]), self.horizon)
             self._U.append(rec["U"]); self._I.append(rec["I"]); self._V.append(rec["U"] - rec["I"] - tail)
             self._fail.append(float(rec["failed"])); self._near.append(float(rec["min_reserve_fraction"] <= self.near))
             self._len.append(rec["length"])

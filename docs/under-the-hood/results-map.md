@@ -11,15 +11,15 @@ in [`barrierpg/paper.py`](../../barrierpg/paper.py); `barrierpg.paper.results_ta
 | Result in the paper | What it says | Function |
 |---|---|---|
 | The inequality $\beta^Tp_T\le q_\beta$ (since $\beta^\tau\ge\beta^T$ on $\tau\le T$) | The geometric risk bounds the finite-horizon risk | `certificates.finite_from_geometric`, `geometric_from_finite` |
-| *The represented class* | Bounded scores impose a lower bound on the risk, $p_T(\pi_\mu)\ge e^{-2L_0(T+1)}p_T(\rho)$ | `certificates.risk_floor` |
+| *The represented class* | Bounded scores impose a lower bound on the risk, $p_T(\pi_\mu)\ge e^{-2L_0(T+1)}p_T(\rho)$ | `certificates.risk_lower_bound` |
 | The clipping identity (*Utility at the attained risk level*) | $V_m=U-\mathcal I_m-\frac{m}{1-\beta}q_\beta$ | `certificates.clipped_value_identity`; checked per episode by `evaluate` |
 | *Value and objective certificates* | $q_\beta\le(\bar u-(1-\beta)V_m)/(m+\bar u)$, and $p_T$ with the factor $\beta^{-T}$ | `certificates.risk_from_value`, `risk_from_objective` |
 | *The geometric risk as a risk measure of the failure time* | The earliest $\varepsilon$-fraction of failures occurs on average no earlier than $\log(\varepsilon/q_\beta)/\log(1/\beta)$ periods | `certificates.earliest_failures_time` |
 | *Matched-risk performance comparison* | Utility shortfall charged with interior loss, regularization cost, optimization error and the part of the level not used; its signed form | `certificates.matched_risk_utility_gap`, `matched_risk_signed`, `frontier.complementarity_gap` |
 | *Fixed price of failure risk*, optimality at the attained risk | A fixed-price optimum is optimal for $U-\mathcal I_m$ at the risk it attains | `frontier.check_runs` (dominance), `report.interpret` (the fixed-price reading) |
-| *Fixed price of failure risk*, price–risk bound | The attained risk is at most a comparison policy's plus order $1/m$; a second bound with the $(m+\bar u)$ denominator | `certificates.price_risk_law`, `conservative_price`, `conservative_multiplier` |
+| *Fixed price of failure risk*, price–risk bound | The attained risk is at most a comparison policy's plus order $1/m$; a second bound with the $(m+\bar u)$ denominator | `certificates.price_risk_bound`, `conservative_price`, `conservative_multiplier` |
 | *Fixed price of failure risk*, monotonicity in the price | A higher price raises the attained risk only through the errors and the interior loss | `certificates.price_monotonicity`, `frontier.check_runs` |
-| *Fixed price of failure risk*, learned laws | The price–risk bound for a minimizer of the regularized objective, with the regularization cost charged | `certificates.learning_form_risk`, `comparison_law_risk` |
+| *Fixed price of failure risk*, learned laws | The price–risk bound for a minimizer of the regularized objective, with the regularization cost charged | `certificates.learned_law_risk`, `comparison_law_risk` |
 | *The fixed price of failure risk* (the section) | A prescribed level below the lower bound on the risk is unattainable, and no multiplier converges | `certificates.prescribed_level_attainable`, `convergence.multiplier_diagnosis` |
 | *Action regularization and failure risk* | $\mathrm{kl}(q\,\|\,q_\rho)\le\mathcal A$: departure from the action reference's risk | `certificates.action_risk_bound`, `kl_upper_inverse`, `kl_lower_inverse` |
 
@@ -44,8 +44,8 @@ in [`barrierpg/paper.py`](../../barrierpg/paper.py); `barrierpg.paper.results_ta
 
 | Result in the paper | What it says | Function |
 |---|---|---|
-| *Population-to-network transfer* | From a learned law to one sampled network; widths for a tolerance | `certificates.finite_network_transfer`, `width_for_target`, `width_for_direct_target` |
-| *Validate the deployed candidate at its specified horizon*, the direct test | Exact binomial upper bound; the bound $1-\zeta^{1/N}$ at zero failures; errors allocated over a family | `validation.validate_direct`, `binomial_upper`, `resolution_floor`, `episodes_for_tolerance`, `allocate_error`; `Evaluation.validate` |
+| *Population-to-network transfer* | From a learned law to one sampled network; widths for a tolerance | `certificates.finite_network_transfer`, `width_for_tolerance`, `width_for_direct_tolerance` |
+| *Validate the deployed candidate at its specified horizon*, the direct test | Exact binomial upper bound; the bound $1-\zeta^{1/N}$ at zero failures; errors allocated over a family | `validation.validate_direct`, `binomial_upper`, `zero_failure_bound`, `episodes_for_tolerance`, `allocate_error`; `Evaluation.validate` |
 | The same section, the value test | Hoeffding lower bound on $V_m$ from truncated returns; a necessary condition for the test to certify a tolerance | `validation.hoeffding_value_lower`, `risk_from_validation_value`, `value_resolution_check` |
 | The same section, a physical horizon | The certificate when the task ends after $H$ actions | `validation.physical_horizon_risk` |
 | *The risk priced by a physical horizon*, with *Value and objective certificates* | The value certificate with a lump sum at failure, $p_T\le(\bar uS_H-V^{(H)})/(F\beta^T)$ | `validation.lump_sanction_risk` |
@@ -80,5 +80,5 @@ Not stated in the paper; proved in [`supplementary-results.md`](supplementary-re
 
 | Result | Function |
 |---|---|
-| Certificate for a small reserve | `certificates.near_exhaustion_bound` with `LogBarrier.lower_level` |
-| Structural certificate for the probability of ever failing | `certificates.eventual_risk_structural`, `unresolved_threshold` |
+| Certificate for a small reserve | `certificates.small_reserve_bound` with `LogBarrier.lower_level` |
+| Structural certificate for the probability of ever failing | `certificates.ever_failing_bound`, `unresolved_threshold` |

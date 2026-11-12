@@ -20,6 +20,7 @@ from .bounds import Bound, clip01
 from .certificates import risk_from_value
 from .paper import cite
 from .spec import discounted_sum_to
+from ._deprecation import RenamedKeys, module_getattr, renamed_attribute
 
 
 def binomial_upper(k: int, n: int, err: float) -> float:
@@ -35,7 +36,7 @@ def binomial_upper(k: int, n: int, err: float) -> float:
     return float(beta_dist.ppf(1.0 - err, k + 1, n - k))
 
 
-def resolution_floor(n: int, err: float) -> float:
+def zero_failure_bound(n: int, err: float) -> float:
     """Smallest tolerance that n failure-free episodes can certify at error err: 1 - err^(1/n)."""
     return 1.0 - err ** (1.0 / n)
 
@@ -72,8 +73,10 @@ class DirectValidation:
     alpha: float
     err: float
     upper: float
-    floor: float
+    zero_failure_bound: float
     event: str = "p_T"
+
+    floor = renamed_attribute("floor", "zero_failure_bound")
 
     @property
     def passed(self) -> bool:
@@ -87,15 +90,15 @@ class DirectValidation:
         return Bound(name, self.upper, cite("validation") + ", exact binomial test",
                      [hyp,
                       f"error {self.err:.3g} allocated to this statement (family allocation)"],
-                     dict(failures=self.failures, n=self.n, alpha=self.alpha, err=self.err, floor=self.floor),
+                     dict(failures=self.failures, n=self.n, alpha=self.alpha, err=self.err, zero_failure_bound=self.zero_failure_bound),
                      note=("passes" if self.passed else "does not pass") + f" the tolerance {self.alpha:g}; "
-                          f"smallest certifiable tolerance {self.floor:.3g} (zero failures certify no less). Failure to certify does not prove violation; "
+                          f"smallest certifiable tolerance {self.zero_failure_bound:.3g} (zero failures certify no less). Failure to certify does not prove violation; "
                           "a passed test at one horizon does not certify a longer one")
 
 
 def validate_direct(failures: int, n: int, alpha: float, zeta: float, family: int = 1) -> DirectValidation:
     err = allocate_error(zeta, family)
-    return DirectValidation(int(failures), int(n), float(alpha), err, binomial_upper(failures, n, err), resolution_floor(n, err))
+    return DirectValidation(int(failures), int(n), float(alpha), err, binomial_upper(failures, n, err), zero_failure_bound(n, err))
 
 
 # ---------------------------------------------------------------------------------------------
@@ -124,8 +127,8 @@ def value_resolution_check(beta: float, H: int, T: int, N: int, zeta: float, alp
     beta^(H-T) + (1-beta^H)/beta^T sqrt(log(1/zeta)/(2N)) <= alpha  (a necessary condition).
     Increasing m cannot repair a failure of this check."""
     lhs = beta ** (H - T) + (1.0 - beta ** H) / beta ** T * math.sqrt(math.log(1.0 / zeta) / (2.0 * N))
-    return dict(attainable=lhs <= alpha, floor=lhs, alpha=alpha,
-                tail_term=beta ** (H - T), statistical_term=(1.0 - beta ** H) / beta ** T * math.sqrt(math.log(1.0 / zeta) / (2.0 * N)))
+    return RenamedKeys(renamed={"floor": "left_side", "tail_term": "truncation_error"}, attainable=lhs <= alpha, left_side=lhs, alpha=alpha,
+                truncation_error=beta ** (H - T), statistical_term=(1.0 - beta ** H) / beta ** T * math.sqrt(math.log(1.0 / zeta) / (2.0 * N)))
 
 
 def physical_horizon_risk(V_mH: float, H: int, m: float, ubar: float, beta: float, T: int,
@@ -171,6 +174,10 @@ def lump_sanction_risk(V_H: float, H: int, nu: float, ubar: float, beta: float, 
                  note="informative when nu beta^T is large against the utility at stake; direct validation is often sharper")
 
 
-__all__ = ["binomial_upper", "resolution_floor", "episodes_for_tolerance", "allocate_error", "DirectValidation",
+__all__ = ["binomial_upper", "zero_failure_bound", "episodes_for_tolerance", "allocate_error", "DirectValidation",
            "validate_direct", "hoeffding_value_lower", "risk_from_validation_value", "value_resolution_check",
            "physical_horizon_risk", "hoeffding_lower", "lump_sanction_risk"]
+
+
+# names of version 0.7.1 and earlier, kept with a DeprecationWarning
+__getattr__ = module_getattr(__name__, {"resolution_floor": "zero_failure_bound"}, globals())

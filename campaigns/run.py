@@ -111,6 +111,7 @@ def main():
     ap.add_argument("--out", default=str(HERE / "results"))
     args = ap.parse_args()
     problem = P.get(args.problem)
+    args.config = P.current_name(args.config)
     config = problem.configs[args.config]
     steps = args.steps or config.steps
     n_eval = args.eval or config.eval_episodes

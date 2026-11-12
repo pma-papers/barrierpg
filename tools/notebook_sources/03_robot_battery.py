@@ -106,7 +106,7 @@ def make_env(stage, observe_time=True, **options):
     return BudgetWrapper(Battery(), energy_used, spec, stage, observe_time=observe_time, **options)
 
 
-print(Campaign.show(camp.table(["unpriced-no-clock", "unpriced", "price-3-no-clock", "price-3"], extras=("distance",)), extras=("distance",)))
+print(Campaign.show(camp.table(["no-price-no-clock", "no-price", "price-3-no-clock", "price-3"], extras=("distance",)), extras=("distance",)))
 
 # %% [markdown]
 # The campaign trained the robot with and without the clock. Without it, the robot is stranded in more than half of its
@@ -179,7 +179,7 @@ plt.tight_layout(); plt.show()
 # ## 4. The full campaign: prices
 
 # %%
-prices = ["unpriced", "price-1", "price-3", "price-10"]
+prices = ["no-price", "price-1", "price-3", "price-10"]
 print(Campaign.show(camp.table(prices, extras=("distance", "energy")), extras=("distance", "energy")))
 
 print("\nConvergence at the end of training (the toolbox's check on each run's record):")
@@ -206,7 +206,7 @@ print(camp.convergence_table(prices + ["barrier"]))
 # known, planning with the smaller budget is cheaper.
 
 # %%
-for cfg in ["unpriced", "price-1", "price-3", "price-10", "barrier"]:
+for cfg in ["no-price", "price-1", "price-3", "price-10", "barrier"]:
     nominal = [np.mean(r["evaluation"]["failed"]) for r in camp.records(cfg)]
     weak = [np.mean(r["extra_evaluations"][0]["episodes"]["failed"]) for r in camp.records(cfg)]
     dist = [np.mean(r["evaluation"]["distance"]) for r in camp.records(cfg)]

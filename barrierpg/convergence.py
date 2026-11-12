@@ -33,6 +33,7 @@ import numpy as np
 
 from .paper import cite
 from .spec import price_from_multiplier
+from ._deprecation import Status, renamed_attribute
 
 
 # ---------------------------------------------------------------------------------------------
@@ -185,11 +186,11 @@ def learning_risk_bound(ell: float, *, m: float, beta: float, ubar: float, q_bar
                         R_bar: float, E0: float, Lambda: float, sup_U: Optional[float] = None, T: Optional[int] = None):
     """'Optimization error and risk along the flow': for the flow with Lambda_m > 0 at learning time ell, both bounds of part (iv) of the fixed-price proposition hold
     with the optimization error E0 exp(-2 Lambda ell) in place of delta and the comparison law's regularization cost R."""
-    from .certificates import learning_form_risk
+    from .certificates import learned_law_risk
     if Lambda <= 0:
         raise ValueError("the bound of the corollary needs Lambda_m > 0")
-    b = learning_form_risk(m, beta, ubar, q_bar, U_bar, I_bar, R_bar, E0 * math.exp(-2.0 * Lambda * ell), sup_U=sup_U, T=T)
-    b.source = cite("learning_error")
+    b = learned_law_risk(m, beta, ubar, q_bar, U_bar, I_bar, R_bar, E0 * math.exp(-2.0 * Lambda * ell), sup_U=sup_U, T=T)
+    b.source = cite("optimization_error")
     b.inputs.update(ell=ell, E0=E0, Lambda=Lambda)
     return b
 
@@ -309,12 +310,17 @@ def trend_test(values: Sequence[float], window: Optional[int] = None) -> TrendTe
 
 @dataclass
 class MultiplierDiagnosis:
-    status: str                # 'stable', 'increasing', 'inactive', 'trending', 'off-target', 'short'
+    status: str                # 'stable', 'increasing', 'inactive', 'trending', 'off-tolerance', 'short'
     final_multiplier: float
     equivalent_price: float    # (1 - beta) nu in the absorbing form
     window_failure_rate: float
-    target: float
+    tolerance: float
     explanation: str
+
+    target = renamed_attribute("target", "tolerance")
+
+    def __post_init__(self):
+        self.status = Status(self.status)
 
 
 def multiplier_diagnosis(trace: Sequence[dict], alpha: float, beta: float, window: int = 20, tol: float = 0.25) -> MultiplierDiagnosis:
@@ -335,7 +341,7 @@ def multiplier_diagnosis(trace: Sequence[dict], alpha: float, beta: float, windo
     trending    the multiplier is still rising or falling: train longer, or size the step from the level the
                 multiplier has to reach. A multiplier that keeps rising while the failure rate stays above the
                 tolerance is the sign of a tolerance below the lower bound on the risk of the class (then no multiplier converges);
-    off-target  no detectable drift, but the failure rate is not near the tolerance: the rollouts are too few or too
+    off-tolerance  no detectable drift, but the failure rate is not near the tolerance: the rollouts are too few or too
                 small to resolve the tolerance;
     short       too few rollouts.
     """
@@ -367,7 +373,7 @@ def multiplier_diagnosis(trace: Sequence[dict], alpha: float, beta: float, windo
                                    f"failure rate {rate_w:.3g} is near the tolerance {alpha:g}. A multiplier that has converged returns the fixed-price "
                                    "optimum at that price; a level reached at the tolerance itself does not pass a validation test at that tolerance")
     if not drifting and not close:
-        return MultiplierDiagnosis("off-target", last, eq, rate_w, alpha,
+        return MultiplierDiagnosis("off-tolerance", last, eq, rate_w, alpha,
                                    f"multiplier shows no drift but the failure rate {rate_w:.3g} is not near the tolerance {alpha:g}: the rollouts are too "
                                    "few or too small to resolve the tolerance")
     return MultiplierDiagnosis("trending", last, eq, rate_w, alpha,

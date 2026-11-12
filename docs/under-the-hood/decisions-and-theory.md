@@ -86,7 +86,7 @@ mechanism. The choice of mechanism follows from the requirement, not the other w
   substituting it for a fixed operational horizon needs a justification, and the two are linked by
   `p_T <= beta^(-T) q_beta` (`certificates.finite_from_geometric`). `kind="eventual"` bounds
   `P(tau < inf)`; neither a small `q_beta` nor a test at one horizon certifies it, and the toolbox
-  certifies it only with known bounded discounted costs (`certificates.eventual_risk_structural`).
+  certifies it only with known bounded discounted costs (`certificates.ever_failing_bound`).
   `family` is the number of simultaneous statements (candidates, horizons, tests) that share the
   error `zeta`; allocate it before taking minima or selecting a policy.
 * **When failure has a price in the application itself** (downtime until the next maintenance access,
@@ -122,7 +122,7 @@ when a reserve before exhaustion is worth its cost. Another method is the better
 1. **No failure is permissible and a controlled-invariant set is known.** A finite price prices failure
    risk; it does not prohibit failure. If the action reference can exhaust a budget with positive
    probability, so can every represented policy: bounded scores impose a lower bound on the risk,
-   `p_T(pi_mu) >= exp(-2 L0 (T+1)) p_T(rho)` (*The represented class*; `certificates.risk_floor`), and
+   `p_T(pi_mu) >= exp(-2 L0 (T+1)) p_T(rho)` (*The represented class*; `certificates.risk_lower_bound`), and
    no price removes it. An almost-sure method (an infinite failure penalty, a control-barrier safety
    layer, or a method that learns which actions keep probability-one budget constraints) addresses this
    specification when a controlled-invariant set is known. `plan` flags `alpha = 0`: a positive price
@@ -201,7 +201,7 @@ price `m`, so training at many prices is not required.
   *stable* (both hold), *increasing* (every episode fails and the flat penalty carries no gradient:
   lower the step, raise a fixed price, or start from a controller that sometimes survives), *inactive*
   (the tolerance does not bind), *trending* (still moving; one that keeps rising while the failure
-  rate stays above the tolerance signals a tolerance below that lower bound), *off-target* (no drift, but
+  rate stays above the tolerance signals a tolerance below that lower bound), *off-tolerance* (no drift, but
   the rollouts cannot resolve the tolerance), or *short* (too few rollouts). The drift is tested on the
   multiplier's updates, since a slope fitted to the levels of a running sum reports a trend in almost
   any window. A multiplier that converges at the tolerance itself
@@ -214,7 +214,7 @@ price `m`, so training at many prices is not required.
   crash penalty. Choose `m >= u_minus`, or charge the price at failure alone: the fixed-multiplier
   form `U - nu q_beta`, `Stage(clip_utility=False)`, to which the fixed-price results apply verbatim.
   `plan` warns when `m < u_minus` with clipping on.
-* **Physical horizon.** For a task that ends after `H` actions, `BudgetSpec(horizon=H)` charges the total `m (1 - beta^(H-t))/(1 - beta)` of the price at a failure at step `t`; `barrierpg.spec.failure_tail` gives it, and
+* **Physical horizon.** For a task that ends after `H` actions, `BudgetSpec(horizon=H)` charges the total `m (1 - beta^(H-t))/(1 - beta)` of the price at a failure at step `t`; `barrierpg.spec.failure_charge` gives it, and
   `barrierpg.spec.price_from_multiplier_physical` converts a flat penalty into a price at a typical failure time.
 * **Check the resolution before retraining.** `validation.value_resolution_check` says whether the
   empirical certificate can certify the tolerance with the planned sample and horizon at all; increasing
@@ -235,7 +235,7 @@ price `m`, so training at many prices is not required.
 * Test the reserve before deployment: `BudgetWrapper(..., true_budget_scale=0.9)` judges failure
   against a reduced true budget while the policy observes the nominal reserve, and `BudgetMonitor`
   and `Evaluation.near` report the frequencies of a small reserve. With a positive barrier,
-  `certificates.near_exhaustion_bound` with `LogBarrier.lower_level` certifies the probability of
+  `certificates.small_reserve_bound` with `LogBarrier.lower_level` certifies the probability of
   coming within a chosen distance of exhaustion.
 
 ## 5. Choose regularizers for their role
@@ -409,7 +409,7 @@ print(interpret(spec, req, stage, ev, effects=eff).text())
 * **With the error allocated.** `validation.validate_direct(failures, n, alpha, zeta, family)` uses the
   one-sided exact binomial upper endpoint at the error `zeta/family`; allocate the error over every
   simultaneous statement before selecting among candidates.
-* **With the resolution in mind.** Zero failures in `N` episodes certify the bound `1 - zeta^(1/N)` (`validation.resolution_floor`), never zero; failure to certify does not prove
+* **With the resolution in mind.** Zero failures in `N` episodes certify the bound `1 - zeta^(1/N)` (`validation.zero_failure_bound`), never zero; failure to certify does not prove
   violation. `validation.episodes_for_tolerance(alpha, err, expected_failure_rate)` sizes the sample.
 * **Under geometric stopping** (`BudgetWrapper(geometric_stop=True)`, the convention under which a
   learner with algorithmic discount one optimizes the discounted objective exactly), the episode
@@ -419,7 +419,7 @@ print(interpret(spec, req, stage, ev, effects=eff).text())
   action reference. An uninformative sufficient bound does not establish failure; direct validation or
   an additional bound on the future consumption may still certify the requirement.
 * **Finite networks.** *Population-to-network transfer* gives widths
-  (`certificates.width_for_target`, `width_for_direct_target`, `finite_network_transfer`) that are
+  (`certificates.width_for_tolerance`, `width_for_direct_tolerance`, `finite_network_transfer`) that are
   typically far above the networks used, which is why deployed candidates are validated directly.
 * **The report.** `interpret(spec, req, stage, ev, ...)` states in what sense the candidate solves the
   problem (optimal at the risk it attains, bounded risk, validated at a horizon), what each regularizer
@@ -434,13 +434,13 @@ print(interpret(spec, req, stage, ev, effects=eff).text())
 
 | Decision | Functions |
 |---|---|
-| Specify the requirement | `BudgetSpec`, `Requirement`, `certificates.finite_from_geometric`, `certificates.earliest_failures_time`, `certificates.eventual_risk_structural` |
-| Detect conditions for another method | `planning.when_to_use_another_method`, `plan`, `certificates.risk_floor`, `certificates.prescribed_level_attainable` |
-| Fix the price | `plan`, `certificates.conservative_price`, `certificates.conservative_multiplier`, `certificates.price_risk_law`, `certificates.price_monotonicity`, `frontier.check_runs`, `frontier.price_sequence_check`, `certificates.matched_risk_utility_gap`, `certificates.matched_risk_signed` |
-| Run any learner | `BudgetWrapper`, `RunningMaxCost`, `Stage`, `barrierpg.spec.failure_tail`, `BudgetMonitor` |
+| Specify the requirement | `BudgetSpec`, `Requirement`, `certificates.finite_from_geometric`, `certificates.earliest_failures_time`, `certificates.ever_failing_bound` |
+| Detect conditions for another method | `planning.when_to_use_another_method`, `plan`, `certificates.risk_lower_bound`, `certificates.prescribed_level_attainable` |
+| Fix the price | `plan`, `certificates.conservative_price`, `certificates.conservative_multiplier`, `certificates.price_risk_bound`, `certificates.price_monotonicity`, `frontier.check_runs`, `frontier.price_sequence_check`, `certificates.matched_risk_utility_gap`, `certificates.matched_risk_signed` |
+| Run any learner | `BudgetWrapper`, `RunningMaxCost`, `Stage`, `barrierpg.spec.failure_charge`, `BudgetMonitor` |
 | Adaptive multiplier | `Stage(penalty="multiplier")`, `DualAscent`, `callbacks.dual_step_suggestion`, `DualAscent.diagnose` |
-| Keep a reserve | `Stage(theta=...)`, `BudgetWrapper(true_budget_scale=...)`, `certificates.near_exhaustion_bound`, `LogBarrier.lower_level` |
+| Keep a reserve | `Stage(theta=...)`, `BudgetWrapper(true_budget_scale=...)`, `certificates.small_reserve_bound`, `LogBarrier.lower_level` |
 | Choose regularizers | `advise_regularizers`, `ActionAnchor`, `ParameterAnchor`, `ParameterNoise`, `fit_actor_mean`, `set_log_std`, `RegularizerMix`, `convergence.gaussian_prior_curvature`, `convergence.curvature_budget`, `convergence.certified_kappa`, `convergence.finite_training_transfer` |
 | Read their effects | `regularizer_effects`, `ParameterAnchor.effects_inputs`, `ParameterNoise.spread`, `evaluate.stopped_action_relative_entropy`, `certificates.action_risk_bound` |
-| Certify and validate | `evaluate`, `evaluation_from_episodes`, `Evaluation.validate`, `validation.validate_direct`, `validation.resolution_floor`, `validation.episodes_for_tolerance`, `certificates.risk_from_value`, `validation.risk_from_validation_value`, `validation.physical_horizon_risk`, `validation.lump_sanction_risk`, `validation.value_resolution_check` |
+| Certify and validate | `evaluate`, `evaluation_from_episodes`, `Evaluation.validate`, `validation.validate_direct`, `validation.zero_failure_bound`, `validation.episodes_for_tolerance`, `certificates.risk_from_value`, `validation.risk_from_validation_value`, `validation.physical_horizon_risk`, `validation.lump_sanction_risk`, `validation.value_resolution_check` |
 | Report | `interpret(...).text()`, `plan(...).explain()` |

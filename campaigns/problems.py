@@ -80,7 +80,7 @@ def _retailer() -> Problem:
 
     steps = 10_000_000               # the learning curves were still rising after 3 and 6 million steps
     configs = {
-        "unpriced": Config(lump(0.0), steps, "no charge for insolvency"),
+        "no-price": Config(lump(0.0), steps, "no charge for insolvency"),
         "lump-2000": Config(lump(2000.0), steps, "insolvency costs 2,000"),
         "lump-5000": Config(lump(5000.0), steps, "insolvency costs 5,000"),
         "lump-20000": Config(lump(20000.0), steps, "insolvency costs 20,000"),
@@ -116,13 +116,13 @@ def _robot() -> Problem:
     configs = {
         "no-battery": Config(price(0.0), steps, "a gait trained without a battery", env_kw=dict(battery=Battery(charge=1e9)),
                              eval_kw=[dict(battery=b)]),
-        "unpriced": Config(price(0.0), steps, "battery, no price", eval_kw=weak),
+        "no-price": Config(price(0.0), steps, "battery, no price", eval_kw=weak),
         "price-1": Config(price(1.0), steps, "battery, price 1", eval_kw=weak),
         "price-3": Config(price(3.0), steps, "battery, price 3", eval_kw=weak),
         "price-10": Config(price(10.0), steps, "battery, price 10", eval_kw=weak),
         "barrier": Config(Stage(m=3.0, theta=0.5, clip_utility=False), steps, "battery, price 3 with an interior barrier (theta = 0.5)",
                           eval_kw=weak),
-        "unpriced-no-clock": Config(price(0.0), steps, "battery, no price, without the elapsed time in the observation",
+        "no-price-no-clock": Config(price(0.0), steps, "battery, no price, without the elapsed time in the observation",
                                     env_kw=dict(observe_time=False)),
         "price-3-no-clock": Config(price(3.0), steps, "battery, price 3, without the elapsed time in the observation",
                                    env_kw=dict(observe_time=False)),
@@ -153,7 +153,7 @@ def _lander() -> Problem:
         # judged against a practically unlimited tank), so the gauge is a familiar input when the real tank arrives
         "controller": Config(price(0.0), 5_000_000, "the controller in use: trained with a fuel gauge but no limit",
                              env_kw=dict(true_budget_scale=1e6), eval_kw=[dict(true_budget_scale=1.0)]),
-        "tank-unpriced": Config(price(0.0), fine, "the tank imposed, no price", init="controller"),
+        "tank-no-price": Config(price(0.0), fine, "the tank imposed, no price", init="controller"),
         "price-0.25": Config(price(0.25), fine, "tank, price 0.25", init="controller"),
         "price-0.5": Config(price(0.5), fine, "tank, price 0.5", init="controller"),
         "price-1": Config(price(1.0), fine, "tank, price 1", init="controller"),
@@ -185,7 +185,7 @@ def _navigation() -> Problem:
 
     steps = 2_000_000
     configs = {
-        "unpriced": Config(price(0.0), steps, "no price"),
+        "no-price": Config(price(0.0), steps, "no price"),
         "price-0.003": Config(price(0.003), steps, "price 0.003"),
         "price-0.01": Config(price(0.01), steps, "price 0.01"),
         "price-0.03": Config(price(0.03), steps, "price 0.03"),
@@ -199,6 +199,20 @@ def _navigation() -> Problem:
 
 
 PROBLEMS: Dict[str, Callable[[], Problem]] = {"retailer": _retailer, "robot": _robot, "lander": _lander, "navigation": _navigation}
+
+
+# Configuration names of the records made before 2026-11-12, kept with a DeprecationWarning. The record.json of such
+# a run still carries the name under which it was run.
+RENAMED_CONFIGS = {"unpriced": "no-price", "tank-unpriced": "tank-no-price", "unpriced-no-clock": "no-price-no-clock"}
+
+
+def current_name(config: str) -> str:
+    """The present name of a configuration, given its present or an earlier name."""
+    if config in RENAMED_CONFIGS:
+        import warnings
+        warnings.warn(f"the configuration name {config!r} is deprecated; use {RENAMED_CONFIGS[config]!r}", DeprecationWarning, stacklevel=3)
+        return RENAMED_CONFIGS[config]
+    return config
 
 
 def get(name: str) -> Problem:

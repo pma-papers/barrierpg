@@ -47,12 +47,12 @@ ax.legend(fontsize=7.5, loc="center right")
 
 # (b) the retailer
 ax = axes[1]
-costs = [("unpriced", "no cost", GREY), ("lump-2000", "2,000", "#9ecae1"), ("lump-5000", "5,000", "#4292c6"),
+costs = [("no-price", "no cost", GREY), ("lump-2000", "2,000", "#9ecae1"), ("lump-5000", "5,000", "#4292c6"),
          ("lump-20000", "20,000", "#08519c")]
 for cfg, label, col in costs:
     rs = records("retailer", cfg)
     ax.plot([np.mean(r["evaluation"]["failed"]) for r in rs], [np.mean(r["evaluation"]["U"]) for r in rs], "o", color=col,
-            ms=5, label=f"learned, insolvency costs {label}" if cfg != "unpriced" else "learned, no cost of insolvency")
+            ms=5, label=f"learned, insolvency costs {label}" if cfg != "no-price" else "learned, no cost of insolvency")
 retailer = Retailer()
 stage = Stage(m=0.0, penalty="multiplier", multiplier=5000.0, clip_utility=False)
 rule = evaluate(lambda: make_inventory_env(stage, retailer), BaseStockRule(retailer, 2.0, 300.0).deterministic, 2000,
@@ -67,7 +67,7 @@ leg = ax.legend(fontsize=6.6, loc="lower right", frameon=True, facecolor="white"
 
 # (c) the robot
 ax = axes[2]
-cfgs = [("unpriced", "no price"), ("price-1", "1"), ("price-3", "3"), ("price-10", "10")]
+cfgs = [("no-price", "no price"), ("price-1", "1"), ("price-3", "3"), ("price-10", "10")]
 x = np.arange(len(cfgs))
 nom = [np.mean([np.mean(r["evaluation"]["failed"]) for r in records("robot", c)]) for c, _ in cfgs]
 weak = [np.mean([np.mean(r["extra_evaluations"][0]["episodes"]["failed"]) for r in records("robot", c)]) for c, _ in cfgs]

@@ -22,7 +22,7 @@ from .planning import Plan, plan, when_to_use_another_method
 from .regularizers import RegularizerAdvice, RegularizerEffects, advise_regularizers, regularizer_effects
 from .report import Report, interpret
 from .roles import RegularizerMix
-from .spec import (BudgetSpec, Requirement, Stage, discounted_total, failure_tail, multiplier_from_price,
+from .spec import (BudgetSpec, Requirement, Stage, discounted_total, failure_charge, multiplier_from_price,
                    price_from_multiplier, price_from_multiplier_physical)
 from .wrapper import BudgetWrapper, RunningMaxCost
 
@@ -30,6 +30,12 @@ __version__ = "0.7.1"
 __all__ = ["Bound", "BudgetSpec", "Requirement", "Stage", "BudgetWrapper", "RunningMaxCost", "LogBarrier", "Evaluation", "evaluate",
            "evaluation_from_episodes", "sb3_policy", "stopped_action_relative_entropy", "Plan", "plan", "when_to_use_another_method",
            "Report", "interpret", "RegularizerAdvice", "RegularizerEffects", "advise_regularizers", "regularizer_effects",
-           "RegularizerMix", "PAPER", "cite", "discounted_total", "failure_tail", "multiplier_from_price", "price_from_multiplier",
+           "RegularizerMix", "PAPER", "cite", "discounted_total", "failure_charge", "multiplier_from_price", "price_from_multiplier",
            "price_from_multiplier_physical", "certificates", "convergence", "frontier", "paper", "planning", "regularizers", "report",
            "roles", "validation"]
+
+
+# names of version 0.7.1 and earlier, kept with a DeprecationWarning
+from ._deprecation import module_getattr as _module_getattr  # noqa: E402
+
+__getattr__ = _module_getattr(__name__, {"failure_tail": "failure_charge"}, globals())

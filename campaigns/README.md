@@ -41,3 +41,8 @@ another configuration's policy (the lander's fine-tuning starts from `controller
 Times on one core of a recent laptop, with the machine shared by a dozen runs: about 6 minutes per retailer run,
 5 minutes per robot run, 10 minutes per lander controller and a few minutes per lander fine-tuning, and about
 35 minutes per navigation run.
+
+The configurations trained without a price are named `no-price`, `tank-no-price` and `no-price-no-clock`. Until
+2026-11-12 they were named `unpriced`, `tank-unpriced` and `unpriced-no-clock`; `Campaign` and `run.py` still accept
+those names with a `DeprecationWarning`, and the `record.json` of each of these runs keeps the name under which it
+was run.

@@ -52,6 +52,7 @@ from dataclasses import dataclass, field
 from typing import List, Optional
 
 from .paper import cite
+from ._deprecation import renamed_arguments, renamed_attribute
 
 
 @dataclass(frozen=True)
@@ -75,8 +76,10 @@ class RegularizerMix:
         """Variance of the Langevin noise per unit of flow time, per parameter: 2 kappa1."""
         return 2.0 * self.kappa1
 
+    pull_strength = renamed_attribute("pull_strength", "drift_strength")
+
     @property
-    def pull_strength(self) -> float:
+    def drift_strength(self) -> float:
         """Total linear drift per parameter, kappa1/sigma^2 + kappa2 lambda_P (toward a common center when same_center)."""
         return self.kappa1 / self.sigma ** 2 + self.kappa2 * self.lambda_P
 
@@ -91,7 +94,7 @@ class RegularizerMix:
         paper's N(0,1) prior with weight decay. Zero without noise (the units collapse)."""
         if self.kappa1 == 0.0:
             return 0.0
-        return math.sqrt(self.kappa1 / self.pull_strength)
+        return math.sqrt(self.kappa1 / self.drift_strength)
 
     def noise_std_per_step(self, learning_rate: float) -> float:
         """Standard deviation of the noise to add per parameter after an optimizer step with this learning rate,
@@ -120,7 +123,7 @@ class RegularizerMix:
                  f"kappa2 = {self.kappa2:g} (potential, curvature {self.lambda_P:g})",
                  f"  noise: variance {self.noise_variance_rate:g} per unit time per parameter"
                  + (" (none: units cannot leave a region where the value gradient vanishes)" if self.kappa1 == 0 else ""),
-                 f"  drift: {self.pull_strength:g} per parameter toward " + ("the common center" if self.same_center else "two centers (prior and reference)"),
+                 f"  drift: {self.drift_strength:g} per parameter toward " + ("the common center" if self.same_center else "two centers (prior and reference)"),
                  f"  curvature supplied: {self.curvature:g}",
                  f"  stationary spread under plain gradient steps: {self.stationary_spread():.4g} per parameter"]
         if self.collapses:
@@ -141,15 +144,16 @@ def stationary_spread(kappa1: float, kappa2: float, sigma: float = 1.0, lambda_P
     return RegularizerMix(kappa1, kappa2, sigma, lambda_P).stationary_spread()
 
 
-def noise_and_anchor_spread(kappa1: float, kappa_pull: float, step: Optional[float] = None) -> float:
+@renamed_arguments(kappa_pull="kappa_drift")
+def noise_and_anchor_spread(kappa1: float, kappa_drift: float, step: Optional[float] = None) -> float:
     """The stationary spread per parameter, without the value drift, of ParameterNoise (variance 2 kappa1 x step per step) with a
-    linear drift of total strength K = kappa_pull applied as theta <- theta - step K (theta - theta_0), as a decoupled
+    linear drift of total strength K = kappa_drift applied as theta <- theta - step K (theta - theta_0), as a decoupled
     ParameterAnchor does: sqrt(kappa1 / (K (1 - step K/2))) for 0 < step K < 2, and sqrt(kappa1/K) as step -> 0 (step
     None). Exact for plain gradient descent at a constant step without an objective gradient (the paper's toolbox
     appendix). With an objective gradient, under an adaptive optimizer, or with a changing learning rate it is a
     reference to compare the measured spread with, not a prediction; with the coupled anchor under Adam see
     adam_stationary_spread."""
-    K = float(kappa_pull)
+    K = float(kappa_drift)
     if K <= 0.0:
         return math.inf
     if step is None:

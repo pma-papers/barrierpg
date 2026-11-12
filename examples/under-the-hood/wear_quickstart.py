@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from barrierpg import Requirement, Stage, evaluate, interpret, plan
 from barrierpg.convergence import FeatureConstants
 from barrierpg.frontier import Run, check_runs
-from barrierpg.examples.wear import EXACT_FRONTIER, INCUMBENT, IncumbentRule, WearModel, idle_policy, make_wear_env
+from barrierpg.examples.wear import EXACT_FRONTIER, INCUMBENT, IncumbentRule, WearModel, standing_still_policy, make_wear_env
 
 model = WearModel()
 spec = model.spec(ubar=1.0)                              # b = 1, beta = 0.95, utility in [0, 1]
@@ -28,7 +28,7 @@ print(p.explain())
 print(); print("=" * 100); print("2. EVALUATE TWO CANDIDATES AT THE PLANNED PRICE"); print("=" * 100)
 stage = Stage(m=1.0)                                     # the conservative price is 5.4; the paper's campaign also used m = 1
 env = lambda: make_wear_env(stage, model)
-idle = evaluate(env, idle_policy, 2000, spec=spec, stage=stage, seed=0, T=19)
+idle = evaluate(env, standing_still_policy, 2000, spec=spec, stage=stage, seed=0, T=19)
 rule = IncumbentRule(span=3.0, std=0.1, seed=1)
 inc = evaluate(env, rule, 20000, spec=spec, stage=stage, seed=0, T=19)
 print("standing still   ", idle.summary().replace("\n", "\n                  "))
@@ -38,7 +38,7 @@ print(f"paper's incumbent: q_beta = {INCUMBENT['q_beta']}, U = {INCUMBENT['U']}"
 print(); print("=" * 100); print("3. VALIDATE AT THE SPECIFIED HORIZON"); print("=" * 100)
 for name, ev in (("standing still", idle), ("incumbent", inc)):
     v = ev.validate(req.alpha, req.zeta, req.family)
-    print(f"{name:10s} {v.failures} failures / {v.n}: upper endpoint {v.upper:.4g}, floor {v.floor:.4g} -> {'pass' if v.passed else 'fail'}")
+    print(f"{name:10s} {v.failures} failures / {v.n}: upper endpoint {v.upper:.4g}, zero-failure bound {v.zero_failure_bound:.4g} -> {'pass' if v.passed else 'fail'}")
 
 print(); print("=" * 100); print("4. THE EXACT FRONTIER AGAINST THE PRICE-RISK LAW"); print("=" * 100)
 runs = [Run(m=m, q_beta=q, U=U, label="exact") for m, (q, U) in EXACT_FRONTIER.items() if m > 0]

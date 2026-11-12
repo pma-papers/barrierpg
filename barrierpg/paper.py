@@ -16,6 +16,7 @@ Results marked "toolbox" are proved in `docs/under-the-hood/supplementary-result
 """
 from __future__ import annotations
 
+import warnings
 from typing import Dict, Optional, Tuple
 
 PAPER = dict(
@@ -31,7 +32,7 @@ RESULTS: Dict[str, Tuple[str, str]] = {
     "related_requirements": ("section", "Types of constraint in related formulations"),
     "when_to_use": ("section", "Which formulation to prefer"),
     "model": ("section", "Budgets and the clipped-barrier mechanism"),
-    "risk_floor": ("section", "The represented class"),
+    "risk_lower_bound": ("section", "The represented class"),
     # risk certificates and performance comparisons
     "running_example": ("example", "An asset under a wear allowance"),
     "value_certificate": ("proposition", "Value and objective certificates"),
@@ -45,7 +46,7 @@ RESULTS: Dict[str, Tuple[str, str]] = {
     "admissible": ("definition", "Admissible parameter regularizer"),
     "admissible_families": ("proposition", "Admissible families"),
     "flow": ("theorem", "Convergence of the population flow"),
-    "learning_error": ("corollary", "Optimization error and risk along the flow"),
+    "optimization_error": ("corollary", "Optimization error and risk along the flow"),
     "prior_improvement": ("remark", "Improvement over the prior policy"),
     "bias": ("remark", "The regularization bias is priced and detected"),
     "particle": ("section", "The prior and the particle system of the flow"),
@@ -82,9 +83,13 @@ RESULTS: Dict[str, Tuple[str, str]] = {
     "scope": ("section", "Scope of the guarantees"),
     "toolbox_appendix": ("section", "The companion toolbox"),
     # supplementary results of the toolbox
-    "near_exhaustion": ("toolbox", "certificate for a small reserve"),
-    "eventual_risk": ("toolbox", "structural certificate for the probability of ever failing"),
+    "small_reserve": ("toolbox", "certificate for a small reserve"),
+    "ever_failing": ("toolbox", "structural certificate for the probability of ever failing"),
 }
+
+# keys of version 0.7.1 and earlier, accepted by `cite` with a DeprecationWarning
+RENAMED_KEYS = {"risk_floor": "risk_lower_bound", "learning_error": "optimization_error", "near_exhaustion": "small_reserve",
+                "eventual_risk": "ever_failing"}
 
 FIXED_PRICE_PARTS = {"i": "optimality at the attained risk", "ii": "price-risk bound",
                      "iii": "monotonicity in the price", "iv": "learned laws", "v": "the price supports the frontier"}
@@ -93,6 +98,9 @@ FIXED_PRICE_PARTS = {"i": "optimality at the attained risk", "ii": "price-risk b
 def cite(key: str, part: Optional[str] = None) -> str:
     """The citation printed with a bound: the paper's title for the result, and the name of the part if given.
     Parts of 'Fixed price of failure risk' may be given as i, ii, iii, iv; they are printed by name."""
+    if key in RENAMED_KEYS:
+        warnings.warn(f"the result key {key!r} is deprecated; use {RENAMED_KEYS[key]!r}", DeprecationWarning, stacklevel=2)
+        key = RENAMED_KEYS[key]
     kind, title = RESULTS[key]
     if kind == "toolbox":
         return f"toolbox, {title} (docs/under-the-hood/supplementary-results.md)"

@@ -1,6 +1,6 @@
-lander tank-unpriced 1
-lander tank-unpriced 2
-lander tank-unpriced 3
+lander tank-no-price 1
+lander tank-no-price 2
+lander tank-no-price 3
 lander price-0.25 1
 lander price-0.25 2
 lander price-0.25 3

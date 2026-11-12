@@ -86,7 +86,7 @@ def make_wear_env(stage: Stage, model: WearModel = WearModel(), *, geometric_sto
 
 
 # --- policies (obs = (s, 1, z/b)) -------------------------------------------------------------
-def idle_policy(obs):
+def standing_still_policy(obs):
     return np.zeros(1, dtype=np.float32)
 
 
@@ -133,5 +133,11 @@ EXACT_FRONTIER = {0.0: (0.59187, 5.4343), 0.01: (0.55413, 5.429), 0.02: (0.43856
 EXACT_BARRIER = {0.3: (0.02417, 4.2441), 1.0: (0.00648, 3.9883), 3.0: (0.00175, 3.7352), 10.0: (0.00046, 3.5069)}
 INCUMBENT = dict(q_beta=0.0108, U=2.73)   # the incumbent rule (span 3, std 0.1), the paper's wear-allowance table
 
-__all__ = ["WearModel", "WearCore", "wear_cost", "make_wear_env", "idle_policy", "full_rate_policy", "IncumbentRule",
+__all__ = ["WearModel", "WearCore", "wear_cost", "make_wear_env", "standing_still_policy", "full_rate_policy", "IncumbentRule",
            "EXACT_FRONTIER", "EXACT_BARRIER", "INCUMBENT"]
+
+
+# names of version 0.7.1 and earlier, kept with a DeprecationWarning
+from .._deprecation import module_getattr  # noqa: E402
+
+__getattr__ = module_getattr(__name__, {"idle_policy": "standing_still_policy"}, globals())
