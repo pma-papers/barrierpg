@@ -12,6 +12,9 @@ problems, each with its own notebook:
 | [A legged robot on a battery](../notebooks/03_robot_battery.ipynb) | charge | what the policy must observe (a clock); prices; a reserve against an uncertain battery |
 | [A navigation robot with a damage allowance](../notebooks/04_navigation_allowance.ipynb) | allowance of damage | which requirement the task means; a price that is too high |
 
+The lander of notebook 1 is the fuel-tank form that the paper used up to its revision 76; the paper's lander study now
+uses the landing problem of `barrierpg.problems.landing`, on which the notebook will be rewritten.
+
 Each notebook builds its problem and trains it in view, with notes on what the theory implies at each step;
 [`examples/your_problem.py`](../examples/your_problem.py) is a complete template, from the task to the report, to copy
 for your own problem. The [under-the-hood track](under-the-hood/decisions-and-theory.md) ties each step to the paper's

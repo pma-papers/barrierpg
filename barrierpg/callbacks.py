@@ -183,7 +183,7 @@ def _current_lr(optimizer) -> float:
 class ParameterAnchor:
     """The drift of the particle system on a finite actor: weight decay toward a prior parameter theta_0 on every actor
     parameter, the potential regularizer (kappa_p/2) |theta - theta_0|^2, which is the part of a Gaussian prior
-    N(theta_0, sigma^2 I) a finite network can carry (kappa_p = kappa/sigma^2; 'The prior and the particle system of the flow'). Under a potential, noiseless continuous-time training is the population flow from the
+    N(theta_0, sigma^2 I) a finite network can carry (kappa_p = kappa/sigma^2; 'The prior and the particle system of the gradient flow'). Under a potential, noiseless continuous-time training is the population gradient flow from the
     network's own empirical law ('Finite-network training under a potential').
 
     Two forms, chosen by `decoupled` (the paper's Section 'Practical choices, scope and conclusion', the four
@@ -206,7 +206,7 @@ class ParameterAnchor:
         whatever the distance to the anchor, it is weak where the objective's gradient is large and of fixed size where
         it is small, and it inflates the normalizer, which shrinks the objective's own step. The strength then loses
         its meaning as a curvature, and under ParameterNoise the spread is proportional to kappa_1 whatever the drift
-        (about sqrt(2) kappa_1 in the paper's roles study, roles.adam_stationary_spread). Use it to reproduce the
+        (the paper's roles study; about sqrt(2) kappa_1 by roles.adam_stationary_spread). Use it to reproduce the
         paper's runs and the shipped campaign records; strengths are comparable only within one form.
 
     The prior must cover every parameter that shapes the policy, including the dispersion (log_std): anchoring the
@@ -327,11 +327,11 @@ class ParameterNoise:
     sqrt(kappa1 / (kappa2 (1 - lr kappa2/2))), about sqrt(kappa1/kappa2) (roles.noise_and_anchor_spread), not at the
     sqrt(kappa1/(kappa1 + kappa2)) of relative entropy plus a potential; under Adam with an objective it is a
     reference, not a prediction. With a coupled anchor under Adam the drift passes through Adam's normalization, and
-    the paper's roles study, which ran that form, measured a spread growing in proportion to kappa1 (about
-    sqrt(2) kappa1, roles.adam_stationary_spread, an explanation proposed after the runs). In that study risk and
-    utility stayed at the anchored values while the spread was small against the policy's dispersion and then moved,
-    the seeds splitting, and noise alone acted as exploration and abandoned the prior. In both forms, vary kappa1 and
-    measure the spread (spread()).
+    the paper's roles study, which ran that form, measured a spread proportional to kappa1 and independent of kappa2
+    (about sqrt(2) kappa1 by roles.adam_stationary_spread, an explanation proposed after the runs). In that study the
+    breakdown probability of one network did not settle under a fixed noise strength, and once the spread reached the
+    policy's dispersion its values ranged over tens of percentage points. In both forms, vary kappa1 and measure the
+    spread (spread()).
 
     Usage: noise = ParameterNoise(model, kappa1, seed=0).install()  before model.learn(...); install it together
     with a ParameterAnchor in either order.

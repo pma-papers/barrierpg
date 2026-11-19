@@ -22,7 +22,7 @@ from typing import Dict, Optional, Tuple
 PAPER = dict(
     title="The Price of Failure Risk: Clipped Barrier Policy Gradients with Convex Regularization",
     authors="Pekka Malo, Lauri Viitasaari, Antti Suominen, Eeva Vilkkumaa, Olli Tahvonen",
-    checked_against="revision 76 (2026-11-12)",
+    checked_against="revision 77 (2026-11-18)",
 )
 
 # key -> (kind, title in the paper)
@@ -45,13 +45,13 @@ RESULTS: Dict[str, Tuple[str, str]] = {
     # convergence and the prior
     "admissible": ("definition", "Admissible parameter regularizer"),
     "admissible_families": ("proposition", "Admissible families"),
-    "flow": ("theorem", "Convergence of the population flow"),
-    "optimization_error": ("corollary", "Optimization error and risk along the flow"),
+    "flow": ("theorem", "Convergence of the population gradient flow"),
+    "optimization_error": ("corollary", "Optimization error and risk along the gradient flow"),
     "prior_improvement": ("remark", "Improvement over the prior policy"),
     "bias": ("remark", "The regularization bias is priced and detected"),
-    "particle": ("section", "The prior and the particle system of the flow"),
+    "particle": ("section", "The prior and the particle system of the gradient flow"),
     "finite_training": ("proposition", "Finite-network training under a potential"),
-    "gaussian_prior": ("section", "The prior and the particle system of the flow"),
+    "gaussian_prior": ("section", "The prior and the particle system of the gradient flow"),
     "centering": ("section", "Improvement relative to the prior policy"),
     "curvature_constants": ("proposition", "Value and action-law curvature"),
     "weight_decay": ("proposition", "Admissible families"),
@@ -73,11 +73,10 @@ RESULTS: Dict[str, Tuple[str, str]] = {
     "price_sequence": ("proposition", "Price sequences reaching a tolerance"),
     # the studies
     "wear_study": ("study", "the wear-allowance study"),
-    "lunar_study": ("study", "the fuel-tank study"),
-    "flow_test": ("study", "the solvable flow"),
+    "lunar_study": ("study", "the lander study"),
+    "flow_test": ("study", "the analytical example"),
     "anchor_study": ("study", "the parameter-anchor study"),
     "roles": ("study", "the roles of the regularizers"),
-    "benchmark_suite": ("study", "the benchmark-suite study"),
     # practice
     "guidance": ("section", "Choice of method, scope and conclusion"),
     "scope": ("section", "Scope of the guarantees"),
@@ -91,6 +90,9 @@ RESULTS: Dict[str, Tuple[str, str]] = {
 RENAMED_KEYS = {"risk_floor": "risk_lower_bound", "learning_error": "optimization_error", "near_exhaustion": "small_reserve",
                 "eventual_risk": "ever_failing"}
 
+# studies that an earlier revision reported and the current one does not; `cite` names the revision, with a DeprecationWarning
+HELD_BACK = {"benchmark_suite": "the benchmark-suite study (revision 76; not reported in revision 77)"}
+
 FIXED_PRICE_PARTS = {"i": "optimality at the attained risk", "ii": "price-risk bound",
                      "iii": "monotonicity in the price", "iv": "learned laws", "v": "the price supports the frontier"}
 
@@ -101,6 +103,10 @@ def cite(key: str, part: Optional[str] = None) -> str:
     if key in RENAMED_KEYS:
         warnings.warn(f"the result key {key!r} is deprecated; use {RENAMED_KEYS[key]!r}", DeprecationWarning, stacklevel=2)
         key = RENAMED_KEYS[key]
+    if key in HELD_BACK:
+        warnings.warn(f"the result key {key!r} names a study that the current revision of the paper does not report",
+                      DeprecationWarning, stacklevel=2)
+        return f"paper, {HELD_BACK[key]}"
     kind, title = RESULTS[key]
     if kind == "toolbox":
         return f"toolbox, {title} (docs/under-the-hood/supplementary-results.md)"

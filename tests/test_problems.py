@@ -69,8 +69,34 @@ def test_report_summary_is_plain():
     text = interpret(r.spec(), req, stage, ev, candidate_name="the rule").summary(resource="cash", period="weeks")
     assert text.startswith("The rule was run on 300 fresh episodes") and "within 52 weeks" in text
     assert "shared among 4 candidates" in text and "What this test does not show" in text
-    for word in ("q_beta", "beta^", "Proposition", "theorem", "population flow"):
+    for word in ("q_beta", "beta^", "Proposition", "theorem", "population gradient flow"):
         assert word not in text
+
+
+def test_landing_charges_and_budgets():
+    from barrierpg.problems.landing import Landing, landing_cost, LOSS
+    landing = Landing()
+    # the paper's prices of the charges k = 0.25, 1, 4, 16 (Online Resource, the lander study: 0.015, 0.061, 0.243, 0.970)
+    for k, m in ((0.25, 0.015), (1.0, 0.061), (4.0, 0.243), (16.0, 0.970)):
+        assert abs(landing.price(k) - m) < 5e-4 and abs(landing.charge(landing.price(k)) - k) < 1e-12
+    spec = landing.spec()
+    assert spec.budgets == (24.0, 1.0) and spec.ubar == 36.0 and abs(spec.u_minus - 0.33) < 1e-12 and spec.horizon == 1000
+    assert landing_cost(None, None, None, 0.0, dict(tank_draw=0.3, lost=False)) == [0.3, 0.0]
+    assert landing_cost(None, None, None, 0.0, dict(tank_draw=0.0, lost=True))[1] == LOSS > 1.0
+    try:
+        import Box2D  # noqa: F401
+        from barrierpg.problems.landing import make_landing_env
+        env = make_landing_env(landing.stage(1.0), Landing(tank=1.0), aid=False)
+        o, _ = env.reset(seed=0)
+        assert o.shape == (9,) and o[-1] == 1.0
+        for t in range(200):
+            o, rwd, term, trunc, info = env.step(np.array([1.0, 0.0], dtype=np.float32))     # full main engine: 0.30 per frame
+            if term or trunc:
+                break
+        assert info["failure"] and info["exhausted"] and t == 3
+        assert abs(rwd + landing.price(1.0) * (1 - 0.999 ** (1000 - 3)) / (1 - 0.999)) < 1e-12
+    except ImportError:
+        print("Box2D missing; landing skipped")
 
 
 def test_lander_and_robot_budgets():

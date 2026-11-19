@@ -16,8 +16,8 @@ from barrierpg.examples.wear import WearModel, IncumbentRule, make_wear_env
 
 def test_registry():
     assert cite("fixed_price", "ii") == "paper, 'Fixed price of failure risk' (price-risk bound)"
-    assert cite("flow") == "paper, 'Convergence of the population flow'" and "Finite-network training" in cite("finite_training")
-    assert "Action regularization and failure risk" in cite("action_risk") and "Optimization error and risk along the flow" in cite("optimization_error")
+    assert cite("flow") == "paper, 'Convergence of the population gradient flow'" and "Finite-network training" in cite("finite_training")
+    assert "Action regularization and failure risk" in cite("action_risk") and "Optimization error and risk along the gradient flow" in cite("optimization_error")
     assert "supplementary" in cite("small_reserve")
     assert results_table().count("\n") == len(RESULTS) + 1
 
@@ -44,7 +44,7 @@ def test_plateau_model_reproduces_the_paper():
     assert m.dV(0.0) > 0 and m.stats(1.0)["V_m"] > st["V_m"]                     # tilting toward high rates improves V_m
 
 
-def test_roles_on_the_solvable_flow():
+def test_roles_on_the_analytical_example():
     m = PlateauModel(n_x=60, n_s=60)
     pot = simulate_particles(m, 0.0, 1.0, n=500, seed=1)
     ent = simulate_particles(m, 0.1, 0.0, n=500, seed=1)
@@ -82,7 +82,7 @@ def test_new_certificates():
     assert abs(d - max(d1, d2)) < 1e-12
     lr = K.learning_risk_bound(0.5, m=1.0, beta=0.95, ubar=1.0, q_bar=0.0, U_bar=2.0, I_bar=0.1, R_bar=0.2, E0=3.0, Lambda=2.0, sup_U=5.0)
     lf = C.learned_law_risk(1.0, 0.95, 1.0, 0.0, 2.0, 0.1, 0.2, 3.0 * math.exp(-2.0), sup_U=5.0)
-    assert abs(lr.value - lf.value) < 1e-12 and "Optimization error and risk along the flow" in lr.source
+    assert abs(lr.value - lf.value) < 1e-12 and "Optimization error and risk along the gradient flow" in lr.source
     ft = K.finite_training_transfer(0.3, Lambda=-1.0, ell=2.0, m=1.0, ubar=1.0, beta=0.9, B1=0.5)
     assert abs(ft["W2"] - 0.3 * math.exp(2.0)) < 1e-12 and abs(ft["risk"] - 0.5 / 0.2 * ft["W2"]) < 1e-12
     assert abs(ft["value"] - 2.0 * 0.5 / (2 * 0.01) * ft["W2"]) < 1e-9

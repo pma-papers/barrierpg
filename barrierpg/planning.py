@@ -68,8 +68,8 @@ def when_to_use_another_method(*, failure_permissible_at_deployment: Optional[bo
         Condition("a prescribed level is attainable with slack and the multiplier's step can be tuned",
                   _both(prescribed_level_attainable_with_slack, multiplier_step_tunable),
                   "an adaptive multiplier (a Lagrangian chance-constrained policy gradient)",
-                  "a fixed price leaves the attained risk to the optimizer, and a risk below the tolerance costs utility; with too large a step the multiplier "
-                  "increases without bound when the initial policy fails often, as in the fuel-tank study"),
+                  "a fixed price leaves the attained risk to the optimizer, and a risk below the tolerance costs utility; a multiplier keeps increasing "
+                  "when the level cannot be attained or the dual step is poorly scaled, as for the tolerance zero in the wear-allowance study"),
         Condition("violations during training matter", violations_during_training_matter,
                   "constrained policy optimization",
                   "the clipped barrier is trained where failures are permitted, in a simulator"),
@@ -81,7 +81,7 @@ def when_to_use_another_method(*, failure_permissible_at_deployment: Optional[bo
                   "use it whenever available; in the wear-allowance study the learned policies came within a few percent of its exact frontier"),
         Condition("the required price charges far more for a failure than an episode earns", price_exceeds_episode_earnings,
                   "reward normalization or a prescribed-level formulation",
-                  "a large price degraded the controllers of the fuel-tank study; increasing the price is not an optimization guarantee"),
+                  "in the lander study the optimization error grew with the price; increasing the price is not an optimization guarantee"),
         Condition("the size of a possible allowance error is known", allowance_error_known,
                   "a correspondingly reduced allowance instead of the interior barrier",
                   "the interior barrier keeps a graded reserve for an error of unknown size; a known error is covered more cheaply by reducing the allowance"),

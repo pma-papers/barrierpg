@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.9.0 (2026-11-19): checked against revision 77; the landing problem of the paper's lander study
+
+- New `barrierpg.problems.landing`: the landing problem with which revision 77 replaces the fuel-tank study. It is built
+  on the simulator of LunarLanderContinuous-v3 with a revenue of 36 when the lander comes to rest over the pad, fuel at
+  1 per unit and a tank of 24 units. There are two budgets: the tank, against which fuel is accumulated until
+  touchdown (after touchdown an empty tank sets the engines off), and a unit budget that the loss of the lander
+  exceeds. The observation is the simulator's state with the remaining fraction of the tank. `Landing.price(k)`,
+  `Landing.charge(m)` and `Landing.stage(k)` convert the paper's charges (k = 0.25 is m = 0.015, k = 16 is m = 0.970),
+  and `make_landing_env(..., aid=True)` adds the paper's training aid, the change of the simulator's potential scaled
+  by 1/12, whose discounted sum is the same on every path. `tests/test_sb3.py` checks the module against the paper's
+  own environment class (`tests/fixtures/paper_landing.py`, copied verbatim from the replication repository) frame by
+  frame: observations, rewards, ends of an episode, failures and utilities agree exactly, over landings on the pad,
+  an empty tank after touchdown, losses and exhaustion before touchdown.
+- `barrierpg.problems.lander`, the fuel-tank form of revision 76, is deprecated: `make_lander_env` warns. Notebook 1,
+  its campaign and its shipped runs still use it and say so; the notebook will be rewritten on the landing problem.
+- Titles checked against revision 77. Three titles had lost a word and now match the paper: *Convergence of the
+  population gradient flow*, *Optimization error and risk along the gradient flow* and *The prior and the particle
+  system of the gradient flow*. The key `lunar_study` cites *the lander study*, and `flow_test` cites *the analytical
+  example*. The benchmark-suite study is not reported in revision 77; `cite("benchmark_suite")` names revision 76 and
+  warns. `PAPER["checked_against"]` is revision 77 (2026-11-18).
+- Wording follows revision 77 in the printed text, docstrings, documents and notebook sources: *population gradient
+  flow* (population flow), *the analytical example* (the solvable flow).
+- Statements attributed to the paper follow revision 77. A multiplier that keeps increasing is cited from the
+  wear-allowance study, where the multiplier for the tolerance zero grows throughout training (formerly from the
+  fuel-tank study). The growth of the optimization error with the price is cited from the lander study (formerly
+  degraded controllers of the fuel-tank study). Under the coupled anchor the spread is proportional to kappa1 and
+  independent of kappa2, as the paper reports; about sqrt(2) kappa1 is the toolbox's explanation proposed after the
+  runs. The sentence that noise alone acted as exploration, which the paper no longer reports, is removed. These
+  change printed lines of `when_to_use_another_method`, `advise_regularizers` and `Roles.explain`; no computed value
+  changes.
+- The figure of the under-the-hood track is regenerated (same data; the labels of the script since 0.8.0 and the axis
+  label "analytical example"). Notebooks rebuilt and executed from the sources.
+
 ## 0.8.0 (2026-11-12): the wording and the names of revision 76, with deprecated aliases
 
 - Revision 76 of the paper uses no name that is neither established nor defined in the paper, and the toolbox

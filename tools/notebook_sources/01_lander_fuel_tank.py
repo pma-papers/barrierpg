@@ -5,6 +5,10 @@
 # on the pad, punishes a crash, and charges the fuel the engines burn. Now the lander gets a tank of 24 units, and a
 # lander that empties it before touching down has failed. The tank is smaller than the controller needs.
 #
+# This is the fuel-tank form of the lander that the paper used up to its revision 76. The paper's lander study now uses
+# a landing problem of its own, with a revenue for each landing and the loss of the lander as a failure:
+# `barrierpg.problems.landing`. This notebook will be rewritten on it.
+#
 # This notebook builds the problem and trains it in the open, so that you can do the same with your own task. It goes
 # through the steps of the [practitioner guide](../docs/practitioner-guide.md):
 #

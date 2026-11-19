@@ -1,12 +1,12 @@
-"""Convergence: the curvature budget of the population flow, and diagnostics for finite learners.
+"""Convergence: the curvature budget of the population gradient flow, and diagnostics for finite learners.
 
-Part 1 (population flow; the paper's 'Convergence under general convex regularization'). The clipped value and the action relative entropy
+Part 1 (population gradient flow; the paper's 'Convergence under general convex regularization'). The clipped value and the action relative entropy
 fall short of convex along transport by at most C_m + eta C_A, their curvature deficit; an admissible
 parameter regularizer supplies the curvature kappa lambda_H. The curvature budget is
 
     Lambda_m = kappa lambda_H - C_m - eta C_A,
 
-and when it is positive the population flow converges exponentially ('Convergence of the population flow'): W2 at rate
+and when it is positive the population gradient flow converges exponentially ('Convergence of the population gradient flow'): W2 at rate
 Lambda_m, the objective gap at rate 2 Lambda_m. The deficits are computed from bounds on how fast the
 policy kernel and its relative entropy to the action reference change when the units move (Proposition
 B.1): B1, B2 for the kernel, K0, K1, K2 for the relative entropy. The softmax class has B1 = L1,
@@ -15,7 +15,7 @@ B2 = 2(L2 + L1^2), K0 = 2 L0, K1 = L0 L1, K2 = L0 L2 + (1 + 2 L0) L1^2, which gi
     C_m = (m + ubar) c_psi,  c_psi = L2/(1-beta)^2 + L1^2/(1-beta)^3,
     C_A = L0 (1+3 beta) L2/(1-beta)^2 + [(1+2 L0)/(1-beta) + 2 beta L0 (3-beta)/(1-beta)^3] L1^2.
 
-The threshold is sufficient, not necessary: the solvable flow converges orders of magnitude below it,
+The threshold is sufficient, not necessary: the gradient flow of the analytical example converges orders of magnitude below it,
 and at the threshold the minimizer lies close to the prior. Set the strength for conditioning; the
 theorem explains the mechanism (a curvature budget), it does not certify the strengths used in practice.
 
@@ -104,7 +104,7 @@ def curvature_constants(constants: Constants, beta: float, m: float, ubar: float
 def gaussian_prior_curvature(sigma: float) -> float:
     """lambda_W = sigma^-2 for the prior N(x0, sigma^2 I). Relative entropy to it is negative entropy of
     weight kappa plus weight decay toward x0 of weight kappa/sigma^2, so the rate depends on (kappa, sigma)
-    only through kappa/sigma^2 while the minimizer depends on both ('The prior and the particle system of the flow')."""
+    only through kappa/sigma^2 while the minimizer depends on both ('The prior and the particle system of the gradient flow')."""
     return 1.0 / float(sigma) ** 2
 
 
@@ -128,7 +128,7 @@ def rate(kappa: float, lambda_H: float, C_m: float, C_A: float = 0.0, eta: float
 
 
 def certified_kappa(lambda_H: float, C_m: float, C_A: float = 0.0, eta: float = 0.0, margin: float = 1.05) -> float:
-    """The threshold (C_m + eta C_A)/lambda_H of the convergence theorem, times a factor above one (1.05 in the paper's solvable-flow test)."""
+    """The threshold (C_m + eta C_A)/lambda_H of the convergence theorem, times a factor above one (1.05 in the paper's convergence test on the analytical example)."""
     return margin * (C_m + eta * C_A) / lambda_H
 
 
@@ -180,11 +180,11 @@ def curvature_budget(constants: Constants, beta: float, m: float, ubar: float, k
 
 
 # ---------------------------------------------------------------------------------------------
-# Part 1: optimization error and risk along the flow; finite-network training under a potential
+# Part 1: optimization error and risk along the gradient flow; finite-network training under a potential
 # ---------------------------------------------------------------------------------------------
 def learning_risk_bound(ell: float, *, m: float, beta: float, ubar: float, q_bar: float, U_bar: float, I_bar: float,
                         R_bar: float, E0: float, Lambda: float, sup_U: Optional[float] = None, T: Optional[int] = None):
-    """'Optimization error and risk along the flow': for the flow with Lambda_m > 0 at learning time ell, both bounds of part (iv) of the fixed-price proposition hold
+    """'Optimization error and risk along the gradient flow': for the flow with Lambda_m > 0 at learning time ell, both bounds of part (iv) of the fixed-price proposition hold
     with the optimization error E0 exp(-2 Lambda ell) in place of delta and the comparison law's regularization cost R."""
     from .certificates import learned_law_risk
     if Lambda <= 0:
@@ -212,7 +212,7 @@ def initial_gap_upper(J0: float, ubar: float, beta: float) -> float:
 def finite_training_transfer(W2_initial: float, Lambda: float, ell: float, *, m: float, ubar: float, beta: float,
                              B1: float) -> dict:
     """'Finite-network training under a potential': under a convex potential with Lipschitz gradient (weight decay, an anchor), noiseless
-    training of n units in continuous time IS the population flow from their empirical law, so
+    training of n units in continuous time IS the population gradient flow from their empirical law, so
         W2(mu_n(ell), mu_ell) <= exp(-Lambda ell) W2(mu_n(0), mu_0)
     for every sign of Lambda, and the clipped values and geometric risks of the two laws differ by at most
     (m+ubar) B1/(2(1-beta)^2) and B1/(2(1-beta)) times that distance (B1 = L1 for softmax).
@@ -231,7 +231,7 @@ def finite_training_transfer(W2_initial: float, Lambda: float, ell: float, *, m:
 def risk_slack_from_prior(L0: float, T: int, c_H: float, R_Gamma: float, kappa: float) -> float:
     """p_T(mu_ell) <= p_T(Gamma) + (L0/2) sqrt((T+1) c_H R_Gamma / kappa) for the flow started at the prior, with
     R_Gamma = ubar/(1-beta) - V_m(Gamma) ('Improvement over the prior policy'; no sign condition on Lambda_m). The behavior lies far inside
-    this slack (two to five orders of magnitude in the solvable flow): the learner inherits the prior policy's risk."""
+    this slack (two to five orders of magnitude in the analytical example): the learner inherits the prior policy's risk."""
     return 0.5 * L0 * math.sqrt((T + 1) * c_H * R_Gamma / kappa)
 
 
@@ -333,9 +333,8 @@ def multiplier_diagnosis(trace: Sequence[dict], alpha: float, beta: float, windo
     stable      the multiplier shows no drift over the last rollouts and the failure rate is near the tolerance
                 (within tol, relative, plus the sampling error of the window);
     increasing  the multiplier rose in nearly every rollout while the failure rate stayed far above the tolerance.
-                When every episode fails, the flat penalty carries no gradient (the fuel-tank study with its
-                step fixed before its campaign); reduce the dual step, use a fixed price, or start from a controller that sometimes
-                survives;
+                When every episode fails, the flat penalty carries no gradient; reduce the dual step, use a fixed
+                price, or start from a controller that sometimes survives;
     inactive    the multiplier is zero and the failure rate is below the tolerance: the tolerance does not constrain
                 the optimum without a price;
     trending    the multiplier is still rising or falling: train longer, or size the step from the level the
@@ -475,7 +474,7 @@ def training_convergence(trace: Sequence[dict], window: Optional[int] = None, re
     the batch-to-batch variation) and `rel_tol` times its size (the larger of its level and its batch-to-batch
     variation). The default window is a tenth of the batches, at least 10, and fewer than two windows of batches give
     'too short'. Evidence about one run, not a convergence guarantee: the theory's convergence results concern the exact
-    population flow, not stochastic training, and a learning rate that decays to zero makes any run stop changing."""
+    population gradient flow, not stochastic training, and a learning rate that decays to zero makes any run stop changing."""
     n = len(trace)
     w = int(window) if window is not None else max(10, n // 10)
     if n < 2 * w or w < 5:

@@ -206,7 +206,7 @@ print(f"adaptive candidate: q_beta = {ev_a.q_beta:.4f}, U = {ev_a.U:.3f}, final 
 # sized from the level the multiplier has to reach is needed. A multiplier that keeps rising while the failure rate
 # stays above the tolerance is the sign of a tolerance below the lower bound on the risk of the class, where no multiplier
 # converges. *Increasing* means the multiplier rose while every episode failed, so the flat penalty carried no
-# gradient (the fuel-tank study). *Off-target* means no drift but a failure rate away from the tolerance: the
+# gradient. *Off-target* means no drift but a failure rate away from the tolerance: the
 # rollouts are too few or too small to resolve it.
 #
 # ## Keeping a reserve: the interior barrier when the true allowance is smaller than planned

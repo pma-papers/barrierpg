@@ -12,7 +12,7 @@ def test_wrapper_reproduces_fuellander():
         import Box2D  # noqa: F401
     except ImportError:
         print("Box2D not installed; skipped"); return
-    # the paper's own fuel-tank environment, copied verbatim from the replication repository (see its docstring)
+    # the paper's own fuel-tank environment of revision 76, copied verbatim from the replication repository (see its docstring)
     sys.path.insert(0, str(Path(__file__).resolve().parent / "fixtures"))
     from paper_fuel_lander import FuelLander, fuel_use, H
     for seed, m, budget in ((1, 0.5, 22.0), (2, 0.0, 20.0), (4, 0.5, 5.0)):
@@ -28,6 +28,49 @@ def test_wrapper_reproduces_fuellander():
             assert np.allclose(o1, o2) and abs(r1 - r2) < 1e-9 and d1 == d2 and i1["failure"] == i2["failure"], t
             if d1 or tr1:
                 break
+
+
+def test_landing_problem_reproduces_the_paper_landing():
+    """barrierpg.problems.landing against the landing problem of the paper's lander study (the replication's own
+    environment class, copied verbatim as a fixture): observations, rewards with the training aid, ends of an episode,
+    failures and utilities agree exactly, over landings on the pad, an empty tank after touchdown, losses and
+    exhaustion before touchdown."""
+    import sys
+    from pathlib import Path
+    try:
+        import Box2D  # noqa: F401
+    except ImportError:
+        print("Box2D not installed; skipped"); return
+    from gymnasium.envs.box2d.lunar_lander import heuristic
+    from barrierpg.problems.landing import Landing, make_landing_env
+    sys.path.insert(0, str(Path(__file__).resolve().parent / "fixtures"))
+    from paper_landing import FuelLander
+    seen = set()
+    for tank, controller in ((24.0, "heuristic"), (24.0, "random"), (2.0, "heuristic")):
+        landing = Landing(tank=tank)
+        for seed, k in ((0, 0.0), (1, 1.0), (2, 16.0), (3, 0.25)):
+            ref = FuelLander(tank, "failure", landing.price(k), 0.999, crash_fails=True, tank_until_touchdown=True, fuel_price=1.0,
+                             revenue=36.0, progress="aid", aid_scale=1.0 / 12.0)
+            new = make_landing_env(landing.stage(k), landing)
+            o1, _ = ref.reset(seed=seed); o2, _ = new.reset(seed=seed)
+            rng = np.random.default_rng(seed)
+            assert np.array_equal(o1, o2)
+            for t in range(1000):
+                if controller == "heuristic":
+                    a = heuristic(ref.inner.unwrapped, o1[:8]).astype(np.float32)
+                else:
+                    a = rng.uniform(-1, 1, 2).astype(np.float32)
+                o1, r1, d1, tr1, i1 = ref.step(a); o2, r2, d2, tr2, i2 = new.step(a)
+                assert np.array_equal(o1, o2) and r1 == r2 and (d1 or tr1) == (d2 or tr2), (tank, controller, seed, t)
+                assert i1["failure"] == i2["failure"] and i1["utility"] == i2["utility"], (tank, controller, seed, t)
+                for key in ("completed", "lost", "exhausted", "landed", "empty", "touched"):
+                    assert i1[key] == i2[key], (key, tank, controller, seed, t)
+                if i1["touched"] and i1["empty"]:
+                    seen.add("empty after touchdown")
+                if d1 or tr1:
+                    seen.update(key for key in ("completed", "lost", "exhausted") if i1[key])
+                    break
+    assert seen == {"completed", "lost", "exhausted", "empty after touchdown"}, seen
 
 
 def test_ppo_smoke_with_callbacks():

@@ -5,7 +5,7 @@ from barrierpg import frontier as F
 
 
 def test_curvature_constants_reproduce_the_paper():
-    # The paper's solvable flow: beta = 0.9, m = 1, ubar = 1, plateau feature with the suprema of
+    # The paper's analytical example: beta = 0.9, m = 1, ubar = 1, plateau feature with the suprema of
     # chi' and chi''; the paper reports C_m = 1940 and kappa = 1.05 C_m = 2037 (lambda_W = 1).
     # Reconstruct c_psi from C_m: c_psi = C_m / (m + ubar) = 970 = L2/0.01 + L1^2/0.001.
     fc = K.FeatureConstants(L0=1.0, L1=0.3, L2=2.0)

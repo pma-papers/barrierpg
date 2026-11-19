@@ -131,9 +131,9 @@ when a reserve before exhaustion is worth its cost. Another method is the better
 2. **A prescribed level is attainable with slack and the multiplier's step can be tuned.** A fixed price
    leaves the attained risk to the optimizer, and a risk below the tolerance costs utility (*Matched-risk performance
    comparison*). An adaptive multiplier, as in a Lagrangian chance-constrained policy gradient, targets
-   the level directly when it lies above the lower bound on the risk of the class. Its step must be tuned: with too
-   large a step, and an initial policy that fails often, the multiplier increases without bound (the
-   fuel-tank study). The toolbox's own prescribed-level option is `Stage(penalty="multiplier")` with
+   the level directly when it lies above the lower bound on the risk of the class. Its step must be tuned, and the
+   level must be attainable: a multiplier keeps increasing when the level cannot be attained or the dual step is poorly
+   scaled (in the wear-allowance study the multiplier for the tolerance zero grew throughout training). The toolbox's own prescribed-level option is `Stage(penalty="multiplier")` with
    `DualAscent`; see section 3 of this guide for its step and diagnosis.
 3. **Violations during training matter.** Constrained policy optimization keeps the iterates near the
    constraint; the clipped barrier is trained where failures are permitted, in a simulator.
@@ -148,8 +148,8 @@ when a reserve before exhaustion is worth its cost. Another method is the better
 
 Two further cases concern the barrier itself.
 
-* **The required price charges far more for a failure than an episode earns.** A large price degraded
-  the controllers of the fuel-tank study; reward normalization or a prescribed-level formulation is the
+* **The required price charges far more for a failure than an episode earns.** In the lander study the
+  optimization error grew with the price; reward normalization or a prescribed-level formulation is the
   alternative. `plan(..., episode_earnings=...)` warns when a failure at the start of an episode is charged more
   than three times what an episode earns, and notes it above once.
 * **The size of a possible allowance error is known.** Tightening the allowance is then cheaper than the interior barrier (section 4 of this guide).
@@ -260,12 +260,12 @@ that its reference lacks.
   `evaluate.stopped_action_relative_entropy`.
 * **The parameter regularizer** (strength `kappa`, toward a prior law `Gamma` of the network's units)
   supplies the curvature that makes the population learning problem converge, equally for every
-  admissible regularizer (*Convergence of the population flow*). The policy-wise certificates do not need it, and its bias is never
+  admissible regularizer (*Convergence of the population gradient flow*). The policy-wise certificates do not need it, and its bias is never
   silent, since the certificates and validation are evaluated on the learned policy.
 
 ### 5.2 The roles: noise, drift and spread
 
-In the particle system of the population flow (*The prior and the particle system of the flow*) each unit's parameters move by the policy
+In the particle system of the population gradient flow (*The prior and the particle system of the gradient flow*) each unit's parameters move by the policy
 gradient, a drift toward the prior and any reference, and noise:
 
 ```
@@ -335,11 +335,11 @@ combination on the flow.
   on `(kappa, sigma)` only through `kappa/sigma^2`, the minimizer on both, and the width also changes
   the induced prior policy unless the features are centered at the prior. Do not concentrate the units
   where the features are flat: a prior pinned in a flat region turns regularization into stagnation
-  (the plateau of the solvable flow). `convergence.gaussian_prior_curvature(sigma)` gives the curvature.
+  (the plateau of the analytical example). `convergence.gaussian_prior_curvature(sigma)` gives the curvature.
 * **Expect the learned policy at the prior's risk, not at the slack the bounds grant.** The slack
   terms (`convergence.risk_slack_from_prior`, `action_slack_from_prior`) bound every policy with the
   given divergence; a learner that also optimizes utility lies orders of magnitude inside them (two to
-  five orders in the solvable flow). What the bounds get right is the direction of the drift and the
+  five orders in the analytical example). What the bounds get right is the direction of the drift and the
   inheritance of the prior policy's risk.
 
 ### 5.4 The integrand
@@ -364,11 +364,11 @@ states the corresponding recommendation with its reason.
   is an admissible potential regularizer with curvature equal to its weight, and it is the drift part of a
   Gaussian prior that a finite network can carry; `kappa_p` is `kappa/sigma^2` in the paper's notation.
   `ParameterAnchor` implements it. Under a potential, noiseless continuous-time training of a network of
-  any width is the population flow from the network's own empirical law, with the same contraction and
+  any width is the population gradient flow from the network's own empirical law, with the same contraction and
   rate (*Finite-network training under a potential*; `convergence.finite_training_transfer`). Discrete steps and PPO's or SAC's
   estimators are outside that result.
 * **Set `kappa` for conditioning, not at the threshold.** The threshold of the convergence
-  theorem is sufficient, not necessary, and grows with the price; in the solvable flow every flow
+  theorem is sufficient, not necessary, and grows with the price; in the analytical example every flow
   converged orders of magnitude below it, and at the strength five percent above the threshold the minimizer was the prior
   itself. Choose the smallest strength at which the optimizer is well behaved.
   `convergence.curvature_budget(constants, beta, m, ubar, kappa, lambda_H, eta)` and

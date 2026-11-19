@@ -261,7 +261,7 @@ def interpret(spec: BudgetSpec, requirement: Requirement, stage: Stage, evaluati
         f"probability of ever failing: a small q_beta or a certificate at T does not bound P(tau < inf) ({cite('delay_example')}); a hard almost-sure budget is the case alpha = 0 of that requirement",
         f"other horizons: certification at T = {T} does not certify a longer horizon; the finite-horizon bounds carry the factor beta^-T",
         "other candidates: the mean-action policy, a policy with reduced dispersion, or a retrained one is a different candidate and needs its own validation",
-        f"convergence of this training run: the convergence theorem concerns the exact population flow [{cite('flow')}], and continuous-time "
+        f"convergence of this training run: the convergence theorem concerns the exact population gradient flow [{cite('flow')}], and continuous-time "
         f"training of a finite network under a potential is that flow [{cite('finite_training')}]; discrete steps with PPO's or SAC's estimators are "
         f"outside both, so the trace diagnostics are evidence about this run, not a convergence theorem [{cite('scope')}]",
         "model error: every certificate and validation is conditional on the simulator",

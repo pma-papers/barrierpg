@@ -31,6 +31,12 @@ step. The comparisons use the shipped policies of each problem's full campaign, 
 | [3. Robot on a battery](notebooks/03_robot_battery.ipynb) | MuJoCo's HalfCheetah with a battery whose efficiency varies by mission | what the policy must observe (a clock), the price, and a reserve against a battery that holds less than expected |
 | [4. Navigation with a damage allowance](notebooks/04_navigation_allowance.ipynb) | Safety-Gymnasium's PointGoal1 with its cost limit read as an allowance | which requirement a task means; a price that charges more than an episode earns |
 
+Notebook 1 uses the fuel-tank form of the lander, which the paper used up to its revision 76. The paper's lander study
+now uses a landing problem of its own: a revenue of 36 for each landing on the pad, fuel at 1 per unit, a tank of 24
+units, and the loss of the lander as a second failure. It is `barrierpg.problems.landing` (`make_landing_env`,
+`Landing.stage(k)` for the paper's charges), checked step by step against the paper's own environment. The notebook
+will be rewritten on it.
+
 The [practitioner guide](docs/practitioner-guide.md) goes through the same decisions step by step, with what the
 theory behind the method implies for each.
 

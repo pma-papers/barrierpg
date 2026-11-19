@@ -25,9 +25,10 @@ so it lives in a second environment (here `~/.venvs/constrained-rl-safety310`) w
 and without dependencies (`pip install --no-deps -e .`). Only training and new evaluations of the navigation policies
 need it; the navigation notebook reads the shipped records.
 
-The step-by-step test of the paper's fuel-tank environment compares `BudgetWrapper` with the paper's own environment
-class, which is shipped as a test fixture (`tests/fixtures/paper_fuel_lander.py`, copied verbatim from the replication
-repository with the hash of its source file). It needs Box2D.
+Two step-by-step tests compare the toolbox with the paper's own environment classes, which are shipped as test
+fixtures copied verbatim from the replication repository with the hash of their source file: the landing problem of
+revision 77 (`barrierpg.problems.landing` against `tests/fixtures/paper_landing.py`) and the fuel-tank form of revision 76
+(`BudgetWrapper` against `tests/fixtures/paper_fuel_lander.py`). Both need Box2D.
 
 ## VS Code
 
@@ -59,8 +60,9 @@ python -m pytest tests -q        # the same checks under pytest
 
 The checks cover the budget mechanics of the four tutorial problems, the validation and certificates, the plain
 report, and they reproduce numbers of the paper where the toolbox can compute them: the curvature deficit of the
-solvable flow ($C_m=1940$, $\kappa=2037$ above the threshold), the clipped value on the plateau, $-2.2533$, the stationary spreads of the roles
-study, the incumbent rule's risk and utility in the wear example, and a step-by-step reproduction of the paper's fuel-tank environment.
+analytical example ($C_m=1940$, $\kappa=2037$ above the threshold), the clipped value on the plateau, $-2.2533$, the stationary spreads of the roles
+study, the incumbent rule's risk and utility in the wear example, and step-by-step reproductions of the paper's landing problem
+and of the earlier fuel-tank environment.
 
 ## Campaigns
 

@@ -1,5 +1,10 @@
 """A lunar lander with a fuel tank: imposing a budget on a controller that is already in use.
 
+Deprecated since 0.9.0. This is the fuel-tank form of the lander, which the paper used up to revision 76: the simulator's
+own reward with a tank. Revision 77 replaces it by a landing problem of its own (a revenue for each landing, fuel at 1
+per unit, and the loss of the lander as a failure), which is barrierpg.problems.landing. This module is kept for
+notebook 1 and its shipped runs until the notebook is rewritten on the landing problem; make_lander_env warns.
+
 The lander is Gymnasium's LunarLanderContinuous. Its task rewards a soft landing on the pad (+100), punishes a crash
 (-100), shapes the approach, and charges the fuel its engines burn. The fuel now comes from a tank: each frame
 consumes 0.30 per unit of main-engine power and 0.03 per unit of side-engine power, and a lander that empties its
@@ -73,7 +78,11 @@ def fuel_cost(obs, action, next_obs, reward, info):
 
 
 def make_lander_env(stage: Stage, tank: Tank = Tank(), *, true_budget_scale: float = 1.0) -> BudgetWrapper:
-    """The lander under the given stage; the wrapper appends the remaining fuel as a fraction of the tank."""
+    """The lander under the given stage; the wrapper appends the remaining fuel as a fraction of the tank.
+    Deprecated: the paper's lander study uses barrierpg.problems.landing.make_landing_env."""
+    import warnings
+    warnings.warn("barrierpg.problems.lander, the fuel-tank form of revision 76, is deprecated; the paper's lander study "
+                  "uses barrierpg.problems.landing (make_landing_env)", DeprecationWarning, stacklevel=2)
     if gym is None:
         raise ImportError("the lander needs gymnasium with Box2D: pip install 'gymnasium[box2d]'")
     return BudgetWrapper(LanderOutcome(), fuel_cost, tank.spec(), stage, observe="fraction", true_budget_scale=true_budget_scale)

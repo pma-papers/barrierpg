@@ -1,4 +1,4 @@
-"""The fuel-tank environment of the paper's study, as a test fixture: lines 36-96 of fuel-tank/lunar.py in the replication
+"""The fuel-tank environment of the paper's lander study up to revision 76, as a test fixture: lines 36-96 of fuel-tank/lunar.py in the replication
 repository (SHA256 of that file: 896b1fbe1b81b9971b158950f6209e79313d3294e2289e7017a6b4c6b06a5852), copied verbatim.
 tests/test_sb3.py checks that BudgetWrapper reproduces it step by step."""
 import gymnasium as gym

@@ -1,11 +1,11 @@
-"""What each parameter regularizer does to one unit: the particle system of the flow (the paper's 'The prior and the
-particle system of the flow').
+"""What each parameter regularizer does to one unit: the particle system of the gradient flow (the paper's 'The prior and the
+particle system of the gradient flow').
 
 Take the admissible regularizer
 
     H = kappa1 [ KL(. || Gamma) + omega (int G(rho) dGamma - G(1)) ] + kappa2 int P dmu,
 
-a divergence with strength kappa1 plus a potential with strength kappa2. Along the population flow each
+a divergence with strength kappa1 plus a potential with strength kappa2. Along the population gradient flow each
 unit's parameters x_i move by
 
     dx_i = [policy gradient of V_m - eta A]  dl
@@ -25,7 +25,7 @@ Each term has its own role:
 
 Relative entropy alone (omega = 0, kappa2 = 0) ties noise and drift to one strength. The general class unties
 them: kappa1 sets the noise, kappa2 the drift, the integrand the spread, and all add to the curvature budget,
-kappa1 lambda_W + kappa2 lambda_P. On the solvable flow a potential alone collapses the units to the prior's
+kappa1 lambda_W + kappa2 lambda_P. On the analytical example a potential alone collapses the units to the prior's
 center and never leaves the plateau; relative entropy escapes; the sum escapes once its stationary spread is
 comparable to the plateau's width (the paper's study of the roles of the regularizers).
 
@@ -42,8 +42,8 @@ an adaptive optimizer such as Adam the objective's step stays adaptive, so the f
 Euler-Maruyama step and its spread does not follow from the flow's theory: the formula is the stationary spread without the value drift,
 and the strength is calibrated by the measured contraction, parameter distance and spread. A changing learning rate
 has no single fixed-step stationary law. The paper's runs used the coupled form, the drift added to the gradient
-before an Adam step, which rescales it coordinate by coordinate; there the measured spread grew in proportion to
-kappa1 (about sqrt(2) kappa1 in its study, adam_stationary_spread, an explanation proposed after the runs).
+before an Adam step, which rescales it coordinate by coordinate; there the spread is proportional to kappa1 and
+does not depend on kappa2 (about sqrt(2) kappa1 by adam_stationary_spread, an explanation proposed after the runs).
 """
 from __future__ import annotations
 
@@ -129,8 +129,8 @@ class RegularizerMix:
         if self.collapses:
             lines.append(f"  a potential alone collapses the population to one point mass above the threshold [{cite('collapse')}]")
         if self.kappa1 > 0:
-            lines.append(f"  with the coupled anchor under Adam (the paper's runs) the measured spread was about sqrt(2) kappa1 = "
-                         f"{adam_stationary_spread(self.kappa1):.3g} instead (post-hoc explanation, not a result) [{cite('roles')}]")
+            lines.append(f"  with the coupled anchor under Adam the spread is proportional to kappa1 whatever the drift [{cite('roles')}], "
+                         f"about sqrt(2) kappa1 = {adam_stationary_spread(self.kappa1):.3g} (post-hoc explanation, not a result)")
         if self.kappa1 > 0 and self.kappa2 == 0 and self.omega == 0:
             lines.append("  relative entropy alone: noise and drift tied to one strength")
         lines.append(f"  [{cite('particle')}]")

@@ -7,15 +7,15 @@
 #   policy near an **action reference** $\rho$ and keeps the trajectory risk within $\mathrm{kl}(q\,\|\,q_\rho)\le\mathcal A$
 #   of the reference's risk (*Action regularization and failure risk*). It adds no curvature to the learning problem.
 # * The **parameter regularizer** $\mathcal H$ (strength $\kappa$) acts on the *law of the network's units*. It supplies
-#   the curvature that makes the population learning problem converge (*Convergence of the population flow*), and its
+#   the curvature that makes the population learning problem converge (*Convergence of the population gradient flow*), and its
 #   bias is toward a **prior policy**, whose risk and utility the learner inherits (*Improvement over the prior policy*).
 #
-# In the particle system of the flow (*The prior and the particle system of the flow*) the parameter regularizer splits into **roles**: a divergence
+# In the particle system of the gradient flow (*The prior and the particle system of the gradient flow*) the parameter regularizer splits into **roles**: a divergence
 # injects **noise** into every unit's parameters, a potential **pulls** them toward a reference, and a
 # faster-growing integrand limits their **spread**. Relative entropy alone ties noise and drift to one strength;
 # the general class unties them.
 #
-# Part A shows the roles on the paper's solvable flow (numpy only, seconds). Parts B to E show the finite-network
+# Part A shows the roles on the paper's analytical example (numpy only, seconds). Parts B to E show the finite-network
 # counterparts on PPO in the wear-allowance problem at a deliberately low price, $m=0.03$, where the unregularized
 # optimum breaks down in a third of the episodes and a trusted incumbent rule exists. Each PPO run here trains for
 # one million steps (about 45 seconds); the paper used eight million and eight seeds. The notebook takes about twelve
@@ -55,9 +55,9 @@ advice = advise_regularizers(spec, low_price, action_reference_trusted=True, pri
 print(advice.explain())
 
 # %% [markdown]
-# ## Part A. The roles on the solvable flow
+# ## Part A. The roles on the analytical example
 #
-# The paper's solvable flow (in its online appendix) has one parameter per unit and a feature that is flat on
+# The paper's analytical example (in its online appendix) has one parameter per unit and a feature that is flat on
 # $[-1,1]$: units there do not affect the policy, so the value gradient vanishes. Starting from the **plateau
 # initial law** (all units in $[-1/2,1/2]$), unregularized transport cannot move. Only the regularizers can.
 #
@@ -212,7 +212,7 @@ plt.tight_layout(); plt.show()
 # ## Part D. The parameter anchor: the prior is a policy
 #
 # A finite network carries the drift part of a Gaussian prior: weight decay toward parameters $\theta_0$
-# (`ParameterAnchor`; the paper's *The prior and the particle system of the flow*). We fit the actor's mean to the incumbent rule (`fit_actor_mean`) and set its
+# (`ParameterAnchor`; the paper's *The prior and the particle system of the gradient flow*). We fit the actor's mean to the incumbent rule (`fit_actor_mean`) and set its
 # dispersion to the incumbent's (`set_log_std`): the actor at $\theta_0$ is then the **prior policy**. The learner
 # inherits the prior policy's risk and utility, so we evaluate it as a candidate before training.
 #
@@ -322,7 +322,7 @@ print(f"joint: q_beta = {e.q_beta:.4f}, U = {e.U:.3f}, A = {A:.3f}\n"); print(jo
 # | action relative entropy $\eta\mathcal A$ | the action law | holds the policy near $\rho$; risk within $\mathrm{kl}\le\mathcal A$ of $\rho$'s; no curvature | `ActionAnchor` |
 # | prior's potential / anchor (drift) | the unit law | holds the units near $\theta_0$; supplies curvature; the learner inherits the prior policy | `ParameterAnchor` |
 # | entropy of relative entropy (noise) | the unit law | spreads the units; lets them leave flat regions; exploration without a drift | `ParameterNoise` |
-# | faster-growing integrand (spread) | the unit law | limits crowding relative to the prior; needs a density | population flow only |
+# | faster-growing integrand (spread) | the unit law | limits crowding relative to the prior; needs a density | population gradient flow only |
 #
 # * Specify the prior as a policy, through every parameter that shapes it, and evaluate it before training.
 # * Set the strengths for conditioning, not at the threshold.

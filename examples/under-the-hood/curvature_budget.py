@@ -1,7 +1,7 @@
-"""The curvature budget of the paper's convergence theorem ('Convergence of the population flow') for a stage and
+"""The curvature budget of the paper's convergence theorem ('Convergence of the population gradient flow') for a stage and
 an actor class, and what it does and does not say.
 
-Reproduces the constants of the paper's solvable flow: with the plateau feature's suprema,
+Reproduces the constants of the paper's analytical example: with the plateau feature's suprema,
 C_m = 1940 and the strength five percent above the threshold, kappa = 1.05 C_m / lambda_W = 2037 at beta = 0.9, m = 1, ubar = 1.
 Run: python examples/under-the-hood/curvature_budget.py   (numpy only)
 """
@@ -21,19 +21,19 @@ for beta in (0.9, 0.95, 0.99):
     print(f"beta = {beta}: C_m = {cb.constants['C_m']:.4g}, C_A = {cb.constants['C_A']:.4g}, certified kappa = {cb.kappa_certified:.4g}")
 print()
 
-# 2. The paper's solvable flow: the plateau feature's bounds, computed on a fine grid.
+# 2. The paper's analytical example: the plateau feature's bounds, computed on a fine grid.
 fc = FeatureConstants(**feature_bounds())
 cb = curvature_budget(fc, beta=0.9, m=1.0, ubar=1.0, kappa=2037.0, lambda_H=1.0)
-print("solvable flow:"); print(cb.explain()); print()
+print("analytical example:"); print(cb.explain()); print()
 
 # 3. Any actor class enters through its kernel bounds ('Value and action-law curvature'); softmax is one instance.
 print("softmax kernel bounds of the plateau feature:", fc.kernel()); print()
 
-# 4. The roles of a combined regularizer (the particle system of the flow): noise from relative entropy, drift from a potential.
+# 4. The roles of a combined regularizer (the particle system of the gradient flow): noise from relative entropy, drift from a potential.
 print(RegularizerMix(kappa1=0.1, kappa2=10.0).explain()); print()
 
 # 5. 'Improvement over the prior policy': the risk bound of the flow started at the prior, and the kappa that keeps p_T <= alpha.
-R_Gamma = 12.2   # ubar/(1-beta) - V_m(Gamma) in the solvable flow
+R_Gamma = 12.2   # ubar/(1-beta) - V_m(Gamma) in the analytical example
 for kappa in (0.1, 1.0, 10.0, 100.0):
     print(f"kappa = {kappa:6g}: risk slack {risk_slack_from_prior(L0=1.0, T=0, c_H=2.0, R_Gamma=R_Gamma, kappa=kappa):.4g} "
           "(the measured deviation lies orders of magnitude inside it)")

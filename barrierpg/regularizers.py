@@ -8,8 +8,8 @@ action reference rho and keeps the trajectory risk within kl(q || q_rho) <= A of
 credits it with no curvature and charges it the deficit eta C_A.
 
 The parameter regularizer (strength kappa) acts on the law of the network's units. It supplies the
-curvature that makes the population flow converge ('Convergence of the population flow'), and its bias is toward the prior policy,
-whose risk and utility the learner inherits ('The prior and the particle system of the flow'). In the particle system of the flow its parts play
+curvature that makes the population gradient flow converge ('Convergence of the population gradient flow'), and its bias is toward the prior policy,
+whose risk and utility the learner inherits ('The prior and the particle system of the gradient flow'). In the particle system of the gradient flow its parts play
 different roles: a divergence injects noise into every unit's parameters, the prior's potential and any
 added potential pull them toward a reference, and an integrand of faster growth limits how far the law
 spreads (barrierpg.roles). Relative entropy alone ties noise and drift to one strength; admissible regularizers
@@ -137,7 +137,7 @@ def advise_regularizers(spec: BudgetSpec, stage: Stage, *, action_reference_trus
     else:
         R.append(Recommendation("strength kappa", "the smallest kappa at which the optimizer is well behaved; never the threshold of the convergence theorem",
                                 "the threshold is sufficient, not necessary, and grows with the price; at the threshold the minimizer lies close to the prior, "
-                                "while the solvable flow converges orders of magnitude below it; a failed certificate is the signal to lower kappa or raise the price",
+                                "while the gradient flow of the analytical example converges orders of magnitude below it; a failed certificate is the signal to lower kappa or raise the price",
                                 f"{cite('flow')}; {cite('bias')}; {cite('flow_test')}"))
     if prior_sigma is not None:
         lam = gaussian_prior_curvature(prior_sigma)
@@ -159,7 +159,7 @@ def advise_regularizers(spec: BudgetSpec, stage: Stage, *, action_reference_trus
     if starting_from_finite_network:
         R.append(Recommendation("regularizer family", "a convex potential on the parameters: plain weight decay |x|^2/2 or an anchor |x - x_ref|^2/2 (curvature one)",
                                 "the learner is a finite network: a potential is finite on its empirical law, and noiseless continuous-time training under it is "
-                                "the population flow from that law, with the same contraction and rate; the relative-entropy families are infinite on an atomic law. "
+                                "the population gradient flow from that law, with the same contraction and rate; the relative-entropy families are infinite on an atomic law. "
                                 "Above the threshold a potential alone collapses all units to one parameter",
                                 f"{cite('finite_training')}; {cite('weight_decay')}; {cite('collapse')}"))
     if specified_divergence:
@@ -267,14 +267,15 @@ def regularizer_effects(spec: BudgetSpec, stage: Stage, candidate: Dict, *, acti
         line = (f"parameter noise (kappa1 = {noise_kappa1:g}" + (f", drift kappa2 = {k2:g}" if k2 > 0 else ", no drift") + f"): per-parameter spread {spread:.3g}")
         if k2 > 0:
             line += f"; plain gradient steps without an objective would hold it at sqrt(kappa1/kappa2) = {nominal:.3g}"
-        line += f"; with the coupled anchor under Adam the paper measured about sqrt(2) kappa1 = {adam:.3g} [{cite('roles')}]"
+        line += (f"; with the coupled anchor under Adam the spread is proportional to kappa1 whatever the drift [{cite('roles')}], "
+                 f"about sqrt(2) kappa1 = {adam:.3g} by an explanation proposed after the runs")
         E.lines.append(line)
         if dispersion_final is not None and spread >= 0.5 * dispersion_final:
             E.flags.append("the parameter spread is comparable to the action dispersion: in the paper's study risk and utility moved away from the anchored values "
                            "there, with seeds splitting between drift toward the policy trained without the anchor and degenerate policies; check every seed")
         if k2 == 0:
-            E.flags.append("noise without a drift abandons the prior: in the paper's study it acted as exploration, raised the clipped objective and moved the "
-                           "policy far from the incumbent")
+            E.flags.append("noise without a drift abandons the prior: nothing pulls the parameters back toward it, so the policy can move far from "
+                           "the incumbent")
     # inheritance
     if prior_policy is not None:
         dq = candidate["q_beta"] - prior_policy["q_beta"]; dU = candidate["U"] - prior_policy["U"]
@@ -287,7 +288,7 @@ def regularizer_effects(spec: BudgetSpec, stage: Stage, candidate: Dict, *, acti
                           if at_prior else "the candidate has moved from the prior policy toward the unregularized optimum")
                        + f" [{cite('particle')}; {cite('prior_improvement')}]")
         if "V_m" in candidate and "V_m" in prior_policy and candidate["V_m"] < prior_policy["V_m"] - 2 * np.hypot(candidate.get("V_se", 0.0), prior_policy.get("V_se", 0.0)):
-            E.flags.append("the candidate's clipped value is below the prior policy's: for the population flow started at the prior the clipped value never falls "
+            E.flags.append("the candidate's clipped value is below the prior policy's: for the population gradient flow started at the prior the clipped value never falls "
                            f"below the prior's [{cite('prior_improvement')}]; check the price, the optimization and the candidate's dispersion")
         if dU < -2 * se_U and dq < -2 * se_q:
             E.lines.append(f"lower utility than the prior policy came with lower risk: the signed comparison charges the risk-price term m[q_hat - q_prior]/(1-beta) "

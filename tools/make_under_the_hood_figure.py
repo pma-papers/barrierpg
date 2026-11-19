@@ -51,7 +51,7 @@ ax.set_xscale("log"); ax.set_xlabel("breakdown probability $q_\\beta$"); ax.set_
 ax.set_title("The price selects an attained risk")
 ax.legend(fontsize=7.5, loc="upper left")
 
-# (c) roles of the parameter regularizers on the solvable flow
+# (c) roles of the parameter regularizers on the analytical example
 ax = axes[2]
 flow = PlateauModel(n_x=80, n_s=80)
 plateau = flow.stats(0.0)["V_m"]
@@ -60,7 +60,7 @@ for (k1, k2), col, ls, lw, z, lab in (((0.0, 1.0), GREY, "-", 3.0, 2, "drift onl
                                        ((0.1, 0.0), BLUE, "-", 1.8, 1, "noise and drift (relative entropy): escapes")):
     r = simulate_particles(flow, k1, k2, n=1500, seed=1)
     ax.plot(r.times, r.V_m - plateau, color=col, ls=ls, lw=lw, label=lab, zorder=z)
-ax.set_xscale("log"); ax.set_xlabel("learning time (solvable flow)"); ax.set_ylabel("clipped value gained")
+ax.set_xscale("log"); ax.set_xlabel("learning time (analytical example)"); ax.set_ylabel("clipped value gained")
 ax.set_title("Regularizers play different roles")
 ax.legend(fontsize=7.2, loc="upper left")
 ax.set_ylim(-0.02, 0.42)

@@ -1,4 +1,4 @@
-"""The solvable flow of the paper (its solvable-flow example, the convergence test and the roles study), numpy only.
+"""The analytical example of the paper (the example, the convergence test and the roles study on it), numpy only.
 
 One physical state coordinate x uniform on [0, 1], action a in [0, 1] with a uniform action reference,
 utility u = a at the first action and zero after, a first cost g = 1 - a + eps x against the budget b = 1
@@ -12,7 +12,7 @@ cannot move. This makes the example the place where the roles of the regularizer
 lets units reach |theta| > 1, where the feature acts.
 
 PlateauModel computes the clipped value V_m, the stopped utility, the interior loss and the geometric risk as
-functions of the tilt by quadrature (no simulation); simulate_particles runs the particle system of the flow.
+functions of the tilt by quadrature (no simulation); simulate_particles runs the particle system of the gradient flow.
 The paper's parameters are eps = 0.2, m = 1, beta = 0.9, gamma = 1/2 (clipped value on the plateau V_m = -2.2533).
 """
 from __future__ import annotations
