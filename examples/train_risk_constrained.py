@@ -7,6 +7,13 @@ the Gaussian surrogate for the worst quarter of costs. The two baseline
 runs use the original utility and cost directly. A third run adds action
 and parameter penalties to the CVaR objective.
 
+Let x be the probability of action one. Expected utility is 0.6 + 0.4*x.
+Cost equals 1.25 with probability x/2 and 0.25 otherwise. Both updates
+improve the utility surrogate within a KL trust region. For CPO the
+local constraint uses the mean of this loss. The CVaR version uses the
+same local solver with the Gaussian tail statistic and its gradient.
+See ../docs/learning-algorithms.md for the optimization and line search.
+
 The printed exact CVaR is computed from the final policy's two-point cost
 distribution. Use it to compare the deployment measure with the Gaussian
 quantity used during the updates. With the RL extra installed, run

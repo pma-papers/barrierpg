@@ -6,6 +6,12 @@ and pathwise feasibility. The later examples compare reserve penalties
 and regularized objective gradients under a common cost constraint.
 The finite-scenario comparisons use the supplied outcomes and weights.
 
+The decision is a candidate index i. Choose argmax U[i] - price * E[Z_i]
+for a mean-consumption price, or maximize U[i] subject to the risk
+statistic meeting its cap. The CPO calculation then solves a local linear
+objective with a linear cost constraint and a quadratic KL bound. The
+worked calculations are in ../docs/formulation-comparison.md.
+
 Run from the repository root after installing the core package:
     python examples/compare_formulations.py
 """

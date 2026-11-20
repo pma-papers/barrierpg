@@ -34,11 +34,35 @@ There is one state and two actions. Idle uses no wear and earns zero. Operating 
 
 ## Choose the Bellman objective
 
-In priced mode, each action is evaluated by its expected immediate reward plus its discounted continuation value on surviving outcomes. On a crossing the reward is the negative failure charge and continuation is zero. A price `m` is charged for each remaining period including the failing action. For `beta=1` and a failure at action `t`, the charge is `m * (horizon - t)`. In multiplier mode, the failure charge is constant. A positive `theta` deducts the log barrier described in the [practitioner guide](practitioner-guide.md#the-method-in-brief).
+Let $(t,s,z)$ denote the current time, state and integer reserve, and let $A(s)$ be the list of actions. For each $a\in A(s)$, the model lists outcomes $j$ with probability $p_j$, next state $s_j$, utility $u_j$ and consumption $c_j$. The next reserve is $z_j=z-c_j$. Let $F_t$ be the charge at failure. For a physical horizon, $F_t=m\sum_{\ell=0}^{H-1-t}\beta^\ell$ under per-period pricing. In lump-penalty mode, $F_t=F$. Define $r(u_j,z_j)$ on surviving outcomes to be $u_j$ under failure-only pricing or the specified barrier-adjusted reward.
 
-In pathwise mode, backward induction considers only actions whose positive-probability outcomes preserve a nonnegative reserve and have a feasible continuation through the horizon. This includes checking whether a current action leaves enough reserve to finish. When there is no feasible action, the result uses policy index `-1` and value `-inf`. With no stage specified, the solver maximizes expected discounted utility among pathwise feasible policies.
+Let $\Pi$ be the set of feedback policies on the tabular state $(t,s,z)$. Write $J(\pi)$ for the expected discounted reward up to task termination under the stated reward and failure charge. In priced mode the optimization is $\operatorname{maximize}_{\pi\in\Pi}J(\pi)$. With a pathwise requirement it is
 
-The result contains `policy`, `value`, `stopped_utility`, `failure_probability` and `geometric_risk`. The two risk arrays give the probability of crossing by the end of the model and the expected discount weight on the first crossing, respectively. The arrays are indexed by `[time, state, reserve]`. Value and risk arrays include a zero continuation at the terminal time. If several actions attain the same objective at an entry, the first one is returned.
+$$
+\begin{aligned}
+\underset{\pi\in\Pi}{\operatorname{maximize}}\quad & J(\pi)\\
+\text{subject to}\quad & \Pr_\pi(\tau\le H-1)=0.
+\end{aligned}
+$$
+
+Here $\tau$ is the first negative reserve update. With no reserve penalty, $J$ in the pathwise problem is expected discounted utility along feasible trajectories.
+
+Starting with $V_H(s,z)=0$, compute the Bellman recursion backward:
+
+$$
+\begin{aligned}
+Q_t(s,z,a)
+&=\sum_{j:z_j<0}p_j(-F_t)
+  +\sum_{j:z_j\ge0}p_j\big[r(u_j,z_j)+\beta V_{t+1}(s_j,z_j)\big],\\
+V_t(s,z)&=\max_{a\in A(s)}Q_t(s,z,a).
+\end{aligned}
+$$
+
+A successful terminal outcome has zero continuation value and still earns its current utility. For each entry, save an action attaining the maximum. The recursion works because, after the outcome, the best remaining value depends only on the next state, reserve and time. The current action only needs to compare those optimal continuations, so there is no need to enumerate complete policies.
+
+In pathwise mode, the maximization is restricted to actions whose positive-probability outcomes have $z_j\ge0$ and either terminate safely or reach a feasible next entry. A state with no admissible action receives value $-\infty$ and action index `-1`. For the model above at the last action, operating with reserve one has value $0.75(2)-0.25(1)=1.25$. With reserve zero, the best last action is idle with value zero. At time zero, idling is worth $0.9(1.25)=1.125$. Operating is worth $1.25$ because either it succeeds and leaves zero reserve or it terminates at failure. For the pathwise problem, the probability-$0.25$ crossing rules out operating at reserve one.
+
+The result contains `policy`, `value`, `stopped_utility`, `failure_probability` and `geometric_risk`. For the selected action, the two risk arrays are propagated using the same transition probabilities. An immediate crossing contributes one to its undiscounted and discounted event weights. A surviving transition contributes its successor risk, multiplied by $\beta$ only for the discounted risk. This gives an exact model-based evaluation of the selected policy. The arrays are indexed by `[time, state, reserve]`. Value and risk arrays include a zero continuation at the terminal time. If several actions attain the same objective at an entry, the first one is returned.
 
 ## Interpret exactness and choose a method
 

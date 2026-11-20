@@ -6,6 +6,33 @@
 # We define the simulator, transform signed net cash use into first-crossing costs, and evaluate a fixed base-stock rule. We then compare PPO policies trained with fixed insolvency losses and with an adaptive failure multiplier. A network fitted to the incumbent rule can also be used as an initialization or a parameter reference. The fixed rule, fitted actor and trained actors are distinct validation candidates.
 #
 # The live PPO run illustrates the workflow. The comparison uses the saved runs of ten million steps per seed and three seeds per configuration. The final comparison uses fresh simulated years and the stated insolvency tolerance. [Practitioner guide](../docs/practitioner-guide.md)
+#
+# ### Cash dynamics and the optimization problem
+#
+# Let $x_t$ collect stock and outstanding orders at the start of week $t$. The actor observes these quantities, recent demand, seasonal phase, time and current cash $B_t$. Its action specifies the vector of orders $a_t$, bounded by the maximum order in each product line. If $S_t$ denotes realized sales, $M_t$ units marked down, $p$ sales prices, $c$ unit purchase costs, $h$ holding costs and $v$ salvage values per unit, the cash balance follows
+#
+# $$
+# B_{t+1}=B_t+p^\top S_t+v^\top M_t-c^\top a_t-h^\top x^{\rm stock}_{t+1,\mathrm{pre}}-f,\qquad B_0=2500 .
+# $$
+#
+# Here $x^{\rm stock}_{t+1,\mathrm{pre}}$ is stock after regular sales and before markdowns, and $f$ is weekly overhead. The weekly profit $u_t$ uses gross margins on sales, holding costs, overhead and the markdown loss. This distinguishes profit recognition from the purchase cash outflow. The market factor varies by week and is latent. The actor uses the supplied observations.
+#
+# Let $\tau=\inf\{t:B_{t+1}<0\}$ and $U_{52}(\pi)=\mathbb E_\pi[\sum_{0\le t<52,\ t<\tau}0.999^t u_t]$. Let $\Pi$ be the class of candidate actors. With a known loss $F$ at insolvency, the priced problem is
+#
+# $$
+# \underset{\pi\in\Pi}{\operatorname{maximize}}\quad U_{52}(\pi)-\mathbb E_\pi[0.999^\tau F\,\mathbf1_{\{\tau<52\}}].
+# $$
+#
+# The deployment problem under an annual risk limit is
+#
+# $$
+# \begin{aligned}
+# \underset{\pi\in\Pi}{\operatorname{maximize}}\quad & U_{52}(\pi)\\
+# \text{subject to}\quad & \Pr_\pi(\tau\le51)\le0.02.
+# \end{aligned}
+# $$
+#
+# The fixed base-stock rule is a comparison policy. The runs with a fixed $F$ and the runs with an adaptive multiplier supply candidates for the same independent annual failure test.
 
 # %%
 import sys
@@ -230,6 +257,14 @@ for name, e in rule_ev.items():
 #
 # ## 5. Train PPO
 #
+# ### How PPO updates the actor
+#
+# A rollout contains actions sampled from the current actor $\pi_{w_0}$ and the rewards of the stated training objective. The critic $v(o_t)$ predicts remaining return from observation $o_t$. At a nonterminal step, the prediction residual is $e_t=r_t+\gamma_{\rm alg}v(o_{t+1})-v(o_t)$. At a true terminal step continuation is zero. Generalized advantage estimation sums these residuals using weights $(\gamma_{\rm alg}\lambda_{\rm GAE})^j$. The resulting estimate $\widehat A_t$ measures how favorable the sampled action was relative to the critic's prediction.
+#
+# For a trial actor $\pi_w$, compute $L_t=\pi_w(a_t\mid o_t)/\pi_{w_0}(a_t\mid o_t)$. The actor increases the minibatch average of $\min\{L_t\widehat A_t,\operatorname{clip}(L_t,1-\epsilon,1+\epsilon)\widehat A_t\}$. The critic is fitted to the estimated returns. PPO takes several minibatch updates on the rollout and then collects a fresh one. The clipping level $\epsilon$ limits the incentive for large ratio changes. The independent evaluation cells test the candidate's risk.
+#
+# The simulator has a physical horizon, so the algorithm uses $\gamma_{\rm alg}=\beta=0.999$.
+#
 # The training function builds sixteen wrapped simulators, normalizes the reward scale, and records the insolvency rate
 # and the profit of every batch of training years with `BudgetMonitor`. Its options add what later sections need: a
 # prior fitted to a rule, a parameter anchor, and an adaptive multiplier.
@@ -405,6 +440,8 @@ print(camp.convergence_table(["lump-5000"] + starts))
 # not a way to improve on the rule; compare the rule, the learner from scratch and the learner from the rule.
 #
 # ## 8. A tolerance instead of a cost: the adaptive multiplier
+#
+# Let $\nu_j$ be the lump charge in rollout $j$. If $k$ of its $n$ completed years ended in insolvency, the callback sets $\nu_{j+1}=\max\{0,\nu_j+h(k/n-\alpha_{\rm train})\}$. The multiplier thus increases when the observed rate is above the training level. The actor responds to a discounted charge at insolvency. The callback responds to the undiscounted annual count, so these updates are used to find candidates. The final independent test measures the annual constraint directly.
 #
 # Suppose the owners name no cost, and the lender asks for insolvency below 1%. An adaptive multiplier charges a
 # penalty at insolvency and moves it after every batch of training years, toward the level at which the insolvency

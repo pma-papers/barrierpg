@@ -7,6 +7,12 @@ candidates with a shared validation error budget. The default training
 length is illustrative. The final test estimates fuel failure, while
 crashes retain their original terminal reward.
 
+The training objective subtracts the expected discounted failure charge
+from expected utility earned before fuel failure. The validation target
+is P(first crossing by action 999) <= 0.05. PPO estimates advantages from
+wrapped rewards and updates a clipped action-ratio objective. See
+../docs/learning-algorithms.md for the update and assumptions.
+
 For a different task, replace make_task, resource_used, spec, req and
 stage. The optional initial controller must use the same observation
 and action interfaces. Install the RL and Box2D extras, then run

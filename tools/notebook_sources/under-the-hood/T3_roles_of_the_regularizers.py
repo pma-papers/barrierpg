@@ -1,13 +1,23 @@
 # %% [markdown]
 # # Action and parameter regularization
 #
-# Action relative entropy measures departure from a reference action distribution. Under the paper's path-law assumptions, the achieved stopped divergence $mathcal A$ satisfies $mathrm{kl}(q|q_
-# ho)lemathcal A$, where $q$ and $q_
-# ho$ are the geometric risks of the policy and reference. The comparison uses the achieved divergence, the reference risk and the specified stopping rule.
+# Action relative entropy measures departure from a reference action distribution. Under the path-law assumptions, the achieved stopped divergence $\mathcal A$ satisfies $\mathrm{kl}(q\Vert q_\rho)\le\mathcal A$. Here $q$ and $q_\rho$ are the geometric risks of the learned and reference policies. The comparison depends on the achieved divergence, reference risk and stopping rule.
 #
 # Parameter regularization acts on the law of the network's units in the population model. Relative entropy induces noise and drift, while a quadratic potential adds drift with no noise term. A faster-growing divergence integrand penalizes concentration relative to the prior. At fixed strength, the theorem requires enough parameter curvature to exceed the deficit of the other objective terms.
 #
 # Part A simulates an analytically tractable population model. Parts B to E examine action and parameter references, optimizer anchoring and injected noise under PPO on the wear problem. We evaluate the policy induced by the anchor, including its action dispersion. These finite-network runs use one million steps per run and measure behavior under the specified discrete optimizer. [Theory and implementation](../../docs/under-the-hood/decisions-and-theory.md#5-choose-regularizers-for-their-role)
+#
+# ## The optimization problems considered here
+#
+# In the analytical example, $x\sim{\rm Uniform}[0,1]$, $a\in[0,1]$, first-action utility is $a$, and first-action consumption is $1-a+0.2x$ against budget one. Thus failure occurs on the first decision if $a<0.2x$. Subsequent utility and consumption are zero. The positive reserve after the first action follows the cost-discount convention with $\gamma=1/2$. Utility is discounted by $\beta=0.9$. For a unit-parameter law $\mu$, set $c(\mu)=\int\chi(y)\,\mu(dy)$, where $\chi(y)=0$ for $|y|\le1$ and $\chi(y)=\exp[-1/(|y|-1)^2]$ otherwise. The actor uses density proportional to $\exp(c(\mu)a)$ on $[0,1]$.
+#
+# Let $V_m(\mu)$ be the clipped value at price $m=1$, $\Gamma=N(0,\sigma^2)$ the prior, and $\mathcal A(\mu)$ the stopped action relative entropy to the action reference. Let $\mathcal M$ be the laws with finite second moment and finite regularization cost. The population problem is
+#
+# $$
+# \underset{\mu\in\mathcal M}{\operatorname{minimize}}\quad -V_m(\mu)+\eta\mathcal A(\mu)+\kappa_1\,{\rm KL}(\mu\Vert\Gamma)+\frac{\kappa_2}{2}\int y^2\,\mu(dy).
+# $$
+#
+# Part A sets $\eta=0$ for its particle comparison. The PPO demonstrations instead use the continuous wear simulator. They maximize its priced return $U(\pi)-m q_\beta(\pi)/(1-\beta)$ at $m=0.03$, with an optional per-decision action charge or parameter anchor. The two experiments therefore use different representations and numerical updates. They measure achieved stopped utility, geometric risk and the relevant reference distances.
 
 # %%
 import math
@@ -44,6 +54,15 @@ print(advice.explain())
 
 # %% [markdown]
 # ## Part A. The roles on the analytical example
+#
+# The clipped value depends on $\mu$ only through the tilt $c$. Differentiating the normalized density gives $V_m'(c)=\operatorname{Cov}_{c}(a,R)$, where $R$ is the trajectory's clipped return. The derivative with respect to an individual unit contributes $V_m'(c)\chi'(y_i)$ to its drift. With current empirical tilt $c_n=n^{-1}\sum_i\chi(y_i)$ and time step $h$, the particle calculation updates
+#
+# $$
+# y_i^+=y_i+h\{V_m'(c_n)\chi'(y_i)-(\kappa_1/\sigma^2+\kappa_2)y_i\}
+#        +\sqrt{2\kappa_1h}\,Z_i ,
+# $$
+#
+# where each $Z_i$ is an independent standard normal draw. This is Euler–Maruyama, the discrete update obtained by multiplying the current drift by $h$ and drawing a Brownian increment of variance $h$. On the flat region $\chi'=0$, only the noise term can move units outward against the inward quadratic drift.
 #
 # The paper's analytical example (in its online appendix) has one parameter per unit and a feature that is flat on
 # $[-1,1]$: units there do not affect the policy, so the value gradient vanishes. Starting from the **plateau
@@ -114,6 +133,14 @@ print(f"prior policy N(0,1): V_m = {prior_value:+.4f}")
 # The finite-time endpoints do not establish convergence below the sufficient population threshold.
 #
 # ## Part B. PPO helpers
+#
+# ### How PPO updates the actor
+#
+# A rollout contains actions sampled from the current actor $\pi_{w_0}$ and the rewards of the stated training objective. The critic $v(o_t)$ predicts remaining return from observation $o_t$. At a nonterminal step, the prediction residual is $e_t=r_t+\gamma_{\rm alg}v(o_{t+1})-v(o_t)$. At a true terminal step continuation is zero. Generalized advantage estimation sums these residuals using weights $(\gamma_{\rm alg}\lambda_{\rm GAE})^j$. The resulting estimate $\widehat A_t$ measures how favorable the sampled action was relative to the critic's prediction.
+#
+# For a trial actor $\pi_w$, compute $L_t=\pi_w(a_t\mid o_t)/\pi_{w_0}(a_t\mid o_t)$. The actor increases the minibatch average of $\min\{L_t\widehat A_t,\operatorname{clip}(L_t,1-\epsilon,1+\epsilon)\widehat A_t\}$. The critic is fitted to the estimated returns. PPO takes several minibatch updates on the rollout and then collects a fresh one. The clipping level $\epsilon$ limits the incentive for large ratio changes. The independent evaluation cells test the candidate's risk.
+#
+# The wear environment stops independently with probability $1-\beta$ after each surviving action, so PPO uses $\gamma_{\rm alg}=1$.
 #
 # The PPO settings are those of notebook T2. The **incumbent rule** runs at the rate $\min\{1,z/(3b)\}$ with a Gaussian
 # dispersion of $0.05$ in the rate: it breaks down in about one percent of the episodes. It serves as the action

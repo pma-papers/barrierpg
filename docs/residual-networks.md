@@ -8,6 +8,18 @@ to scale critics in continuous-control RL. These studies motivate testing the de
 task. [Xiong et al. (2020)](https://proceedings.mlr.press/v119/xiong20b.html) ·
 [Nauman et al. (2024)](https://proceedings.nips.cc/paper_files/paper/2024/hash/cd3b5d2ed967e906af24b33d6a356cac-Abstract-Conference.html)
 
+## Architecture and objective
+
+Let $x$ be the input to one block and $\operatorname{LN}(x)$ its feature-wise LayerNorm transform using the block's learned scale and offset. With weights $W_1,W_2$ and biases $b_1,b_2$, the block computes
+
+$$
+f(x)=W_2\operatorname{SiLU}(W_1\operatorname{LN}(x)+b_1)+b_2,\qquad x_{\rm next}=x+f(x).
+$$
+
+Here $\operatorname{SiLU}(u)=u/(1+\exp(-u))$ coordinatewise. Without a skip, the next representation is $f(x)$. One network parameterizes the actor's action distribution and a separate network predicts the critic's value.
+
+The comparison holds the PPO objective fixed while changing this map. In the wear example the utility is $U(\pi)$ before breakdown and the failure probability before maintenance is $q_\beta(\pi)$. PPO trains on the reward for $U(\pi)-m q_\beta(\pi)/(1-\beta)$, with $m=0.3$ and $\beta=0.95$. The architecture changes the policy class and its parameterization. [PPO objective and update](learning-algorithms.md#ppo-with-a-scalar-reward)
+
 ## Using PPO
 
 Install the RL extra and pass the supplied policy class to Stable-Baselines3. In this example, each episode has an independent geometric maintenance clock. The algorithmic discount is one because that clock supplies the intended discount in expectation.

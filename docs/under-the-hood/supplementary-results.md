@@ -33,6 +33,4 @@ or above $c_k^\star$ stays there forever and never fails. On $\{\tau>T\}\setminu
 $z_{T+1,k}\ge c_k^\star$, hence $\tau=\infty$. Therefore $\{\tau<\infty\}\subseteq\{\tau\le T\}\cup E_T$. $\square$
 
 Both events on the right are observable from $T+1$ actions. Their disjoint union is a single Bernoulli event that can be evaluated on fresh episodes. Without such a bound on the future consumption, a small geometric risk or a certificate at one horizon does not
-bound the probability of ever failing (the paper's example *Delay without eventual feasibility*). If no positive mass sits exactly at the threshold, the
-unresolved mass $\mathbb P(E_T)$ tends to zero as $T$ grows, so the bound approaches the true probability of ever failing; it does
-not make that risk small.
+bound the probability of ever failing (the paper's example *Delay without eventual feasibility*). The upper bound approaches the true eventual failure probability if the probability of surviving without entering the invariant reserve region tends to zero. This is an additional property of the process. For example, a single resource can stay forever at a reserve $z<c^\star$ if its consumption is constantly $(1-\gamma)z$. It then never fails and remains outside the region used in this certificate.

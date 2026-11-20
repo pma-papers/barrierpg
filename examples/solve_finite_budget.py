@@ -5,6 +5,12 @@ consumes one or two units of wear. The reserve and remaining time are known.
 Compare the optimal priced policy with a policy that must retain a
 nonnegative reserve on every realization of the finite model.
 
+At reserve one the priced last-action value of operating is
+0.75 * 2 - 0.25 * 1 = 1.25. With beta=0.9, waiting initially is worth
+0.9 * 1.25. Operating now leaves zero reserve after success and ends the
+task at failure. Backward induction compares these continuation values.
+The pathwise problem rules out every action that can cause a crossing.
+
 Run from the repository root with the core package installed:
     python examples/solve_finite_budget.py
 """

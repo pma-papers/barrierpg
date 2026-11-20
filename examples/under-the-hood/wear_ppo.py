@@ -7,6 +7,13 @@ injected parameter noise. The default run uses two million training
 interactions. Compare sample sizes and model assumptions before interpreting
 the resulting bound as evidence about a deployment tolerance.
 
+For stopped utility U and breakdown probability q before maintenance,
+the fixed-price objective is U - m*q/(1-beta). The barrier variant also
+subtracts the interior deduction. PPO estimates advantages from the
+wrapped reward. The adaptive callback instead updates the lump charge
+using the observed episode failure rate. The validation event and the
+model-based bound are described in ../../docs/learning-algorithms.md.
+
 Install the RL extra and run one of the following configurations:
     python examples/under-the-hood/wear_ppo.py --config fixed --m 1
     python examples/under-the-hood/wear_ppo.py --config adaptive --alpha 0.02 --m 1.7

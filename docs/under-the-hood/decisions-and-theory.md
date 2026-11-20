@@ -101,15 +101,19 @@ In the wear study, a reduction of 10% in the true allowance increased the failur
 
 ### 5.1 Action relative entropy
 
-Let $mathcal A$ denote achieved stopped action relative entropy to reference distribution $
-ho$. Under the paper's path-law assumptions, this bounds the Bernoulli divergence between the two geometric risks, $mathrm{kl}(q|q_
-ho)lemathcal A$. The resulting risk comparison is informative when $mathcal A$ is small and the reference risk is known. `ActionAnchor(eta, log_reference)` applies the sampled charge through the failing decision by default. `evaluate.stopped_action_relative_entropy` estimates the achieved quantity.
+Let $\rho(\cdot\mid o)$ be the reference action distribution at observation $o$. Define $\mathcal A$ as the expected discounted sum of $\log[\pi(a_t\mid o_t)/\rho(a_t\mid o_t)]$ through the failing decision, assuming absolute continuity of the policy with respect to the reference. Equivalently, each conditional mean is a KL divergence between the two action distributions. Under a common environment law and the geometric clock, the chain rule for KL accumulates these terms over the stopped trajectory. Mapping a trajectory to its failure flag can only reduce KL. Hence $\mathrm{kl}(q_\beta(\pi)\Vert q_\beta(\rho))\le\mathcal A$, where $\mathrm{kl}$ is the divergence between Bernoulli laws. Use the attained action divergence and reference risk for this comparison. `ActionAnchor(eta, log_reference)` applies the sampled charge. `evaluate.stopped_action_relative_entropy` estimates it.
 
 Relative entropy to a reference and the trust region used by CPO have distinct roles. The reference appears in the objective. The trust region measures the change from the old policy to the proposed policy at each update. [Regularization in constrained actor updates](../formulation-comparison.md#vary-action-and-parameter-regularization-independently)
 
 ### 5.2 Parameter regularization in the population model
 
-The population model represents the actor by a distribution of unit parameters. Exponential convergence at fixed strength follows if the curvature supplied by an admissible parameter regularizer exceeds the deficit from the value and action terms. Write the net curvature as $Lambda_m=kappalambda_{mathcal H}-C_m-eta C_{mathcal A}$. Here $lambda_{mathcal H}$ is the regularizer's curvature, $C_m$ and $C_{mathcal A}$ are bounds on the respective deficits, and $kappa$ and $eta$ are the regularization weights.
+The population model represents the actor by a law $\mu$ of unit parameters. Over the represented laws we minimize $-V_m(\mu)+\eta\mathcal A(\mu)+\kappa\mathcal H(\mu)$, where $V_m$ is the clipped value and $\mathcal H$ is an admissible parameter regularizer. The gradient flow moves the unit law in the direction of decreasing objective. At fixed strengths the rate theorem requires the net curvature
+
+$$
+\Lambda_m=\kappa\lambda_{\mathcal H}-C_m-\eta C_{\mathcal A}>0.
+$$
+
+Here $\lambda_{\mathcal H}$ is a lower bound on regularizer curvature along the specified interpolations. The quantities $C_m$ and $C_{\mathcal A}$ bound the curvature deficits of the negative value and action terms. These are conditions on the population flow. The numerical updates of a finite PPO actor have their own measured learning traces.
 
 `convergence.curvature_budget` evaluates the sufficient criterion once the representation bounds are supplied. `KernelConstants` gives bounds in terms of the policy kernel and its derivatives. `FeatureConstants` gives the softmax instance. With a decreasing strength, the separate near-minimizer result requires that both the strength and the gap to the corresponding objective minimum tend to zero. A training schedule is evaluated by its observed outcomes, including comparisons with training at the final strength from the start.
 
@@ -117,9 +121,9 @@ The common-potential result concerns continuous-time, width-scaled training with
 
 ### 5.3 Noise, drift and spread
 
-In the population particle system, relative entropy with respect to a Gaussian prior $N(x_0,sigma^2 I)$ gives both noise and drift. At strength $kappa_1$, each coordinate has noise variance $2kappa_1$ per unit of flow time, and the Gaussian potential contributes a pull of strength $kappa_1/sigma^2$ toward $x_0$. A separate quadratic potential contributes drift without noise. A faster-growing divergence integrand penalizes concentration relative to the prior and requires a density with respect to it.
+In the population particle system, relative entropy with respect to a Gaussian prior $N(x_0,\sigma^2 I)$ gives both noise and drift. At strength $\kappa_1$, each coordinate has noise variance $2\kappa_1$ per unit of flow time, and the Gaussian potential contributes a pull of strength $\kappa_1/\sigma^2$ toward $x_0$. A separate quadratic potential contributes drift without noise. A faster-growing divergence integrand penalizes concentration relative to the prior and requires a density with respect to it.
 
-In the finite-network implementation, `ParameterNoise` adds Gaussian increments with variance `2 * kappa1 * lr` after each update. `ParameterAnchor` separately applies the pull. Under plain gradient descent with constant step $h$, quadratic pull $K$, zero objective gradient and $0<hK<2$, the stationary standard deviation per coordinate is $sqrt{kappa_1/[K(1-hK/2)]}$. The continuous-time approximation is $sqrt{kappa_1/K}$. Use `roles.noise_and_anchor_spread` for this calculation.
+In the finite-network implementation, `ParameterNoise` adds Gaussian increments with variance `2 * kappa1 * lr` after each update. `ParameterAnchor` separately applies the pull. Under plain gradient descent with constant step $h$, quadratic pull $K$, zero objective gradient and $0<hK<2$, the stationary standard deviation per coordinate is $\sqrt{\kappa_1/[K(1-hK/2)]}$. The continuous-time approximation is $\sqrt{\kappa_1/K}$. Use `roles.noise_and_anchor_spread` for this calculation.
 
 With a decoupled anchor, the anchor substep multiplies the displacement from its reference by `1 - lr * kappa_p`. A coupled anchor adds its derivative to the loss before Adam's adaptive update. The stationary formula above belongs to the specified constant-step model. For PPO with Adam, compare realized parameter distance, action dispersion, stopped utility and failure risk at the recorded learning rates. [Regularization notebook](../../notebooks/under-the-hood/T3_roles_of_the_regularizers.ipynb)
 
@@ -129,7 +133,7 @@ The prior distribution of network units induces a policy in the population model
 
 If an actor is initialized by fitting an incumbent policy, evaluate it before training. Its observation preprocessing and action dispersion are part of the policy. Fit the mean with `fit_actor_mean` where appropriate and set the dispersion with `set_log_std`. Include all intended actor parameters in the anchor. `ParameterAnchor` includes the trainable log standard deviation by default. A weakly constrained dispersion can alter the deployed policy even when its mean parameters remain close to the reference.
 
-For comparative bounds that use a comparison law, enter its regularization cost $etamathcal A+kappamathcal H$ along with its risk, utility and interior loss. For implementation, use `advise_regularizers` to inspect the options and record the actual anchor, optimizer and update form. `regularizer_effects` can summarize comparisons with observations from the prior and trained candidate.
+For comparative bounds that use a comparison law, enter its regularization cost $\eta\mathcal A+\kappa\mathcal H$ along with its risk, utility and interior loss. For implementation, use `advise_regularizers` to inspect the options and record the actual anchor, optimizer and update form. `regularizer_effects` can summarize comparisons with observations from the prior and trained candidate.
 
 ## 6. Validate the deployed candidate
 

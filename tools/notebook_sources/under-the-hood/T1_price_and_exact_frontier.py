@@ -6,6 +6,27 @@
 # The notebook checks the clipped-return identity, shows how a comparison policy enters a price–risk calculation, and validates one candidate. An episode under the independent maintenance clock gives a Bernoulli observation of geometric risk $q_\beta$. We use the resulting bound with $p_T\le\beta^{-T}q_\beta$ when assessing a finite-horizon tolerance. [Theory guide](../../docs/under-the-hood/decisions-and-theory.md)
 #
 # This notebook uses NumPy, SciPy and Matplotlib. T2 trains PPO on the same task.
+#
+# ## The optimization problem and the benchmark
+#
+# The state is the price index $s_t\in[-1,1]$ and the remaining wear allowance $z_t$. The actor selects operating rate $a_t\in[0,1]$. Utility is $u_t=(1+0.5s_t)a_t/1.5$. The next index is $0.8s_t+0.2W_t$, with $W_t$ uniform on $[-1,1]$. Consumption is $0.1a_t X_t$ with a gamma wear shock $X_t$ of shape $0.5$ and scale $2$. Take $z_0=1$ and $\beta=0.95$. Let $\tau$ be the first action with $z_{t+1}=z_t-0.1a_tX_t<0$. Set $\tau=\infty$ if no such action occurs.
+#
+# Let $U$ denote expected discounted utility before failure and $I_m$ the expected discounted interior deduction. Let $\Pi$ denote the policy class and $q_\beta=\mathbb E_\pi[\beta^\tau\mathbf1_{\{\tau<\infty\}}]$. The continuing priced problem is
+#
+# $$
+# \underset{\pi\in\Pi}{\operatorname{maximize}}\quad U(\pi)-I_m(\pi)-\frac{m}{1-\beta}q_\beta(\pi).
+# $$
+#
+# The corresponding deployment problem at a fixed horizon is
+#
+# $$
+# \begin{aligned}
+# \underset{\pi\in\Pi}{\operatorname{maximize}}\quad & U(\pi)\\
+# \text{subject to}\quad & \Pr_\pi(\tau\le19)\le0.05.
+# \end{aligned}
+# $$
+#
+# The grid benchmark approximates the priced problem for specified prices. For a state and trial action, its Bellman calculation averages the failure charge $-m/(1-\beta)$ on crossing outcomes and $r_m+\beta V(s',z')$ on surviving outcomes. It maximizes the resulting action values at each grid point and iterates the value calculation. The selected grid policies are evaluated in the continuous simulator. [Bellman recursion for an exact finite model](../../docs/dynamic-programming.md)
 
 # %%
 import numpy as np

@@ -6,6 +6,14 @@ An asset earns utility from its operating rate and fails if accumulated wear exc
 python examples/benchmark_wear.py --output /tmp/wear-comparison.json
 ```
 
+## Model, objectives and updates
+
+An action sets an operating rate $a_t$ from the three rates in the example. The actor uses the price index $s_t$ and normalized reserve as inputs to categorical logits. The index follows $s_{t+1}=0.8s_t+0.2W_t$, with $W_t$ uniform on $[-1,1]$. The asset earns $u_t=(1+0.5s_t)a_t/1.5$ before breakdown and consumes $0.1a_t X_t$, with a gamma shock $X_t$ of shape $0.5$ and scale $2$. The reserve starts at one and failure occurs at its first strictly negative update. Maintenance access occurs independently with probability $0.05$ after a nonfailing action.
+
+Let $U(\pi)$ be mean utility earned before maintenance or breakdown, $D$ the flag for breakdown before maintenance, and $Z$ the loss equal to overshoot on breakdown and zero otherwise. Let $I(\pi)$ be the mean interior deduction when it is enabled. The fixed-price runs maximize $U(\pi)-I(\pi)-m\mathbb E_\pi[D]/0.05$. The CPO runs maximize $U(\pi)-I(\pi)$ with $\mathbb E_\pi[D]\le d$. With no interior barrier, $I=0$. The CVaR run maximizes $U(\pi)$ subject to a Gaussian approximation of $\operatorname{CVaR}_{0.20}(Z)\le0.16$ during training. Evaluation computes CVaR directly from observed overshoots. These objectives differ in which loss or event they penalize or constrain.
+
+At each update, the pilot estimates utility from remaining episode rewards. The cost statistic is measured once per episode. In the native actor update its cost correction is averaged per decision and scaled by the ratio of decisions to episodes. CPO proposes an update with a local cost limit and a bound on mean KL from the current actor. For CVaR, the cost gradient is replaced by the gradient of the Gaussian tail surrogate. The fixed-price configurations use a reward advantage with the cost penalty included and the reward-only trust-region step. [Actor surrogates and the quadratic subproblem](learning-algorithms.md#cpo-with-separate-reward-and-cost)
+
 ## Design
 
 Each setting uses six seeds, the same initial actor and 18 updates with 768 complete episodes per update. The initial policy's measured breakdown probability is 6.7–7.1%. Within each seed, methods share the sequences of wear shocks, price shocks, maintenance times and action uniforms. Ten thousand fresh episodes per seed are used for evaluation, with common random numbers within each evaluation pair. The fixed-price runs use the unconstrained step of the same trust-region solver. Matching the episode count leaves different numbers of decisions, which are reported.

@@ -15,9 +15,29 @@ The formulation specifies the objective, the quantity constrained and the horizo
 
 The budget wrapper and risk certificates follow *The Price of Failure Risk: Clipped Barrier Policy Gradients with Convex Regularization* (Malo, Viitasaari, Suominen, Vilkkumaa and Tahvonen). For a first-crossing requirement, the policy observes the remaining reserve. Failure occurs at the first action after which any reserve is negative. A reserve of exactly zero is permitted.
 
+## Start from your model
+
+| If you have | Use |
+|---|---|
+| A small transition table with known probabilities | Solve the model by [backward induction](docs/dynamic-programming.md). The tutorial derives the recurrence and evaluates a two-period example. |
+| A simulator and a known failure charge or reserve penalty | Specify the priced reward, train with PPO, and validate the fixed policy. [Practitioner workflow](docs/practitioner-guide.md) |
+| A separate limit on mean cost, crossing probability or tail loss | Define the trajectory loss and use a suitable constrained actor update or compare policies on finite scenarios. [Optimization formulations](docs/formulation-comparison.md#specify-the-optimization-problem) |
+| A trained rule or policy and a deployment tolerance | Evaluate the fixed candidate on independent episodes and compute a one-sided upper bound. [Validation notebook](notebooks/under-the-hood/T4_validation_in_detail.ipynb) |
+
+The [algorithm guide](docs/learning-algorithms.md) explains how values, advantages, PPO clipping, CPO trust regions and the Gaussian CVaR surrogate enter the actual update. The applied notebooks state their objectives and walk through the corresponding implementation.
+
 ## First-crossing risk and the priced objective
 
-A finite-horizon chance constraint takes the form $p_T(\pi) = \Pr_\pi(\tau \le T) \le \alpha$. Here $\tau$ is the first failure index, $T$ is the last action index covered by the requirement, and $\alpha$ is the tolerated failure probability. The confidence level for validation is $1-\zeta$. For example, a policy can be required to keep its annual insolvency probability at or below 2%, with 95% confidence from simulated years.
+For a task that ends at failure, let $U(\pi)$ be the expected discounted utility earned before failure and $\Pi$ the permitted policy class. Let $\tau$ be the first failure index, $T$ the last action covered by the requirement, and $\alpha$ the tolerated probability of failure. The deployment problem is
+
+$$
+\begin{aligned}
+\underset{\pi\in\Pi}{\operatorname{maximize}}\quad & U(\pi)\\
+\text{subject to}\quad & p_T(\pi)=\Pr_\pi(\tau\le T)\le\alpha.
+\end{aligned}
+$$
+
+The confidence level for validation is $1-\zeta$. For example, a policy can be required to keep its annual insolvency probability at or below 2%, with 95% confidence from simulated years.
 
 One way to train a candidate is to use a fixed failure price. In the continuing formulation, the clipped value equals stopped utility less the interior loss and a charge of $m/(1-\beta)$ per unit of geometric failure risk. Stopped utility is the discounted utility earned before failure. Geometric risk weights a failure at action $t$ by $\beta^t$, where $\beta$ is the utility discount. An optional interior barrier deducts utility as the reserve approaches zero. With a physical horizon, the per-period charge ends at the last action of the task. A known one-off loss can be charged at failure through a fixed lump penalty.
 
@@ -88,7 +108,17 @@ In this run the rule failed in 6 of 2,000 episodes. The observed frequency was 0
 
 To use an existing Gymnasium task, provide a function that returns one nonnegative consumption per resource after each action. In `BudgetSpec`, specify the budgets, utility discount, and physical horizon where applicable. `BudgetWrapper` adds reserve information to the observation and accounts for the failure charge at termination. For a task with a fixed horizon, include time in the observation when the remaining time affects decisions.
 
-The following example trains on the paper's landing problem. The two failure events are fuel exhaustion and loss of the lander. `landing.stage(1.0)` sets the failure charge at the reference action to one landing revenue. The training aid is disabled during evaluation. The short run illustrates training and subsequent evaluation. Its output includes the validation decision for the fitted candidate.
+The example uses the paper's landing model. Utility on an action is $36$ for completing a landing on the pad, less fuel spent at a unit cost of one. Before touchdown, fuel use counts against a 24-unit tank. Loss of the lander triggers a second budget crossing. Let $\tau$ be the first failure of either kind and $U_{1000}(\pi)$ the expected discounted utility before failure. PPO trains on
+
+$$
+\begin{aligned}
+\underset{\pi\in\Pi}{\operatorname{maximize}}\quad &
+ U_{1000}(\pi)-\mathbb E_\pi\!\left[\beta^\tau F_\tau\mathbf1_{\{\tau<1000\}}\right],\\
+ & F_t=m\sum_{j=0}^{999-t}\beta^j.
+\end{aligned}
+$$
+
+Here $\beta=0.999$ and $\Pi$ is the class represented by the PPO actor. `landing.stage(1.0)` sets $F_{100}=36$. A potential-based shaping term is used during training and is disabled during evaluation. The validation step tests $\Pr_\pi(\tau\le999)\le0.05$ on the fitted actor's fresh episodes. The training budget is chosen for a short demonstration. [How PPO computes an update](docs/learning-algorithms.md#ppo-with-a-scalar-reward)
 
 ```python
 from stable_baselines3 import PPO

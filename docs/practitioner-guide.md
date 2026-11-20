@@ -14,6 +14,21 @@ A failure-only stage pays the task's full utility up to the action before failur
 
 Choose a stage for training, then assess the candidate that will be deployed. The price and the statistical test address different decisions. The price sets the objective used to train the candidate, while the test estimates its failure probability under the deployment conditions.
 
+## Write the objective and constraint
+
+Let $\Pi$ be the candidate policies, $u_t$ the utility on action $t$, $H$ the physical horizon and $\tau$ the first failing action. In the stopped task, the utility to maximize is $U_H(\pi)=\mathbb E_\pi[\sum_{t=0}^{H-1}\beta^t u_t\mathbf 1_{\{t<\tau\}}]$. Utilities after the task has genuinely terminated are zero. If the requirement is a failure-probability limit at action $T$, write
+
+$$
+\begin{aligned}
+\underset{\pi\in\Pi}{\operatorname{maximize}}\quad & U_H(\pi)\\
+\text{subject to}\quad & \Pr_\pi(\tau\le T)\le\alpha.
+\end{aligned}
+$$
+
+The wrapped PPO training problem uses the same utility with a failure charge. With no interior penalty it maximizes $U_H(\pi)-\mathbb E_\pi[\beta^\tau F_\tau\mathbf1_{\{\tau<H\}}]$. Here $F_t$ is the lump sum charged at a failure at $t$. Training with a reserve penalty also deducts the expected loss incurred on nonfailing steps. A mean-cost or CVaR specification uses its own cost constraint and can keep the original utility reward. [Write a mean, chance, tail or pathwise constraint](formulation-comparison.md#specify-the-optimization-problem)
+
+To apply these equations, specify the observation available at decision time, the allowed actions, the source of transition uncertainty, the utility and the cost for each action. Write the physical and deployment horizons separately. This identifies the data required by the optimizer and the event or loss to measure afterward. [How PPO and constrained actor updates use the data](learning-algorithms.md)
+
 ## Step 1. Check that the problem has a budget
 
 Specify the consumed quantity, the initial allowance, and what happens at the first crossing. In the fuel-tank example, the fuel consumed on a step depends on the engine commands. In the retailer example, cash decreases with purchases and overhead and increases with receipts. Both have a first crossing. The current landing problem also accounts for loss of the lander with a second failure condition.
@@ -77,7 +92,7 @@ When the objective is to meet a risk tolerance, compare a few fixed prices on pi
 
 A conservative price from `plan` requires a valid comparison policy and the assumptions of the price–risk bound, including control of the optimization error. Under exact failure-only optimization in a fixed class, geometric risk is nonincreasing in $m$. With approximate training, geometric risk or the finite-horizon failure rate can rise across the tested prices. A shortfall from the best tested own-price benchmark estimates a lower bound on the true optimization gap. The pilot results guide the choice of candidates for independent validation. [Theory and price bounds](under-the-hood/decisions-and-theory.md#3-fix-the-price-then-certify)
 
-An adaptive multiplier updates the flat penalty in the direction of the observed rate minus its prescribed level. Use `Stage(penalty="multiplier")` and `DualAscent` with compatible on-policy training. The callback counts the failure flags of episodes that ended in each rollout. Use a task termination or stopping clock that makes this event the risk quantity intended for training. Fixed-price pilots can help set the initial penalty and step size. Inspect both the multiplier and the measured risk, because a small multiplier change can occur even while the measured rate is inconsistent with the level. Select a candidate with enough slack for the planned validation sample.
+An adaptive multiplier updates the flat penalty. If a rollout contains $k$ failures among $n>0$ completed episodes, the new penalty is $\max\{0,\nu+h(k/n-\alpha_{\rm train})\}$, with step size $h$ and training level $\alpha_{\rm train}$. The episode clock determines the event counted by the callback. Compare that event with the deployment requirement before interpreting the result. Use `Stage(penalty="multiplier")` and `DualAscent` with compatible on-policy training. The callback counts the failure flags of episodes that ended in each rollout. Use a task termination or stopping clock that makes this event the risk quantity intended for training. Fixed-price pilots can help set the initial penalty and step size. Inspect both the multiplier and the measured risk, because a small multiplier change can occur even while the measured rate is inconsistent with the level. Select a candidate with enough slack for the planned validation sample.
 
 ## Step 6. Add a reserve when the budget is uncertain
 

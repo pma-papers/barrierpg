@@ -9,4 +9,6 @@ These notebooks connect the paper's results to executable examples. The wear tut
 | [T3. Action and parameter regularization](T3_roles_of_the_regularizers.ipynb) | Noise and drift in the population model, prior-policy evaluation, and measured effects of finite-network penalties in PPO | RL and notebook extras |
 | [T4. Statistical validation at fixed and geometric horizons](T4_validation_in_detail.ipynb) | Exact binomial endpoints, error allocation, and a value certificate for a fixed physical horizon | Core and Matplotlib |
 
+Each notebook states the objective or constraint it uses and explains the calculation beside the corresponding cells. The algorithm guide develops the PPO, CPO and CVaR updates from their inputs. [Algorithm guide](../../docs/learning-algorithms.md)
+
 The theory guide provides the conditions behind these calculations. For an exact solution of a known finite transition model, see the dynamic programming guide. [Theory and implementation](../../docs/under-the-hood/decisions-and-theory.md) · [Results and functions](../../docs/under-the-hood/results-map.md) · [Exact dynamic programming](../../docs/dynamic-programming.md)
