@@ -1,7 +1,15 @@
-"""Paired wear-allowance pilot with a common actor and trust-region solver.
+"""Compare priced and constrained actor updates on the wear-allowance model.
 
-Run from bpg-toolbox with Torch installed:
-    python examples/benchmark_wear.py --output examples/wear_comparison.json
+Candidates share the categorical actor family, initial policy within seed,
+and sampled wear, price and maintenance outcomes. The CPO variants constrain
+breakdown before maintenance. Separate variants use a fixed failure price,
+deduct an interior loss, or constrain a Gaussian surrogate for overshoot
+CVaR. The output includes stopped utility, failure, minimum reserve and
+empirical CVaR on fresh evaluation episodes.
+
+Run with the RL extra installed. Use an output path outside the repository
+when reproducing the comparison:
+    python examples/benchmark_wear.py --output /tmp/wear-comparison.json
 """
 import argparse
 from dataclasses import replace

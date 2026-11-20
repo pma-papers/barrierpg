@@ -1,7 +1,6 @@
 # Supplementary results
 
-Two certificates in the toolbox are not stated in the paper. Both use only the paper's definitions of budgets,
-failure and the clipped barrier; their proofs are short and given here. Notation: reserves $z_{t+1,k}=(z_{t,k}-c_k)/\gamma_k$
+These two supplementary certificates apply the same reserve dynamics to a small-reserve event and to eventual failure. The reserve notation is reserves $z_{t+1,k}=(z_{t,k}-c_k)/\gamma_k$
 with $z_{0,k}=b_k$; failure at $\tau=\inf\{t:\min_kz_{t+1,k}<0\}$; clipped reward $r_m=\max\{-m,u-B(z_{t+1})\}$ with
 $-m\le r_m\le\bar u$, equal to $-m$ from failure onward; $V_m=\mathbb E\sum_t\beta^tr_m$.
 
@@ -18,7 +17,7 @@ $\bar u-r_m=\min\{\bar u+m,\ \bar u-u+B(z_{t+1})\}\ge\min\{m+\bar u,\underline B
 failure, $\bar u-r_m=\bar u+m$. Either way the discounted sum of costs is at least
 $\beta^T\min\{m+\bar u,\underline B(\varepsilon)\}$ on the event, and Markov's inequality gives the bound. $\square$
 
-**Reading.** Only an interior barrier charges small reserves; a failure-only price gives $\underline B=0$ and no bound.
+The certificate requires a uniformly positive penalty in the specified small-reserve region. A failure-only price gives $\underline B=0$.
 For the log barrier $B(z)=\theta\sum_k\log(1+b_k/z_k)$, $\underline B(\varepsilon)=\theta\min_k\log(1+b_k/\varepsilon_k)$
 (`LogBarrier.lower_level`). The bound is informative only for values $V_m$ close to $\bar u/(1-\beta)$; direct
 measurement of the frequency of a small reserve on validation episodes (`Evaluation.near`) is usually sharper.
@@ -33,8 +32,7 @@ $$\mathbb P(\tau<\infty)\le p_T+\mathbb P(E_T).$$
 or above $c_k^\star$ stays there forever and never fails. On $\{\tau>T\}\setminus E_T$ every reserve satisfies
 $z_{T+1,k}\ge c_k^\star$, hence $\tau=\infty$. Therefore $\{\tau<\infty\}\subseteq\{\tau\le T\}\cup E_T$. $\square$
 
-**Reading.** Both events on the right are observable from $T+1$ actions, so the bound can be validated directly on
-fresh episodes. Without such a bound on the future consumption, a small geometric risk or a certificate at one horizon does not
+Both events on the right are observable from $T+1$ actions. Their disjoint union is a single Bernoulli event that can be evaluated on fresh episodes. Without such a bound on the future consumption, a small geometric risk or a certificate at one horizon does not
 bound the probability of ever failing (the paper's example *Delay without eventual feasibility*). If no positive mass sits exactly at the threshold, the
 unresolved mass $\mathbb P(E_T)$ tends to zero as $T$ grows, so the bound approaches the true probability of ever failing; it does
 not make that risk small.

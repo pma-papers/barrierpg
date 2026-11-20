@@ -1,18 +1,11 @@
 # %% [markdown]
-# # T1. The price on a problem with a grid benchmark
+# # Fixed failure prices and the wear benchmark
 #
-# This notebook belongs to the toolbox's under-the-hood track. It runs the workflow on the paper's running example, a
-# small problem with a dynamic-programming benchmark, **without training anything**. It needs `numpy`, `scipy`
-# and Matplotlib. You will
+# An asset earns utility by operating and consumes a wear allowance before independent maintenance access. We evaluate two fixed operating rules and compare them with policies from a dynamic program on a discretized state and action space. The discretized problem provides a benchmark for the stated prices. Its simulator estimates are subject to Monte Carlo error.
 #
-# 1. state a budget problem and a deployment requirement,
-# 2. see what the clipped barrier reward does and check the identity the paper turns on,
-# 3. get a plan: a starting price, a validation budget, and the conditions under which another method is better,
-# 4. evaluate a few hand-made candidates and place them against the grid benchmark,
-# 5. validate a candidate at its horizon and read the report.
+# The notebook checks the clipped-return identity, shows how a comparison policy enters a price–risk calculation, and validates one candidate. An episode under the independent maintenance clock gives a Bernoulli observation of geometric risk $q_\beta$. We use the resulting bound with $p_T\le\beta^{-T}q_\beta$ when assessing a finite-horizon tolerance. [Theory guide](../../docs/under-the-hood/decisions-and-theory.md)
 #
-# Notebook T2 trains a learner through the same wrapper. Results are cited by their titles in the paper,
-# *The Price of Failure Risk: Clipped Barrier Policy Gradients with Convex Regularization*.
+# This notebook uses NumPy, SciPy and Matplotlib. T2 trains PPO on the same task.
 
 # %%
 import numpy as np
@@ -43,11 +36,11 @@ spec = model.spec(ubar=1.0)
 print(spec)
 
 # %% [markdown]
-# ## What the clipped barrier reward does
+# ## Reward with an interior barrier
 #
 # The wrapper carries the remaining reserve $z$ in the state and replaces the reward by
 # $$r_m=\max\{-m,\;u-B(z')\},\qquad B(z')=\theta\log(1+b/z'),$$
-# with $z'$ the reserve after the action. An unbounded barrier gives every exploratory policy the value $-\infty$;
+# with $z'$ the reserve after the action. An unclipped singular barrier can give infinite expected loss;
 # clipping at $-m$ keeps returns finite. From failure onward every reward is $-m$, so $m$ is a **price of failure
 # risk**: one unit of geometric risk costs $m/(1-\beta)$. Before failure, the barrier subtracts an **interior loss**
 # that keeps a reserve; a failure-only price ($\theta=0$) charges nothing before failure.
@@ -66,7 +59,7 @@ ax.set_ylim(-2, 1); ax.set_xlabel("reserve after the action, $z'$"); ax.set_ylab
 plt.tight_layout(); plt.show()
 
 # %% [markdown]
-# ## The identity behind every result
+# ## Decomposition of the clipped value
 #
 # Splitting the discounted sum of clipped rewards at the failure time gives the exact identity
 # $$V_m=U-\mathcal I_m-\frac{m}{1-\beta}\,q_\beta ,$$
@@ -75,7 +68,7 @@ plt.tight_layout(); plt.show()
 # right-hand side from $U$, $\mathcal I_m$ and the failure indicator.
 #
 # The wear wrapper uses **geometric stopping**: each period ends the episode with probability $1-\beta$.
-# A learner with discount one then optimizes the discounted objective exactly, and the failure indicator of an
+# With algorithmic discount one the rollout objective equals the discounted objective in expectation. The failure indicator of an
 # episode has probability $q_\beta$.
 
 # %%

@@ -1,58 +1,37 @@
-# Decisions and the theory behind them
+# Theory and implementation for resource-budget policies
 
-This document belongs to the toolbox's "under the hood" track, for readers who want each decision of the
-[practitioner guide](../practitioner-guide.md) tied to the result of the paper *The Price of Failure Risk: Clipped
-Barrier Policy Gradients with Convex Regularization* (Malo, Viitasaari, Suominen, Vilkkumaa, Tahvonen) that supports
-it. It uses the paper's notation and its test problems, which have exact solutions. The
-[under-the-hood notebooks](../../notebooks/under-the-hood/) run these problems with outputs, and the
-[replication repository](https://github.com/pma-papers/bpg-replication) walks through the paper's studies.
+The central distinction is between the objective used during training and the condition that must hold at deployment. In the paper's continuing formulation, the clipped value prices geometric failure risk against stopped utility net of interior loss. A deployment requirement can instead limit failure by a fixed horizon. A bound on the value or independent evaluation of the policy can establish that requirement under the corresponding assumptions.
 
-The paper does not rank barrier policy gradients against other constrained methods, and neither
-does this guide. Its purpose is to say what the clipped barrier delivers, what can be
-certified about the policy it returns, what each regularizer does, and when another method is the
-better choice.
-
-Results are cited by the titles the paper gives them, which do not change with its numbering;
-[`results-map.md`](results-map.md) lists them with the functions that implement them.
+This guide follows *The Price of Failure Risk: Clipped Barrier Policy Gradients with Convex Regularization* (Malo, Viitasaari, Suominen, Vilkkumaa and Tahvonen). The technical notebooks use a wear-allowance problem with a grid-based benchmark and an analytically tractable population model. The results map cites each result by title so references remain usable across manuscript revisions. [Technical notebooks](../../notebooks/under-the-hood/) · [Results map](results-map.md) · [Replication repository](https://github.com/pma-papers/bpg-replication)
 
 ## Vocabulary
-
-The guide uses the paper's names, one name per concept.
 
 | Symbol | Name | In the toolbox |
 |---|---|---|
 | `b_k`, `gamma_k`, `beta` | budgets, cost discounts, utility discount | `BudgetSpec` |
-| `tau` | failure index: the first action after which some reserve is negative | `BudgetWrapper` |
+| `tau` | first action index after which any reserve is negative | `BudgetWrapper` |
 | `p_T = P(tau <= T)` | finite-horizon risk over `T + 1` actions | `Requirement(T, alpha)` |
 | `q_beta = E[beta^tau 1{tau < inf}]` | geometric risk: failure before an independent geometric time | `Evaluation.q_beta` |
-| `m` | price of failure risk; a failure costs `m/(1-beta)` in discounted total | `Stage.m` |
+| `m` | per-period price of failure risk, with a continuing charge at failure of `m/(1-beta)` in discounted total | `Stage.m` |
 | `max{-m, u - B(z')}` | the clipped barrier, the one-step reward clipped at `-m` | `BudgetWrapper` |
-| `V_m`, `U`, `I_m` | clipped value, stopped utility, interior loss: `V_m = U - I_m - m q_beta/(1-beta)` | `Evaluation` |
+| `V_m`, `U`, `I_m` | clipped value, stopped utility and interior loss in the continuing model, `V_m = U - I_m - m q_beta/(1-beta)` | `Evaluation` |
 | `theta` | scale of the interior barrier `B(z) = theta sum_k log(1 + b_k/z_k)`; `theta = 0` is the failure-only price | `Stage.theta` |
 | `nu` | flat failure penalty (fixed multiplier, or adaptive multiplier under dual ascent) | `Stage(penalty="multiplier")`, `DualAscent` |
 | `rho`, `eta`, `A` | action reference, weight and value of the action relative entropy | `ActionAnchor` |
 | `Gamma`, `pi_Gamma`, `kappa` | prior law of the network's units, the prior policy it induces, strength of the parameter regularizer | `ParameterAnchor` |
 | `kappa1`, `kappa2` | noise strength (the entropy part of a divergence) and drift strength (a potential such as an anchor) in the particle system | `ParameterNoise`, `ParameterAnchor`, `RegularizerMix` |
-| `alpha`, `zeta` | tolerated failure probability; statistical error of validation (not interchangeable) | `Requirement` |
+| `alpha`, `zeta` | tolerated failure probability and statistical error budget for validation | `Requirement` |
 
-A *configuration* is a rule for the per-period reward (fixed price, fixed price with the interior
-barrier, adaptive multiplier, anchored). A *candidate* is one fixed policy that may be deployed; the
-stochastic policy and its mean-action policy are different candidates.
+A training configuration fixes the stage, learner settings and any regularization. A candidate is a fixed policy considered for deployment. A stochastic policy and the policy using its mean action are distinct candidates.
 
 ## The workflow at a glance
 
-1. **Specify the requirement**: `BudgetSpec`, `Requirement`.
-2. **Check whether another method is the better choice** (the cases below; `plan` states them for your
-   problem).
-3. **Fix the price, then certify**: `plan` derives the conservative price and the validation budget;
-   train any learner on `BudgetWrapper`; `frontier.check_runs` checks runs at several prices.
-4. **Keep a reserve deliberately**: `Stage(theta=...)` for the interior barrier, or a reduced budget when
-   the size of the possible error is known; test with `BudgetWrapper(true_budget_scale=...)`.
-5. **Choose regularizers for their role, and the prior from the problem**: `advise_regularizers`
-   (also through `plan(..., regularizers=...)`), `ActionAnchor`, `ParameterAnchor`, `ParameterNoise`; afterwards
-   `regularizer_effects`.
-6. **Validate the deployed candidate**: `evaluate`, `Evaluation.validate`, `validate_direct`, the value
-   certificates, and `interpret(...).text()` for the report.
+1. Specify the budget, first-crossing event, horizon, tolerance and validation error in `BudgetSpec` and `Requirement`.
+2. Choose the objective and any constraint. `plan` describes the cases relevant to the inputs. The [formulation tutorial](../formulation-comparison.md) compares the available objectives.
+3. For a priced objective, use `BudgetWrapper` and compare fitted policies at selected prices. Use `frontier.check_runs` to compare results under the stated benchmark assumptions.
+4. When small reserves carry a cost, specify an interior barrier or other reserve penalty. Evaluate the candidate under nominal and reduced budgets if the latter represent relevant uncertainty.
+5. Select references and strengths separately for action and parameter regularization. Evaluate the policy induced by each reference.
+6. Freeze the candidate and evaluate it on independent episodes. Use `interpret` to inspect the direct test and any applicable value bounds.
 
 ```python
 from barrierpg import Requirement, Stage, evaluate, interpret, plan
@@ -75,363 +54,92 @@ requirement by comparing its upper confidence bound with $\alpha\beta^T$.
 
 ## 1. Specify the requirement
 
-State the budgets, the horizon and the tolerated failure probability before choosing a learning
-mechanism. The choice of mechanism follows from the requirement, not the other way round.
+`BudgetSpec` describes the resource problem independently of the learning algorithm. Its `budgets` and `gammas` give the initial reserves and their cost discounts. Its `beta` discounts utility. The fields `ubar` and `u_minus` give bounds $-u_-\le u\le\bar u$ where the bound being used requires them. Set `horizon=H` for a task ending after $H$ actions.
 
-* **The problem.** `BudgetSpec(budgets, beta, gammas, ubar, u_minus, horizon)`: the budgets `b_k`, the
-  cost discounts (`1` for a plain cumulative allowance), the utility discount, a valid upper bound
-  `ubar` on the one-step utility (every certificate needs it, and a loose `ubar` weakens them), the
-  magnitude `u_minus` of a lower bound on the utility, and the physical horizon `H` if the task ends
-  after `H` actions (`None` for the absorbing, infinite-horizon form).
-* **The requirement.** `Requirement(T, alpha, zeta, kind, family)`. `kind="finite"` is the
-  operational requirement `p_T <= alpha`. `kind="geometric"` is `q_beta <= alpha`, the natural
-  criterion when the horizon is random, as for an asset whose maintenance access arrives at random;
-  substituting it for a fixed operational horizon needs a justification, and the two are linked by
-  `p_T <= beta^(-T) q_beta` (`certificates.finite_from_geometric`). `kind="eventual"` bounds
-  `P(tau < inf)`; neither a small `q_beta` nor a test at one horizon certifies it, and the toolbox
-  certifies it only with known bounded discounted costs (`certificates.ever_failing_bound`).
-  `family` is the number of simultaneous statements (candidates, horizons, tests) that share the
-  error `zeta`; allocate it before taking minima or selecting a policy.
-* **When failure has a price in the application itself** (downtime until the next maintenance access,
-  a contractual penalty, a lost season), the failure-only clipped value with that per-period price is
-  the problem to be solved, and the price is not a tuning parameter. A lump sanction at an
-  observation date is a flat penalty at the failing step, the fixed-multiplier form:
-  `Stage(m=0, penalty="multiplier", multiplier=F, clip_utility=False)` without a dual-ascent callback. With a
-  physical horizon its value certificate is `validation.lump_sanction_risk`, and
-  `certificates.conservative_multiplier` gives a conservative starting penalty.
-* **A resource whose step use can be negative** (net emissions in a week, a battery that recharges) needs
-  nonnegative costs for the wrapper: `RunningMaxCost(signed_use)` charges the increment of the running maximum of
-  the cumulative use, whose first crossing of the budget is the first crossing of the cumulative use.
-* **For a chance requirement** the clipped barrier is a surrogate, not the constraint. The
-  requirement is met by a certificate when it is informative and by validation of the deployed
-  candidate otherwise (section 6 of this guide).
-* `plan(..., violations_during_training_matter=True)` and a zero tolerance trigger warnings: both point
-  to another method.
+`Requirement(kind="finite")` tests $p_T$ through action $T$, so it covers $T+1$ actions. Under independent geometric stopping with per-action survival probability $\beta$, the observed breakdown event has probability $q_\beta$. Use `kind="geometric"` when that is the deployment requirement. A geometric risk bound can also bound $p_T$ through $p_T\le\beta^{-T}q_\beta$. An eventual-failure requirement calls for additional structural information, such as the uniform cost bounds in the [supplementary certificate](supplementary-results.md#2-structural-certificate-for-the-probability-of-ever-failing).
+
+For `family` simultaneous statements, allocate the error budget before examining the validation data. At a fixed validation horizon, the one-sided confidence bound applies to the tested event and the specified candidate. Where an economic loss is already given, it can set the failure charge independently of the testing criterion.
 
 ## 2. When to use another method
 
-The paper's section *Which formulation to prefer* states when the clipped barrier is the choice and when another
-method is the better one. The cases are repeated here so that this guide can be read on its own; each rests on a
-result or a measurement of the paper. `planning.when_to_use_another_method` returns them, and `plan` states them for
-your problem.
+The appropriate formulation is determined by the quantity the decision maker intends to control. A known cost of failure can enter a priced objective. A time-dependent failure tolerance can be represented as the expectation of an undiscounted first-crossing indicator by the required horizon. A limit on mean cumulative consumption instead constrains the expectation of the consumption itself. A CVaR constraint limits the mean of a specified loss in its upper tail. See the [formulation tutorial](../formulation-comparison.md).
 
-The clipped barrier is the choice when failures can be permitted in simulation and deployment tolerates a positive
-failure probability or carries a finite failure cost; when the tolerance is uncertain or may be unattainable, since
-a fixed price does not change during training and the attained risk is monotone in it, so the tolerance is
-approached by training at several prices and validating each; when the failure cost is known (a lump sum or an
-overage tariff), which sets the price directly, a lump sum `F` charged once at failure giving `m = (1-beta) F`; and
-when a reserve before exhaustion is worth its cost. Another method is the better choice in five cases.
+Pathwise feasibility calls for a model or a policy class that can establish feasibility on every relevant realization. Bounded-score policies with a reference that fails with positive probability retain a positive lower bound on risk. Under the paper's representation assumptions, `certificates.risk_lower_bound` computes $p_T(\pi_\mu)\ge e^{-2L_0(T+1)}p_T(\rho)$. An exact one-sided binomial bound from a finite sample is positive even when every validation episode succeeds.
 
-1. **No failure is permissible and a controlled-invariant set is known.** A finite price prices failure
-   risk; it does not prohibit failure. If the action reference can exhaust a budget with positive
-   probability, so can every represented policy: bounded scores impose a lower bound on the risk,
-   `p_T(pi_mu) >= exp(-2 L0 (T+1)) p_T(rho)` (*The represented class*; `certificates.risk_lower_bound`), and
-   no price removes it. An almost-sure method (an infinite failure penalty, a control-barrier safety
-   layer, or a method that learns which actions keep probability-one budget constraints) addresses this
-   specification when a controlled-invariant set is known. `plan` flags `alpha = 0`: a positive price
-   never prohibits failure, no multiplier converges when every policy of the class has positive risk,
-   and a failure-free validation certifies only the bound `1 - zeta^(1/N)`.
-2. **A prescribed level is attainable with slack and the multiplier's step can be tuned.** A fixed price
-   leaves the attained risk to the optimizer, and a risk below the tolerance costs utility (*Matched-risk performance
-   comparison*). An adaptive multiplier, as in a Lagrangian chance-constrained policy gradient, targets
-   the level directly when it lies above the lower bound on the risk of the class. Its step must be tuned, and the
-   level must be attainable: a multiplier keeps increasing when the level cannot be attained or the dual step is poorly
-   scaled (in the wear-allowance study the multiplier for the tolerance zero grew throughout training). The toolbox's own prescribed-level option is `Stage(penalty="multiplier")` with
-   `DualAscent`; see section 3 of this guide for its step and diagnosis.
-3. **Violations during training matter.** Constrained policy optimization keeps the iterates near the
-   constraint; the clipped barrier is trained where failures are permitted, in a simulator.
-4. **The loss grows with the amount by which the consumption exceeds the budget.** A failure price
-   charges the event of exhaustion, not its size; the CVaR constraint on the cumulative consumption
-   charges the size.
-5. **The model is known and small.** Solve it exactly when you can: an exact dynamic program gives the
-   frontier itself, and in the wear-allowance study the learned policies came within a few percent of it. The
-   certificates and the validation apply to such policies as well, since they hold for whatever policy
-   is deployed: evaluate the policy through `BudgetWrapper`, validate it with `Evaluation.validate` or
-   `validation.validate_direct`, and read it with `interpret`.
-
-Two further cases concern the barrier itself.
-
-* **The required price charges far more for a failure than an episode earns.** In the lander study the
-  optimization error grew with the price; reward normalization or a prescribed-level formulation is the
-  alternative. `plan(..., episode_earnings=...)` warns when a failure at the start of an episode is charged more
-  than three times what an episode earns, and notes it above once.
-* **The size of a possible allowance error is known.** Tightening the allowance is then cheaper than the interior barrier (section 4 of this guide).
+CPO uses a local constraint on estimated cost during an update. The final policy's cost must still be measured at the intended horizon. If the model is small and known, backward induction can compute an optimal priced or pathwise feasible policy. Finite-scenario selection compares a supplied policy list. [Dynamic programming guide](../dynamic-programming.md) The toolbox's evaluation functions apply to these policies as well.
 
 ## 3. Fix the price, then certify
 
-The parts of *Fixed price of failure risk* (optimality at the attained risk, the price-risk bound,
-monotonicity in the price, learned laws) and *Matched-risk performance comparison* hold at a fixed
-price `m`, so training at many prices is not required.
+At a continuing failure price $m$, the clipped value is $V_m=U-I_m-mq_\beta/(1-\beta)$. Here $U$ is stopped utility and $I_m$ is the expected discounted loss from the interior penalty before failure. An exact maximizer of this objective maximizes $U-I_m$ among policies in the same class with no greater geometric risk. For an approximate maximizer, the corresponding comparison incurs its optimization error.
 
-* **Start from the conservative price.** When the class contains a policy that never fails at finite
-  barrier cost (standing still, for example), the price-risk bound
-  `q_beta <= q_0 + (1-beta)[sup U - U_0 + I_0 + delta]/m` gives a price at which the attained risk is
-  certified whatever the optimizer returns, up to its optimization error `delta`. `plan(spec, req,
-  sup_U=...)` computes it with standing still as the comparison policy; for another comparison policy use
-  `certificates.conservative_price(alpha, beta, sup_U, U0, I0, q0, delta, u_minus)` directly. The bound is conservative (by a factor of twenty to thirty in the wear study), so the price it gives is a safe
-  start, not the price to aim for.
-* **Let the certificates and validation bound the attained risk.** After training, the value
-  certificates (`certificates.risk_from_value`, `validation.risk_from_validation_value`,
-  `validation.physical_horizon_risk`) and direct validation (section 6 of this guide) bound the risk of
-  the candidate. A bound on `q_beta` also bounds the average failure time over the earliest `eps`-fraction
-  of trajectories, assigning infinite failure time to trajectories that never fail. The lower bound is `log(eps/q_beta)/log(1/beta)` periods
-  (`certificates.earliest_failures_time`; *The geometric risk as a risk measure of the failure time*).
-* **Retrain at a higher price only if the tolerance is missed.** `certificates.price_monotonicity`
-  bounds how much the attained risk can rise between two prices, given the optimization errors.
-  `frontier.check_runs(runs, beta, sup_U, U0, I0, q0, delta)` checks runs at several prices against the
-  price-risk bound, monotonicity and dominance.
-* **Check that raising the price can work.** A sequence of prices reaches a tolerance when some policy
-  has risk to spare and the charged errors (the comparison policy's interior loss, the regularization
-  cost and the optimization error) grow slower than the price (*Price sequences reaching a tolerance*). A
-  learner whose shortfall grows in proportion to the price fails this condition. On short pilot runs at a
-  few prices,
-  `frontier.price_sequence_check(prices, shortfalls)` reads the condition from measured shortfalls; on a
-  new problem, the shortfall from the best structured policy at the same price is a lower bound on the
-  optimization error. A rising shortfall or crash rate is the signal to stop raising the price.
-* **Where on the frontier the optimum lies is not controlled.** A fixed-price optimum is optimal at the
-  risk it attains, but risk left unused against a tolerance costs utility at the price;
-  `certificates.matched_risk_utility_gap` bounds the shortfall.
-* **An adaptive multiplier targets a tolerance directly** when the tolerance lies above the lower bound on the risk of the class; no multiplier converges below it. Use `Stage(penalty="multiplier")` and `DualAscent(alpha,
-  step)`. Take the step from `callbacks.dual_step_suggestion(expected_multiplier, rollouts_to_reach)`,
-  with the expected multiplier the penalty at which fixed-price runs of the same learner attain about the
-  tolerance; a learned policy attains more risk than the exact optimum at the same price, so the exact
-  frontier understates it. The step moves the multiplier by `expected_multiplier / rollouts_to_reach` in a
-  rollout in which every episode fails, and by the fraction `rate - alpha` of that otherwise, so near the
-  tolerance it moves slowly relative to the policy's updates. The default, a twentieth, suits long runs;
-  with a few hundred rollouts a larger fraction is needed (notebook 2 uses one half). Read the trace with
-  `DualAscent.diagnose(beta)`, which applies the paper's two criteria for convergence: the multiplier
-  stops moving, and the attained risk lies within the confidence bound of the tolerance. The status is
-  *stable* (both hold), *increasing* (every episode fails and the flat penalty carries no gradient:
-  lower the step, raise a fixed price, or start from a controller that sometimes survives), *inactive*
-  (the tolerance does not bind), *trending* (still moving; one that keeps rising while the failure
-  rate stays above the tolerance signals a tolerance below that lower bound), *off-tolerance* (no drift, but
-  the rollouts cannot resolve the tolerance), or *short* (too few rollouts). The drift is tested on the
-  multiplier's updates, since a slope fitted to the levels of a running sum reports a trend in almost
-  any window. A multiplier that converges at the tolerance itself
-  does not pass validation at that tolerance: set the prescribed level below the tolerance by the width
-  of the confidence bound, just as a fixed price has to be chosen with one.
-* **Price and conditioning.** A higher price raises the curvature that a convergence argument requires
-  and can worsen the conditioning of the learner (the reward scale). Reward normalization helps; a
-  price that charges far more for a failure than an episode earns is one of the cases of section 2.
-* **Clipping and utilities below `-m`.** Clipping at `-m` truncates utility values below `-m`, such as a
-  crash penalty. Choose `m >= u_minus`, or charge the price at failure alone: the fixed-multiplier
-  form `U - nu q_beta`, `Stage(clip_utility=False)`, to which the fixed-price results apply verbatim.
-  `plan` warns when `m < u_minus` with clipping on.
-* **Physical horizon.** For a task that ends after `H` actions, `BudgetSpec(horizon=H)` charges the total `m (1 - beta^(H-t))/(1 - beta)` of the price at a failure at step `t`; `barrierpg.spec.failure_charge` gives it, and
-  `barrierpg.spec.price_from_multiplier_physical` converts a flat penalty into a price at a typical failure time.
-* **Check the resolution before retraining.** `validation.value_resolution_check` says whether the
-  empirical certificate can certify the tolerance with the planned sample and horizon at all; increasing
-  `m` cannot repair a failure of this check. `validation.episodes_for_tolerance` sizes the direct test.
+A sufficient starting price can be computed from a comparison policy, an upper bound on stopped utility and a justified optimization gap. With comparison quantities $U_0$, $I_0$ and $q_0$ and an upper bound $\delta$ on the gap, the price–risk bound is
+$q_\beta\le q_0+(1-\beta)(\sup U-U_0+I_0+\delta)/m$. Use `plan(..., sup_U=..., comparator=...)` or `certificates.conservative_price` with the hypotheses of the bound. Use `certificates.learned_law_risk` for the corresponding comparison with a regularization cost.
+
+Under exact failure-only optimization, geometric risk is nonincreasing in $m$. With an interior barrier or approximate training, the monotonicity bound accounts for changes in interior loss and the optimization errors. A sequence of increasing prices is sufficient only under the relevant conditions, which include a feasible comparison with slack and charged terms that grow sublinearly in the price. At any one price, subtracting the candidate's value from the best known feasible benchmark value gives a lower bound on the exact gap when both values are known. Simulator estimates of those values give a descriptive shortfall subject to sampling error. `frontier.price_sequence_check` summarizes observed shortfalls across prices.
+
+For a task with $H$ physical actions, the discounted charge at failure $t$ is $m(1-\beta^{H-t})/(1-\beta)$. Use `spec.failure_charge` to compute it. To charge a known lump sum at every failure time, use `Stage(penalty="multiplier", multiplier=F)` without dual ascent. A failure-only stage pays full utility before failure. With an interior barrier, check that any clipping and reward bounds match the claimed value certificate.
+
+For adaptive pricing, `DualAscent(alpha, step, multiplier0=...)` updates the lump penalty using the failure frequency of completed episodes in a rollout. Use a stopping rule that yields the event specified by the training requirement. `dual_step_suggestion` initializes a scale from a fixed-price pilot for that event. `DualAscent.diagnose(beta)` reports multiplier and rate diagnostics on recent rollouts. A rising multiplier can indicate an unattainable level or insufficient policy response. A stable multiplier remains a training diagnostic. Validation tests the final candidate independently.
+
+The multiplier diagnostic compares recent changes in the multiplier with the measured failure frequency. A stable
+status requires both a small trend and a frequency consistent with the target. A persistently positive trend
+warrants inspecting whether any tested policy attains the level, how the initial policy performs, and whether the
+dual step is large relative to policy updates. A rollout in which all episodes fail gives little information about
+how a change in the action distribution would affect the event rate.
+
+A bound on geometric risk also bounds the mean failure time of the earliest $\varepsilon$-fraction of all trajectories. Assign infinite failure time to trajectories that never fail. The lower bound is $\log(\varepsilon/q_\beta)/\log(1/\beta)$ when positive. [Price and value functions](results-map.md#risk-certificates-and-the-fixed-price-of-failure-risk)
 
 ## 4. Keep a reserve deliberately
 
-* A failure-only price leaves no reserve: its optimal policies exhaust the budget whenever that is
-  profitable, and a modest error in the budget then causes frequent failures. In the wear study an
-  allowance ten percent smaller than assumed raised the breakdown probability of the failure-only
-  price `m = 1` from about two percent to a third of the episodes.
-* The interior barrier, `Stage(theta > 0)`, buys graded protection against such errors at a utility
-  cost bounded by its interior loss; the fixed-price results still apply, net of that loss. In the wear
-  study `theta = 0.1` lowered the frequency of a small reserve and the breakdown probability under the reduced
-  allowance by an order of magnitude.
-* If the size of the possible error is known, a correspondingly reduced budget is the more economical protection; the barrier keeps a graded reserve for an error of unknown size.
-  `plan(..., allowance_error_known=True/False)` states the corresponding advice.
-* Test the reserve before deployment: `BudgetWrapper(..., true_budget_scale=0.9)` judges failure
-  against a reduced true budget while the policy observes the nominal reserve, and `BudgetMonitor`
-  and `Evaluation.near` report the frequencies of a small reserve. With a positive barrier,
-  `certificates.small_reserve_bound` with `LogBarrier.lower_level` certifies the probability of
-  coming within a chosen distance of exhaustion.
+A fixed failure price assigns a cost to the crossing event. A positive interior barrier also deducts utility on nonfailing steps with small reserves. The objective therefore gives a separate incentive to preserve reserve. The attained reserve distribution depends on the policy and should be measured.
+
+In the wear study, a reduction of 10% in the true allowance increased the failure frequency of the price-only policy at $m=1$. The interior-barrier runs had lower frequency under that reduction. To reproduce this type of comparison, set `true_budget_scale=0.9` and retain the nominal observations. Use the same evaluation conditions across candidates and report the frequency of small reserves, failure and stopped utility. If the reduced allowance is known before training, it can instead be specified as the initial budget.
+
+`Evaluation.near` gives empirical frequencies for reserve thresholds. A value-based bound is also available when the interior barrier is bounded below by a positive amount in the region of interest. [Small-reserve certificate](supplementary-results.md#1-certificate-for-a-small-reserve)
 
 ## 5. Choose regularizers for their role
 
-Two regularizers act on different objects, and they do different things. Each creates no safety
-that its reference lacks.
+### 5.1 Action relative entropy
 
-### 5.1 Action regularization and parameter regularization
+Let $mathcal A$ denote achieved stopped action relative entropy to reference distribution $
+ho$. Under the paper's path-law assumptions, this bounds the Bernoulli divergence between the two geometric risks, $mathrm{kl}(q|q_
+ho)lemathcal A$. The resulting risk comparison is informative when $mathcal A$ is small and the reference risk is known. `ActionAnchor(eta, log_reference)` applies the sampled charge through the failing decision by default. `evaluate.stopped_action_relative_entropy` estimates the achieved quantity.
 
-* **The action relative entropy** (weight `eta`, to the action reference `rho`) acts as a reward term;
-  `ActionAnchor` charges it at every decision up to and including the failing one, as the paper's `A`
-  does (`include_failing_action=False` charges the steps before failure only).
-  It holds the policy near the action reference and bounds the departure of the trajectory risk from
-  the reference's: `kl(q || q_rho) <= A` (*Action regularization and failure risk*; `certificates.action_risk_bound`,
-  `kl_upper_inverse`). The bound is informative only for small `A`, that is, when the learned policy
-  stays close to the reference and gains little. Use the action relative entropy when the action
-  reference is trusted and the price or the model is not; otherwise a correctly chosen price dominates
-  it, and at a correct price it costs utility. It convexifies the action-law problem, not the
-  network's, so the convergence theorem credits it with no curvature and charges it the deficit
-  `eta C_A`. An entropy bonus is the special case of a uniform action reference; it is not a parameter
-  regularizer. Implementation: `ActionAnchor(eta, log_reference)`; estimate `A` with
-  `evaluate.stopped_action_relative_entropy`.
-* **The parameter regularizer** (strength `kappa`, toward a prior law `Gamma` of the network's units)
-  supplies the curvature that makes the population learning problem converge, equally for every
-  admissible regularizer (*Convergence of the population gradient flow*). The policy-wise certificates do not need it, and its bias is never
-  silent, since the certificates and validation are evaluated on the learned policy.
+Relative entropy to a reference and the trust region used by CPO have distinct roles. The reference appears in the objective. The trust region measures the change from the old policy to the proposed policy at each update. [Regularization in constrained actor updates](../formulation-comparison.md#vary-action-and-parameter-regularization-independently)
 
-### 5.2 The roles: noise, drift and spread
+### 5.2 Parameter regularization in the population model
 
-In the particle system of the population gradient flow (*The prior and the particle system of the gradient flow*) each unit's parameters move by the policy
-gradient, a drift toward the prior and any reference, and noise:
+The population model represents the actor by a distribution of unit parameters. Exponential convergence at fixed strength follows if the curvature supplied by an admissible parameter regularizer exceeds the deficit from the value and action terms. Write the net curvature as $Lambda_m=kappalambda_{mathcal H}-C_m-eta C_{mathcal A}$. Here $lambda_{mathcal H}$ is the regularizer's curvature, $C_m$ and $C_{mathcal A}$ are bounds on the respective deficits, and $kappa$ and $eta$ are the regularization weights.
 
-```
-dx_i = [policy gradient] dl - [kappa1 grad W(x_i) + kappa1 omega grad G'(rho_n)(x_i) + kappa2 grad P(x_i)] dl + sqrt(2 kappa1) dB_i
-```
+`convergence.curvature_budget` evaluates the sufficient criterion once the representation bounds are supplied. `KernelConstants` gives bounds in terms of the policy kernel and its derivatives. `FeatureConstants` gives the softmax instance. With a decreasing strength, the separate near-minimizer result requires that both the strength and the gap to the corresponding objective minimum tend to zero. A training schedule is evaluated by its observed outcomes, including comparisons with training at the final strength from the start.
 
-* **Noise.** The entropy part of relative entropy is Langevin noise of variance `2 kappa1` per unit time on
-  every parameter. It is what lets units leave a region where the value gradient vanishes. No standard
-  learner injects it; `ParameterNoise(model, kappa1).install()` adds Gaussian noise of variance
-  `2 kappa1 x lr` after each optimizer step, the learning rate being the step of flow time.
-* **Drift.** The prior's potential pulls toward its center (for `N(x0, sigma^2 I)`, weight decay of weight
-  `kappa1/sigma^2`), and a potential `P` with strength `kappa2` pulls toward a reference of one's choice
-  with no noise attached (`ParameterAnchor`). A potential alone collapses the population to a single
-  point above the threshold (*Finite-network training under a potential*).
-* **Spread.** An integrand of faster growth limits how far the law crowds relative to the prior. It needs
-  a density, so it has no finite-network form without a density estimate.
+The common-potential result concerns continuous-time, width-scaled training with the same smooth potential applied to each unit. The finite-network callback that assigns each parameter its own incumbent value uses a different penalty. Its effect under discrete PPO is measured on the trained policies. [Curvature calculation](../../examples/under-the-hood/curvature_budget.py)
 
-Relative entropy alone ties noise and drift to one strength; the general class unties them, and every
-combination converges by the same argument. On the flow, without the value gradient, the stationary
-spread is `sqrt(kappa1/(kappa1/sigma^2 + kappa2 lambda_P))` (`roles.stationary_spread`,
-`kappa1_for_spread`).
+### 5.3 Noise, drift and spread
 
-On a finite network the injected noise (`ParameterNoise`) carries no drift of its own: only the anchor
-pulls. Under plain gradient descent with step `h`, the anchor's drift `K` plus the noise is the
-Euler-Maruyama step of the gradient-driven particle equation, and without an objective gradient the
-stationary spread per parameter is `sqrt(kappa1/(K (1 - h K/2)))`, about `sqrt(kappa1/K)`
-(`roles.noise_and_anchor_spread`). It equals the flow's formula only when the anchor also carries the
-prior's drift, `K = kappa1/sigma^2 + kappa2 lambda_P`. How the drift enters the learner then decides what
-can be said (the paper's guidance, the implementation rules of its first subsection, and its appendix on
-the optimizer). `ParameterAnchor`'s default is the decoupled anchor, applied to the parameters after the
-optimizer's step as `theta <- theta - lr K (theta - theta_0)`: the drift substep contracts every
-coordinate by `1 - lr K` whatever the optimizer. Under Adam the objective's step stays adaptive, so the
-full update is not the Euler-Maruyama step and its spread does not follow from the flow's theory:
-calibrate the strength by the measured contraction, parameter distance and spread, and read the formula
-as the stationary spread without the value drift. A changing learning rate has no single fixed-step stationary law. The
-paper's PPO study of the roles used the coupled form (`decoupled=False`), the drift added to the gradient
-before Adam's step; there the measured spread grew in proportion to `kappa1`, about `sqrt(2) kappa1`
-(`roles.adam_stationary_spread`, an explanation the paper proposes after the runs). In that study, risk
-and utility stayed at the anchored values while the spread was small against the policy's dispersion and
-then moved, the seeds splitting; noise without a drift acted as exploration and abandoned the prior.
-Treat `kappa1` as a knob to vary and measure. `RegularizerMix(kappa1, kappa2).explain()` describes a
-combination on the flow.
+In the population particle system, relative entropy with respect to a Gaussian prior $N(x_0,sigma^2 I)$ gives both noise and drift. At strength $kappa_1$, each coordinate has noise variance $2kappa_1$ per unit of flow time, and the Gaussian potential contributes a pull of strength $kappa_1/sigma^2$ toward $x_0$. A separate quadratic potential contributes drift without noise. A faster-growing divergence integrand penalizes concentration relative to the prior and requires a density with respect to it.
 
-### 5.3 The prior is a policy
+In the finite-network implementation, `ParameterNoise` adds Gaussian increments with variance `2 * kappa1 * lr` after each update. `ParameterAnchor` separately applies the pull. Under plain gradient descent with constant step $h$, quadratic pull $K$, zero objective gradient and $0<hK<2$, the stationary standard deviation per coordinate is $sqrt{kappa_1/[K(1-hK/2)]}$. The continuous-time approximation is $sqrt{kappa_1/K}$. Use `roles.noise_and_anchor_spread` for this calculation.
 
-* The regularized solution inherits the prior policy's risk and utility (*Improvement over the prior policy*). Specify
-  the prior as the policy the application accepts when learning gains nothing:
-  * a **risk-free or hard-feasible policy** when one exists (standing still in the wear study); the
-    bias then lowers risk outright, and learning improves on that policy within the slack of the bound;
-  * the **incumbent** when one is in operation: fit the actor to it (`callbacks.fit_actor_mean`), set the
-    dispersion to the incumbent's (`callbacks.set_log_std`), and anchor all actor parameters to the fitted
-    `theta_0` with `ParameterAnchor(model, kappa_p).install()`;
-  * the **centering construction**, which makes the prior policy equal to the action reference, when
-    nothing is trusted.
-* **Evaluate the prior policy as a candidate before training** (its `q_beta`, `U` and frequency of a small reserve),
-  with `evaluate` on the actor at `theta_0`. In the paper's parameter-anchor study the actor fitted to
-  the incumbent rule but carrying the learner's default dispersion was a policy with about six times
-  the rule's breakdowns, and the anchored learner inherited that policy, not the rule.
-* **The prior must cover every parameter that shapes the policy**, the action dispersion included. A
-  prior on the mean network alone leaves the dispersion free, and the learner can move the whole
-  distance between the prior policy and the optimum through that one parameter: in the wear study the
-  anchor on the mean network only kept the mean network at `theta_0` while the dispersion grew from 0.37 to 7.5 and
-  the policy broke down in a third of the episodes. `ParameterAnchor(include_log_std=True)`, the
-  default, anchors the dispersion; `regularizer_effects` flags a dispersion escape.
-* **Gaussian prior width.** For a Gaussian prior `N(x_0, sigma^2 I)` the relative entropy is negative
-  entropy of weight `kappa` plus weight decay toward `x_0` of weight `kappa/sigma^2`. The rate depends
-  on `(kappa, sigma)` only through `kappa/sigma^2`, the minimizer on both, and the width also changes
-  the induced prior policy unless the features are centered at the prior. Do not concentrate the units
-  where the features are flat: a prior pinned in a flat region turns regularization into stagnation
-  (the plateau of the analytical example). `convergence.gaussian_prior_curvature(sigma)` gives the curvature.
-* **Expect the learned policy at the prior's risk, not at the slack the bounds grant.** The slack
-  terms (`convergence.risk_slack_from_prior`, `action_slack_from_prior`) bound every policy with the
-  given divergence; a learner that also optimizes utility lies orders of magnitude inside them (two to
-  five orders in the analytical example). What the bounds get right is the direction of the drift and the
-  inheritance of the prior policy's risk.
+With a decoupled anchor, the anchor substep multiplies the displacement from its reference by `1 - lr * kappa_p`. A coupled anchor adds its derivative to the loss before Adam's adaptive update. The stationary formula above belongs to the specified constant-step model. For PPO with Adam, compare realized parameter distance, action dispersion, stopped utility and failure risk at the recorded learning rates. [Regularization notebook](../../notebooks/under-the-hood/T3_roles_of_the_regularizers.ipynb)
 
-### 5.4 The integrand
+### 5.4 Evaluate the prior policy
 
-Every regularizer convex along generalized geodesics gives the same rate above the same threshold, so
-the integrand is chosen for what it controls:
+The prior distribution of network units induces a policy in the population model. Under the stated alignment and divergence assumptions, *Improvement over the prior policy* bounds the risk of the population flow initialized at that prior by the prior's risk plus a slack term. It also compares clipped values. The bound on the population trajectory is distinct from the measured effect of initializing or anchoring a finite actor.
 
-* relative entropy alone for the smallest bias;
-* a faster-growing integrand, such as the power integrand `G(v) = v^r/(r-1)` added to relative entropy,
-  to bound the mass of the unit law where it is much denser than the prior (a diversity requirement
-  stated in advance) or to match a divergence the application prescribes; it keeps the minimizer closer
-  to the prior;
-* a convex potential when the initial law is a finite network, since a potential is finite on
-  finitely supported laws while the relative-entropy families are not.
+If an actor is initialized by fitting an incumbent policy, evaluate it before training. Its observation preprocessing and action dispersion are part of the policy. Fit the mean with `fit_actor_mean` where appropriate and set the dispersion with `set_log_std`. Include all intended actor parameters in the anchor. `ParameterAnchor` includes the trainable log standard deviation by default. A weakly constrained dispersion can alter the deployed policy even when its mean parameters remain close to the reference.
 
-`advise_regularizers(..., want_unit_spread=..., specified_divergence=..., starting_from_finite_network=...)`
-states the corresponding recommendation with its reason.
-
-### 5.5 Weight decay and the strength
-
-* Quadratic weight decay toward `theta_0`, `kappa_p (theta - theta_0)` added to the actor's gradient,
-  is an admissible potential regularizer with curvature equal to its weight, and it is the drift part of a
-  Gaussian prior that a finite network can carry; `kappa_p` is `kappa/sigma^2` in the paper's notation.
-  `ParameterAnchor` implements it. Under a potential, noiseless continuous-time training of a network of
-  any width is the population gradient flow from the network's own empirical law, with the same contraction and
-  rate (*Finite-network training under a potential*; `convergence.finite_training_transfer`). Discrete steps and PPO's or SAC's
-  estimators are outside that result.
-* **Set `kappa` for conditioning, not at the threshold.** The threshold of the convergence
-  theorem is sufficient, not necessary, and grows with the price; in the analytical example every flow
-  converged orders of magnitude below it, and at the strength five percent above the threshold the minimizer was the prior
-  itself. Choose the smallest strength at which the optimizer is well behaved.
-  `convergence.curvature_budget(constants, beta, m, ubar, kappa, lambda_H, eta)` and
-  `convergence.certified_kappa` report what the theorem says for a stage, as a diagnostic. The deficits
-  come from bounds on how fast the policy kernel and its relative entropy change when the units move
-  (*Value and action-law curvature*): `convergence.KernelConstants(B1, B2, K0, K1, K2)` states them for any actor class,
-  and `FeatureConstants(L0, L1, L2)` is the softmax instance.
-* Treat a failed certificate as the signal to lower `kappa` or to raise the price, not to raise
-  `kappa`.
-
-### 5.6 The joint effect
-
-When both regularizers are used, their biases add in every certificate, `R = eta A + kappa H` of the
-comparison law; the action term pulls the action law toward `rho`, the parameter term pulls the unit
-law toward `pi_Gamma`, and the two targets coincide only under the centering construction. The action
-term also adds `eta C_A` to the curvature that the parameter term must supply.
-
-```python
-from barrierpg import advise_regularizers, regularizer_effects
-
-advice = advise_regularizers(spec, stage, action_reference_trusted=True, price_trusted=False,
-                             incumbent_available=True, prior_sigma=1.0)
-print(advice.explain())
-# ... after training, with anchor = ParameterAnchor(model, kappa_p).install() ...
-eff = regularizer_effects(spec, stage, dict(q_beta=ev.q_beta, U=ev.U, q_se=ev.q_se, U_se=ev.U_se),
-                          prior_policy=dict(q_beta=..., U=...), **anchor.effects_inputs())
-print(interpret(spec, req, stage, ev, effects=eff).text())
-```
+For comparative bounds that use a comparison law, enter its regularization cost $etamathcal A+kappamathcal H$ along with its risk, utility and interior loss. For implementation, use `advise_regularizers` to inspect the options and record the actual anchor, optimizer and update form. `regularizer_effects` can summarize comparisons with observations from the prior and trained candidate.
 
 ## 6. Validate the deployed candidate
 
-* **Validate the candidate that is deployed.** Reward units, action dispersion, critic gradients and
-  update counts can decide outcomes at a fixed interaction budget. Taking the deterministic mean,
-  reducing the dispersion after training or changing an entropy coefficient creates a different
-  candidate; evaluate and validate it directly with `evaluate(..., T=T)` and
-  `Evaluation.validate(alpha, zeta, family)`.
-* **At its specified horizon.** A passed test at one horizon does not certify a longer one.
-* **With the error allocated.** `validation.validate_direct(failures, n, alpha, zeta, family)` uses the
-  one-sided exact binomial upper endpoint at the error `zeta/family`; allocate the error over every
-  simultaneous statement before selecting among candidates.
-* **With the resolution in mind.** Zero failures in `N` episodes certify the bound `1 - zeta^(1/N)` (`validation.zero_failure_bound`), never zero; failure to certify does not prove
-  violation. `validation.episodes_for_tolerance(alpha, err, expected_failure_rate)` sizes the sample.
-* **Under geometric stopping** (`BudgetWrapper(geometric_stop=True)`, the convention under which a
-  learner with algorithmic discount one optimizes the discounted objective exactly), the episode
-  event is `q_beta` itself and `p_T` is censored; validate `q_beta` and use `p_T <= beta^(-T) q_beta`,
-  or evaluate without geometric stopping to test `p_T` directly. `interpret` handles both cases.
-* **What a small objective gap does not give.** It removes neither representation bias nor a poor
-  action reference. An uninformative sufficient bound does not establish failure; direct validation or
-  an additional bound on the future consumption may still certify the requirement.
-* **Finite networks.** *Population-to-network transfer* gives widths
-  (`certificates.width_for_tolerance`, `width_for_direct_tolerance`, `finite_network_transfer`) that are
-  typically far above the networks used, which is why deployed candidates are validated directly.
-* **The report.** `interpret(spec, req, stage, ev, ...)` states in what sense the candidate solves the
-  problem (optimal at the risk it attains, bounded risk, validated at a horizon), what each regularizer
-  did to it, and what the evidence does not establish (probability of ever failing, other horizons, other
-  candidates, discrete stochastic training, model error). `BudgetMonitor` supplies the training traces
-  it reads.
-* **Your own evaluator.** For many candidates on common random numbers a vectorized simulator is faster
-  than the wrapper's one-episode-at-a-time loop; `evaluation_from_episodes(failed, tau, U, I, ...)` builds
-  the same `Evaluation` from its per-episode arrays.
+For a fixed policy and independently simulated episodes, count the failures of the specified event. `validation.validate_direct` gives the one-sided exact binomial upper endpoint at error `zeta/family`. If $N$ episodes contain zero failures, the endpoint is $1-(\zeta/\mathrm{family})^{1/N}$. A test passes when the endpoint is at most the tolerance. An upper endpoint above the tolerance leaves the requirement unresolved at that confidence level.
+
+Under independent geometric stopping, directly validate $q_\beta$ and apply $p_T\le\beta^{-T}q_\beta$ where it gives a useful bound. To count the finite-horizon event directly, allow the simulator to observe first crossing through $T$ or a genuine earlier terminal state. The finite-horizon test then covers that horizon and policy only. Refit weights, change the action sampling rule, or change the budget, and the test concerns a different candidate or task.
+
+Value certificates use a valid lower bound on value and the appropriate reward bounds. Check the horizon convention and the validation resolution before relying on an empirical value bound. The population-to-network results concern a specified sampling construction. For a deployed finite network, direct simulation is available under the same independent-episode assumptions as for any other fixed policy.
+
+`evaluate` produces per-episode outcomes through the wrapper. For a vectorized simulator, use `evaluation_from_episodes` with failure flags, first failure times, stopped utilities and interior losses. Supply the actual clock and horizon convention. `interpret` reports the direct test, any applicable value bounds and their inputs. [Validation notebook](../../notebooks/under-the-hood/T4_validation_in_detail.ipynb)
 
 ## Function index by decision
 

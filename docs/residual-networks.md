@@ -10,6 +10,8 @@ task. [Xiong et al. (2020)](https://proceedings.mlr.press/v119/xiong20b.html) ·
 
 ## Using PPO
 
+Install the RL extra and pass the supplied policy class to Stable-Baselines3. In this example, each episode has an independent geometric maintenance clock. The algorithmic discount is one because that clock supplies the intended discount in expectation.
+
 ```python
 from stable_baselines3 import PPO
 from barrierpg import Stage
@@ -55,7 +57,7 @@ python examples/benchmark_residual_wear.py --output /tmp/residual-wear.json
 
 The pilot uses the wear allowance with failure price `m=0.3`, four paired training seeds, and
 600 evaluation episodes per policy at each checkpoint. Both architectures have 4,514 actor
-parameters and 4,513 critic parameters. Both use LayerNorm, and the policy and value heads start
+parameters and 4,513 critic parameters. LayerNorm is applied in both configurations, and the policy and value heads start
 at zero. The experiment toggles the skip connections in both networks together. The table gives
 averages across the four seeds. Breakdown risk is the probability of exhausting the allowance
 before maintenance, and priced value is stopped utility minus six times that risk.
@@ -67,6 +69,4 @@ before maintenance, and priced value is stopped utility minus six times that ris
 | 32,768 | 4.136 | 4.134 | 6.58% | 6.00% | 3.741 | 3.774 |
 
 The estimated value was higher with skips for all four seeds at 16,384 steps and three of four
-at 32,768 steps. The largest mean difference was at the middle checkpoint. The pilot measures
-progress per environment interaction for this PPO setup. LayerNorm was held fixed, and runtime
-was outside the scope of the comparison. [Run records](../examples/residual_wear_comparison.json)
+at 32,768 steps. The largest mean difference was at the middle checkpoint. These observations compare learning at the same number of simulator interactions for this task and PPO configuration. The paired runs change skip connections in both actor and critic together, so the observed difference is for that joint change. [Run records](../examples/residual_wear_comparison.json)

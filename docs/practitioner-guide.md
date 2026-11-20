@@ -1,295 +1,137 @@
-# Practitioner guide: from an RL problem with a budget to a validated policy
+# From a resource-budget problem to a validated policy
 
-This guide is for someone who trains reinforcement-learning policies and has a resource that can run out: fuel, a
-battery, cash, an allowance of damage, an emissions quota. It assumes no knowledge of the paper behind the toolbox.
-Where the paper's results tell you what to do, the guide states the conclusion in plain words and shows it on four
-problems, each with its own notebook:
+A resource-budget problem has a reserve that can become negative. Failure is the first action after which any reserve is negative. The training objective can assign a price to that event and deduct an additional penalty when reserves are small. The deployment requirement specifies how often that event may occur by a stated horizon.
 
-| Problem | The resource | What it shows |
-|---|---|---|
-| [A lunar lander with a fuel tank](../notebooks/01_lander_fuel_tank.ipynb) | fuel | imposing a budget on a controller already in use; what to anchor to |
-| [A retailer that finances its stock from cash](../notebooks/02_retailer_cash.ipynb) | cash | a failure with a known cost; an incumbent rule as the starting point and as a benchmark |
-| [A legged robot on a battery](../notebooks/03_robot_battery.ipynb) | charge | what the policy must observe (a clock); prices; a reserve against an uncertain battery |
-| [A navigation robot with a damage allowance](../notebooks/04_navigation_allowance.ipynb) | allowance of damage | which requirement the task means; a price that is too high |
+The toolbox also provides expected-cost actor updates, chance and tail-risk comparisons, and policy selection on finite scenarios. The first three steps identify the formulation. The later steps describe the priced-reward and first-crossing validation workflow used in the applied notebooks.
 
-Notebook 1 uses the earlier fuel-tank task and its archived campaign. The current manuscript's landing task
-is available in `barrierpg.problems.landing`. See the [landing example](../README.md#your-own-problem).
-
-Each notebook builds its problem and trains it in view, with notes on what the theory implies at each step;
-[`examples/your_problem.py`](../examples/your_problem.py) is a complete template, from the task to the report, to copy
-for your own problem. The [under-the-hood track](under-the-hood/decisions-and-theory.md) ties each step to the paper's
-results, using test problems with exact solutions.
-
-For PPO with vector observations, the [residual network guide](residual-networks.md) shows how to
-enable skip connections and LayerNorm in the actor and critic and compare learning curves.
+The steps below apply to the [custom task template](../examples/your_problem.py) and to the lander, retailer, battery and navigation notebooks listed in the [toolbox overview](../README.md#tutorials-and-examples). The [theory guide](under-the-hood/decisions-and-theory.md) gives the conditions behind the reward identities, value bounds and regularization results.
 
 ## The method in brief
 
-Barrier policy gradients turn a budget into something a standard learner can handle. A wrapper around your
-environment adds the remaining budget to the observation, ends the episode when the budget is exhausted, and charges
-a penalty at that moment. Any policy-gradient learner (PPO, SAC, ...) then trains on the wrapped environment
-unchanged. Two quantities set the penalty.
+The reserve for resource $k$ starts at $b_k$ and is updated as $z_{t+1,k}=(z_{t,k}-c_{t,k})/\gamma_k$, where $c_{t,k}$ is the consumption on action $t$ and $\gamma_k$ is the cost discount. With $\gamma_k=1$, the reserve is the initial budget less cumulative consumption. The observation supplied to the policy includes the reserve. If the task has a fixed end and optimal decisions depend on time remaining, the observation should include time as well.
 
-* The **price of failure risk** `m` is a charge per period from the failure to the end of the horizon. When failure
-  costs a known lump sum `F` in your application, the toolbox charges `F` once instead (a flat penalty).
-* The **interior barrier** of scale `theta` charges a small amount every period that grows as the reserve shrinks,
-  which keeps a reserve. `theta = 0`, the default, prices only the failure.
+A failure-only stage pays the task's full utility up to the action before failure. With an interior barrier $B$, the reward on a nonfailing step is $\max\{-m,u-B(z_{t+1})\}$ under clipping. In the continuing formulation, a failure ends the simulated episode with a discounted charge of $m/(1-\beta)$ at that action. This represents a charge of $m$ in every remaining period of the absorbing failed state. Under a physical horizon of $H$ actions, a failure at $t$ costs $m(1-\beta^{H-t})/(1-\beta)$ at that action.
 
-What the price does, in the paper's results and in plain words:
-
-* A policy that is optimal for the priced objective is the best policy among all those that fail no more often
-  than it does. The price does not choose a risk level for you; it chooses a point on the trade-off between
-  utility and risk, and a higher price chooses a safer point.
-* Raising the price lowers the attained risk, up to the learner's own error. A learner that falls further short of
-  the optimum as the price rises does not reach a smaller risk by a higher price.
-* The risk of the policy you deploy is established by testing that policy, not by trusting the training run.
-  The toolbox's validation test is exact for any policy, however it was trained.
+Choose a stage for training, then assess the candidate that will be deployed. The price and the statistical test address different decisions. The price sets the objective used to train the candidate, while the test estimates its failure probability under the deployment conditions.
 
 ## Step 1. Check that the problem has a budget
 
-The method applies when
+Specify the consumed quantity, the initial allowance, and what happens at the first crossing. In the fuel-tank example, the fuel consumed on a step depends on the engine commands. In the retailer example, cash decreases with purchases and overhead and increases with receipts. Both have a first crossing. The current landing problem also accounts for loss of the lander with a second failure condition.
 
-1. a resource is consumed over time and the consumption is nonnegative, or can be made so (a resource that is also
-   replenished, such as cash, is handled by `RunningMaxCost`);
-2. running out is a failure that ends the episode or makes the rest of it worthless;
-3. the requirement is a tolerated probability of running out within a horizon, or a known cost of running out.
-
-It does not apply as it stands when the requirement holds at every step (a forbidden region, a speed limit), when
-it limits the expected total cost rather than the probability of exhausting a limit, or when the loss grows with the size
-of the excess rather than with the event. The [navigation notebook](../notebooks/04_navigation_allowance.ipynb) shows how one
-benchmark task can be read in both ways, and why the two requirements differ.
+For undiscounted signed net use, `RunningMaxCost` converts it to the increments of its running maximum. This preserves the first crossing of the original budget. The transformed reserve measures the distance from the largest net cumulative use so far. If the policy needs to react to replenishment, retain the current cash balance or corresponding state variable in the underlying observation. See the [retailer notebook](../notebooks/02_retailer_cash.ipynb).
 
 ## Step 2. State the requirement before choosing a method
 
 ```python
 from barrierpg import BudgetSpec, Requirement
+
 spec = BudgetSpec(budgets=[24.0], beta=0.999, ubar=100.0, u_minus=100.0, horizon=1000)
-req = Requirement(T=999, alpha=0.05, zeta=0.05, family=10)
+req = Requirement(T=999, alpha=0.05, zeta=0.05, family=1)
 ```
 
-* `budgets` is the size of the resource; `horizon` is the length of an episode in steps if it has one.
-* `beta` is the discount of the utility. With a horizon, a discount close to one keeps late failures from looking
-  cheap.
-* Value certificates require demonstrated upper and lower bounds on each step's utility. The numerical scales above
-  illustrate the API. With nominal reward scales, use the direct failure test and set `include_physical_value=False`
-  in `interpret`.
-* `alpha` is the tolerated probability of running out within `T + 1` steps. `zeta` is the probability that the
-  validation test certifies a policy that in fact violates the tolerance. They are different quantities.
-* `family` is the number of policies (or horizons, or tests) you will look at before deploying one. The validation
-  error is shared among them, so that picking the best-looking candidate does not inflate it.
+Here the physical horizon consists of 1,000 actions and the deployment test covers all of them, indexed 0 to 999. Set `alpha` to the maximum tolerated failure probability and `zeta` to the statistical error budget. `zeta=0.05` gives 95% one-sided confidence for the single statement above. If the validation data are used to assess multiple candidates, horizons or bounds together, include those statements in the error allocation before inspection.
 
-If failure has a cost in the application (the cost of a bankruptcy, of a stranded robot, a contractual sanction),
-write it down too. It is then the price, not a tuning parameter.
+The `beta` field discounts utility and, in the continuing objective, weights failure times. The cost discounts in `gammas` default to one. For a value certificate, establish an upper bound `ubar` on each step's utility and the required lower bound `-u_minus`. The scales above illustrate the interface. When those bounds are unavailable, use direct failure validation and pass `include_physical_value=False` to `interpret` to omit the empirical physical-horizon value bound.
 
 ## Step 3. Check whether another method is the better choice
 
-`plan(spec, req, ...)` states, for your problem, the cases in which another method is the better choice. In short:
+| Requirement | Formulation and evidence |
+|---|---|
+| A failure has a known operating cost | Charge the stated loss at failure or use the discounted total of continuing downtime costs. Evaluate stopped utility and failure probability separately. |
+| Probability of failure by a specified action | Use the first-crossing event for validation. A fixed price or an adaptive multiplier can produce candidate policies. |
+| Mean cumulative consumption must stay below a limit | Use an expected-cost formulation. Constrained policy optimization (CPO) uses a local cost constraint in its update. Estimate the final policy's mean cost on fresh trajectories. |
+| Large losses in the worst outcomes must be limited | Use a tail measure such as conditional value-at-risk (CVaR) of a specified loss. Evaluate that same loss on deployment trajectories or scenarios. |
+| Every trajectory must respect the budget | Use a formulation with pathwise feasibility, supported by a model, a verified safe set or an admissible policy class. |
+| A small model is available | Use [dynamic programming](dynamic-programming.md) when the finite transition model is known. Report the resulting model-based utility and risk. |
 
-* no failure is permissible and a set of states from which failure can always be avoided is known: use a method that
-  guarantees safety with probability one (a safety layer or an infinite penalty);
-* a prescribed tolerance must be met closely and you can tune a multiplier's step: an adaptive multiplier (a
-  Lagrangian method) targets the tolerance directly;
-* a mean-cost limit matters at policy updates: consider CPO, and verify the limit on fresh rollouts;
-* the loss grows with the amount of the excess: use a constraint on the tail of the cumulative consumption (CVaR);
-* the model is known and small: solve it exactly; the toolbox's validation applies to that policy too.
-
-Two further cases concern the barrier itself: a price that charges far more for a failure than an episode earns
-(normalize the reward or use a prescribed-level method), and a budget error of known size (tighten the budget instead
-of adding a reserve).
-
-The [formulation comparison](formulation-comparison.md) runs the methods on the same candidates and explains
-when a constraint and price can select the same policy.
+The [formulation tutorial](formulation-comparison.md) includes barrier-free CPO and CVaR updates. It also shows how the same two policies can rank differently under mean, chance and tail constraints. `plan(spec, req, ...)` summarizes relevant conditions and sample-size calculations for a specified problem.
 
 ## Step 4. Wrap the environment
 
 ```python
 import gymnasium as gym
+
 from barrierpg import BudgetWrapper, Stage
-from barrierpg.problems.lander import fuel_cost    # fuel_cost(obs, action, next_obs, reward, info) -> [fuel burned]
-env = BudgetWrapper(gym.make("LunarLanderContinuous-v3"), cost=fuel_cost, spec=spec,
-                    stage=Stage(m=0.5), observe_time=True)
+from barrierpg.problems.lander import fuel_cost
+
+env = BudgetWrapper(
+    gym.make("LunarLanderContinuous-v3"),
+    cost=fuel_cost,
+    spec=spec,
+    stage=Stage(m=0.5),
+    observe_time=True,
+)
 ```
 
-* `cost(obs, action, next_obs, reward, info)` returns the resource consumed by one step (one number per budget).
-  For a resource that is also replenished, wrap the signed net use in `RunningMaxCost`: the wrapper then fails at the
-  first time the cumulative use exceeds the budget.
-* The wrapper appends the remaining budget, as a fraction, to the observation. The policy needs it.
-* With a fixed horizon, the policy also needs to know how much of the episode is left: whether the remaining budget
-  suffices depends on it. `observe_time=True` appends the elapsed fraction of the horizon. The robot of the
-  [battery notebook](../notebooks/03_robot_battery.ipynb), whose task has no clock, was stranded far more often
-  without it.
-* If your task has large negative rewards (a crash penalty, a write-off), set `clip_utility=False`: only the failure
-  is priced and the task's own rewards are left as they are.
-* `true_budget_scale=0.9` judges failure against a budget 10% smaller than the one the policy observes. Use it to
-  test how a policy copes with a budget smaller than the planned one.
+The cost function takes `(obs, action, next_obs, reward, info)` and returns one finite nonnegative number per budget. This example uses the earlier fuel-tank task. The [landing example](../README.md#train-on-a-budget-constrained-task) uses the current paper's simulator and its two budgets.
 
-`barrierpg.problems` contains the four problems of this guide; each module documents its mapping from the task to the
-budget problem and can serve as a template.
+By default, the wrapper appends each reserve as a fraction of its initial budget. With `observe_time=True`, it also appends the elapsed fraction of the physical horizon. Before training, check an ordinary step, the case of exactly zero reserve, the first crossing, and termination at the physical horizon. Verify the failure charge against its discounted sum. Premature simulator truncation cannot be treated as a completed failure-free evaluation.
+
+`Stage(theta=0)` pays full utility on each nonfailing step, including negative task rewards. With a positive barrier, `clip_utility=False` permits the reward $u-B$ at positive reserve even when it is below $-m$. Confirm which reward bounds hold before applying a value certificate.
 
 ## Step 5. Choose the price
 
-**When failure has a cost, use it.** The retailer goes insolvent at a cost; charging that cost at insolvency makes the
-objective the economic one, and no tolerance needs to be chosen. `Stage(m=0, penalty="multiplier", multiplier=F,
-clip_utility=False)` charges a lump sum `F` once.
+When failure has a stated one-off cost $F$, `Stage(m=0, penalty="multiplier", multiplier=F)` with no dual-ascent callback charges that amount once. The [retailer notebook](../notebooks/02_retailer_cash.ipynb) uses this convention for insolvency. With a continuing per-period cost, the equivalent fixed price is $m=(1-\beta)F$. For a physical horizon the price that matches $F$ depends on the failure time.
 
-**When you have a tolerance, train at a few prices.** Short pilot runs at a few prices show the range in which the
-attained risk crosses the tolerance; validation then decides. `plan` gives a conservative starting price that is
-guaranteed to suffice, but it is usually far too high to be useful in practice. Four cautions follow from the
-paper's results and from the notebooks.
+When the objective is to meet a risk tolerance, compare a few fixed prices on pilot runs. Track stopped utility, failure by the specified horizon, the training objective, and other task outcomes such as crashes. Inspect the failure charge in the same units as episode utility. The earlier fuel-tank task illustrates why a change in one failure cost can alter the mix of termination outcomes.
 
-* Compare the price with the other ways an episode can end badly. The price applies to running out only; if it makes
-  running out costlier than, say, a crash, the learner may avoid running out by crashing. The lander did exactly
-  that: higher prices barely changed how often it ran dry and made it crash more often.
-* A price that charges far more for a failure than an episode earns degrades the learner: it may give up earning in
-  order not to fail. The navigation robot almost stopped reaching goals at a price that charged about four times what
-  an episode earns, while the legged robot and the retailer did well at two to three times. Watch the return in pilot
-  runs; normalizing the reward helps; `plan(..., episode_earnings=...)` warns above three times.
-* A higher price lowers the risk only as far as the learner can follow. `frontier.price_sequence_check` reads from
-  pilot runs whether the learner's shortfall grows with the price; if it does, a higher price is not the remedy.
-* A tolerance below what any policy of the network can reach is not reached by any price. Exploration noise alone
-  keeps a stochastic policy's risk above zero.
+A conservative price from `plan` requires a valid comparison policy and the assumptions of the price–risk bound, including control of the optimization error. Under exact failure-only optimization in a fixed class, geometric risk is nonincreasing in $m$. With approximate training, geometric risk or the finite-horizon failure rate can rise across the tested prices. A shortfall from the best tested own-price benchmark estimates a lower bound on the true optimization gap. The pilot results guide the choice of candidates for independent validation. [Theory and price bounds](under-the-hood/decisions-and-theory.md#3-fix-the-price-then-certify)
 
-**An adaptive multiplier** (`Stage(penalty="multiplier")` with the `DualAscent` callback) moves the penalty after
-every rollout toward the level at which the failure rate equals the tolerance. Size its step from the level it has
-to reach, read from your fixed-price pilot runs: `dual_step_suggestion(expected_multiplier, rollouts_to_reach)`.
-A step sized from a level that is too low leaves the multiplier rising when training ends; a step far too large
-makes it rise past the level at which the tolerance is met before the policy can respond. A learner trained from
-scratch fails often at first, so a multiplier started with it rises for many batches, and with a small tolerance it
-comes down only slowly: the retailer's multiplier for a 1% tolerance ended fifty times above the level it needed, and
-the policies gave up much of their profit. Train at a few fixed prices first; a multiplier, if you use one, should
-start from the policy and the level of the fixed-price run that comes closest to the tolerance.
-`DualAscent.diagnose` reports whether the multiplier has converged (stable), is still moving (trending), or rose
-while every episode failed (increasing). Aim the multiplier below the tolerance by the width of the validation's confidence bound: a policy whose failure rate equals the
-tolerance cannot pass a test at that tolerance.
+An adaptive multiplier updates the flat penalty in the direction of the observed rate minus its prescribed level. Use `Stage(penalty="multiplier")` and `DualAscent` with compatible on-policy training. The callback counts the failure flags of episodes that ended in each rollout. Use a task termination or stopping clock that makes this event the risk quantity intended for training. Fixed-price pilots can help set the initial penalty and step size. Inspect both the multiplier and the measured risk, because a small multiplier change can occur even while the measured rate is inconsistent with the level. Select a candidate with enough slack for the planned validation sample.
 
 ## Step 6. Add a reserve when the budget is uncertain
 
-A price on failure alone produces policies that use the budget up whenever that pays, and such policies fail often
-when the budget turns out to be smaller than assumed. The interior barrier (`Stage(theta=...)`) keeps a graded
-reserve at a cost in utility. The [robot notebook](../notebooks/03_robot_battery.ipynb) tests both against a battery
-that holds 10% less than the robot believes. There, a price high enough to meet the tolerance with room to spare also
-kept a reserve under the weaker battery, while the barrier at a lower price helped in two of three seeds and varied
-widely across them; a reserve is worth testing for, whichever way it is obtained. If you know how large the error can
-be, tightening the budget by that amount is cheaper than either.
+The failure-only objective charges a budget crossing. An interior barrier also makes small positive reserves costly before crossing. Consider both stopped utility and the distribution of minimum reserve when choosing the barrier strength. A larger barrier penalty can reduce utility or make more rewards reach the clipping floor.
 
-Compare the [log, reciprocal and hinge shapes](formulation-comparison.md#compare-reserve-penalties) at matched
-charges near the reserve you care about. Measure failure under the uncertain budget as well as utility and reserve
-under the nominal one.
+If a possible budget reduction is specified, test it explicitly. With `true_budget_scale=0.9`, the failure event is measured against 90% of the nominal budget, and the policy continues to observe the nominal reserve. This is a sensitivity experiment. Training with a reduced budget implements a different policy specification. The [battery notebook](../notebooks/03_robot_battery.ipynb) illustrates the sensitivity experiment, and the [formulation tutorial](formulation-comparison.md#compare-reserve-penalties) compares reserve penalties at a common reference level.
 
 ## Step 7. Choose the regularizers for what they do
 
-Two kinds of regularization act on different things, and each has a use.
+**Action relative entropy.** `ActionAnchor` deducts a penalty for departure from a reference action distribution. Use its observed or bounded stopped relative entropy, together with the reference policy's risk, to assess the risk comparison under the paper's assumptions. The penalty is a training term. The risk comparison depends on the relative entropy achieved by the candidate.
 
-The [regularizer comparison](formulation-comparison.md#vary-action-and-parameter-regularization-independently)
-includes multiple choices for each and shows how to use the same objective terms with CPO or a scenario CVaR cap.
-
-* **Action regularization** (`ActionAnchor`) charges the policy, at every step, for how much its action distribution
-  departs from a reference policy you trust. It keeps the policy close to that reference and keeps its risk of
-  failure close to the reference's. It helps when the reference is trusted and the price or the simulator is not; with
-  a correct price it costs utility.
-* **Parameter regularization** (`ParameterAnchor`) pulls the network's weights toward a starting point, the prior.
-  It makes the learning problem better conditioned, and it biases the learned policy toward the **prior policy**,
-  the policy the network computes at the prior's weights. The learner inherits that policy's risk and utility.
-
-The notebooks show the code of each: [notebook 1](../notebooks/01_lander_fuel_tank.ipynb) trains from a controller in
-use with a parameter anchor and with an action anchor, and [notebook 2](../notebooks/02_retailer_cash.ipynb) fits a
-network to a rule and trains from it, with and without an anchor. In short:
+**Parameter regularization.** `ParameterAnchor` penalizes departures from specified actor parameters. Evaluate the policy at the anchor before training, including its action dispersion. If a network is fitted to an incumbent rule, measure the fitted network's risk as a separate candidate. Initialization and an anchor are separate choices. Compare from-scratch training, initialization from the incumbent, and continued anchoring using fixed evaluation conditions.
 
 ```python
-anchor = ParameterAnchor(model, kappa_p=1.0).install()        # weight decay toward the current weights (the prior)
-model.learn(steps, callback=[ActionAnchor(0.05, log_reference), monitor])   # charge log pi(a|s) - log reference(a|s)
-fit_actor_mean(model, rule_mean_action, states); set_log_std(model, np.log(0.03))   # a prior fitted to a rule
+from barrierpg.callbacks import ActionAnchor, ParameterAnchor
+
+anchor = ParameterAnchor(model, kappa_p=1.0).install()
+model.learn(steps, callback=[ActionAnchor(0.05, log_reference), monitor])
 ```
 
-How to choose, by what you have:
+In this fragment, `model` is a compatible Stable-Baselines3 actor-critic learner. `log_reference` gives the reference log probability or density of each sampled action. `monitor` is a `BudgetMonitor`. To fit an initial actor to a rule, use `fit_actor_mean` on representative states and set the policy dispersion with `set_log_std` before installing the anchor.
 
-* **A controller in use** (the lander). Start training from it. If its behavior violates the new requirement, do not
-  anchor its weights: the learner inherits the prior policy's risk. The lander's controller ran dry under the new
-  tank, and a parameter anchor to it kept it running dry at every strength tried, down to 0.01 (runs with the coupled
-  form of the anchor under Adam, the form of the paper's runs, where the drift's step is about the learning rate
-  whatever its strength; see the end of this step). An action anchor to the controller, which charges departures of
-  the action distribution instead, let it learn to save fuel while keeping its landings; its effect on crashes was
-  mixed across seeds. When a parameter anchor is appropriate (a prior whose behavior you accept), anchor every
-  parameter that shapes the policy, the action dispersion included; otherwise the learner can change the policy
-  through the dispersion alone.
-* **An incumbent rule** (the retailer's base-stock rule). Fit the network to the rule, on states that include the bad
-  ones (fit on the states a noisy version of the rule visits), give it a small dispersion, and evaluate the fitted
-  network as a policy before training: it is the prior policy, and it can be riskier than the rule. A learner started
-  there stays near it, with or without an anchor; the retailer's learners started from scratch found more profitable
-  policies. Starting from a rule begins near behavior you accept; it does not improve on the rule. Compare the rule,
-  the learner from scratch and the learner from the rule. The rule is a candidate too, and it may be the better one.
-* **Nothing trusted** (the navigation robot, the legged robot). Do not anchor. Keep any parameter regularization weak
-  and use it for conditioning only.
-
-Set the strength of a parameter anchor for how well the optimizer behaves, not to reach a convergence guarantee: the
-strength the theory requires is far larger than useful and would leave the policy at the prior. Judge an anchor by
-what the trained policy does and by its distance from the prior (`ParameterAnchor.distance()`), not by the number.
-Treat a policy that fails validation as the signal to lower the anchor or raise the price, not to anchor harder.
-
-How the anchor enters the learner must match the optimizer (the paper's guidance, its four implementation rules).
-`ParameterAnchor` has two forms:
-
-* **Decoupled** (`decoupled=True`, the default): the drift is applied to the weights after the optimizer's step,
-  `theta <- theta - lr kappa_p (theta - theta_0)`, the weight decay of AdamW. Every weight then moves toward the
-  anchor by the factor `1 - lr kappa_p` per step whatever Adam does with the policy gradient, so the strength keeps
-  its meaning: calibrate it by the half-life, about `ln 2 / (lr kappa_p)` steps (`ParameterAnchor.half_life()`), and
-  by the measured distance. With `ParameterNoise`, compare the measured spread with `sqrt(kappa1/kappa_p)`
-  (`roles.noise_and_anchor_spread`): the injected noise adds no drift of its own. Under Adam this is a reference, not
-  a prediction, since the policy-gradient step stays adaptive. A learning rate decayed to zero switches the drift off
-  with it.
-* **Coupled** (`decoupled=False`): the drift is added to the policy gradient before the step, the form of the paper's
-  runs and of the shipped campaign records. Adam divides every gradient coordinate by its running root-mean-square, so
-  the drift's step is about the learning rate whatever the distance to the anchor and whatever the strength, it is weak
-  where the policy gradient is large and of fixed size where it is small, and it inflates Adam's normalizer, which
-  shrinks the policy gradient's own step. The strength then loses its meaning as a curvature, and the spread under
-  noise is proportional to the noise strength whatever the drift. Use this form to reproduce the paper's runs.
-
-Strengths are comparable only within one form. Pull the actor's weights including the action dispersion (unless the
-dispersion is meant to be free) and never the critic, which has no prior; `ParameterAnchor` does both. Record the
-optimizer, its stability constant, the order of gradient clipping and the anchor, and the form.
+The default decoupled anchor applies a separate update proportional to `lr * kappa_p` after the optimizer step. With `decoupled=False`, its gradient is added before the optimizer step, where Adam rescales the combined gradient. Strengths are comparable within a specified optimizer and implementation. Record the form, effective actor distance and measured action dispersion. `ParameterNoise` adds Gaussian increments after the update. Its effect under PPO is an empirical question. The population-flow convergence theorem uses additional curvature and representation hypotheses. [Regularizer choices](formulation-comparison.md#vary-action-and-parameter-regularization-independently) · [Theory and optimizer implementation](under-the-hood/decisions-and-theory.md#5-choose-regularizers-for-their-role)
 
 ## Step 8. Validate the policy you deploy
 
-* **Compare policies only after training has converged.** `BudgetMonitor` records the failure rate, the utility, the
-  priced objective and the action dispersion of every batch of training episodes. `monitor.convergence()` checks
-  whether the run has stopped changing: it compares the last tenth of the batches with the tenth before, and a
-  quantity counts as still changing when its change exceeds both its batch-to-batch noise and 5% of its size.
-  `monitor.plot()` draws the curves, and `BudgetMonitor(check_every=k, stop_when_converged=True)` checks during
-  training and can stop it. A short run is reported as too short to judge. Converged means that the run stopped
-  changing, not that its policy is good: a learning rate that decays to zero makes any run stop changing at its end,
-  and a run can stop in a bad place (the lander's anchored runs). Pass `training=monitor.convergence()` to
-  `interpret`, and the report states it. The retailer's learners were still improving after a few million steps;
-  compared then, they looked worse than the rule in use, and trained longer they earned more than it.
-* **Validate the candidate that is deployed.** The stochastic policy and its mean action (the network without its
-  noise) are different candidates with different risks; so are the policy before and after any change to its
-  dispersion. Noise in the actions can carry much of the risk: the retailer's rule goes insolvent several times more
-  often with noise in its orders. The mean action is often the better candidate (the robot, the retailer); validate
-  it if you deploy it.
-* **Test at the specified horizon.** A test at one horizon does not certify a longer one.
-* **Share the error.** `validation.validate_direct(failures, n, alpha, zeta, family)` uses an exact binomial bound
-  with the error divided among all the candidates you inspected.
-* **Mind the resolution.** No failures in `N` episodes certify the bound `1 - zeta^(1/N)`, never zero, and a failed
-  test does not prove a violation. `validation.episodes_for_tolerance` sizes the test.
-* **Certificates from the value** bound the risk without a validation run, but over long horizons they are valid and
-  uninformative; the direct test then carries the decision (the navigation notebook shows this).
+A training trace describes the learner's behavior during training. `BudgetMonitor.convergence()` compares recent windows for changes in measured quantities. The resulting diagnostic is descriptive. In particular, a decayed learning rate can leave a trace nearly constant. To assess the final policy, freeze its weights, action sampling rule and observation preprocessing before collecting validation episodes.
+
+Record the evaluation policy and inputs with each candidate. For a Stable-Baselines3 actor, `sb3_policy(model)`
+samples its actions and `sb3_policy(model, deterministic=True)` uses its deterministic prediction. If training
+used observation normalization, freeze the corresponding statistics and apply the same transform at evaluation.
+The evaluator rejects an episode censored by an administrative time limit. Configure the physical horizon
+explicitly or use simulator termination for a genuine early endpoint.
+
+For a finite-horizon requirement, run independent episodes that observe the first crossing through action $T$ or end earlier at a genuine terminal state. A stochastic policy and the policy formed from its mean action are distinct candidates. Changing the dispersion, task horizon or budget also changes the statement being tested. Use a separate seed range for pilot comparisons and final validation.
+
+`validation.validate_direct(failures, n, alpha, zeta, family)` computes the exact one-sided binomial upper endpoint. The policy meets the stated tolerance when that endpoint is at most $\alpha$. With zero failures in $N$ independent episodes the endpoint is $1-(\zeta/\mathrm{family})^{1/N}$. Use `validation.episodes_for_tolerance` to plan the sample at the per-statement error. An endpoint above $\alpha$ leaves the requirement unestablished at that confidence level.
+
+For a single 5% tolerance at statistical error 0.05, a sample of 59 zero-failure episodes is just sufficient.
+For two simultaneous candidates at the same tolerance and total error, each candidate's zero-failure sample must
+have at least 72 episodes because its endpoint uses error 0.025. These are minimum sizes for a zero-failure outcome.
+If failures are expected, plan for a larger sample using a plausible failure rate below the tolerance.
+
+For a process with an independent geometric stopping time, the Bernoulli event is failure before that stop. The bound $p_T\le\beta^{-T}q_\beta$ can transfer that result to a fixed horizon. Its informativeness depends on $\beta$ and $T$. [Validation tutorial](../notebooks/under-the-hood/T4_validation_in_detail.ipynb)
 
 ## Step 9. Write down what the evidence supports
 
-`interpret(spec, req, stage, evaluation, ...)` writes the report. Its `summary()` states the verdict in plain words:
-how often the candidate ran out on fresh episodes, the validated bound on its risk, whether the requirement is met,
-and what the test does not show. Its `text()` adds every bound with its assumptions, and what the evidence does not
-establish: the risk after the horizon, other horizons, other candidates, convergence of the training run, and
-behavior under a different simulator.
-
-## Function index by step
+`interpret(spec, req, stage, evaluation)` returns a report for the evaluated candidate. Use `summary()` for the sample size, observed frequency, confidence bound and decision. Use `text()` to inspect the assumptions and inputs of each additional bound. Report the horizon, tolerance, validation error, policy variant and simulator conditions with the result.
 
 | Step | Functions |
 |---|---|
-| Requirement | `BudgetSpec`, `Requirement` |
-| Another method? | `plan`, `planning.when_to_use_another_method` |
-| Wrap | `BudgetWrapper`, `RunningMaxCost`, `Stage`, `barrierpg.problems` |
-| Price | `plan`, `frontier.check_runs`, `frontier.price_sequence_check`, `DualAscent`, `callbacks.dual_step_suggestion`, `DualAscent.diagnose` |
-| Reserve | `Stage(theta=...)`, `BudgetWrapper(true_budget_scale=...)` |
-| Regularizers | `ActionAnchor`, `ParameterAnchor`, `ParameterNoise`, `fit_actor_mean`, `set_log_std`, `advise_regularizers`, `regularizer_effects` |
-| Validation | `BudgetMonitor.convergence`, `BudgetMonitor.plot`, `evaluate`, `evaluation_from_episodes`, `Evaluation.validate`, `validation.validate_direct`, `validation.zero_failure_bound`, `validation.episodes_for_tolerance` |
-| Report | `interpret(...).summary()`, `interpret(...).text()`, `plan(...).explain()` |
+| Specification | `BudgetSpec`, `Requirement`, `plan` |
+| Environment | `BudgetWrapper`, `RunningMaxCost`, `Stage`, `barrierpg.problems` |
+| Price and reserve | `frontier.check_runs`, `frontier.price_sequence_check`, `DualAscent`, `BudgetWrapper(true_budget_scale=...)` |
+| Regularization | `ActionAnchor`, `ParameterAnchor`, `ParameterNoise`, `fit_actor_mean`, `set_log_std` |
+| Evaluation | `BudgetMonitor`, `evaluate`, `evaluation_from_episodes`, `Evaluation.validate`, `validation.episodes_for_tolerance` |
+| Reporting | `interpret(...).summary()`, `interpret(...).text()`, `plan(...).explain()` |

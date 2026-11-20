@@ -1,6 +1,6 @@
 # Paired pilot on the wear-allowance model
 
-This pilot compares fixed-price and expected-cost formulations on the same geometric breakdown event. The expected-cost runs use CPO. It also shows what changes when reserve loss enters the objective or overshoot CVaR replaces failure probability as the constraint. The code uses the wear dynamics of the manuscript with a small categorical policy over three operating rates.
+An asset earns utility from its operating rate and fails if accumulated wear exceeds its allowance before independent maintenance access. We compare fixed failure prices and expected-cost constraints using this same geometric breakdown event. We also vary the interior loss in the reward and compare a conditional value-at-risk (CVaR) constraint on the size of the overshoot. Every run uses a categorical policy over three operating rates.
 
 ```bash
 python examples/benchmark_wear.py --output /tmp/wear-comparison.json
@@ -16,7 +16,7 @@ The CPO cap of 0.08 and the failure price of 0.45 were added after the nominal-c
 
 ## Results
 
-The cells report means across six seeds. The range in the failure column is the range of seed estimates. The low-reserve frequency includes breakdowns and measures whether the remaining allowance ever fell to 5% or less. Overshoot CVaR is computed directly from the evaluation episodes for every candidate.
+The table reports means across six fitted policies per configuration, each evaluated separately. The range in the failure column is the range of seed estimates. The low-reserve frequency includes breakdowns and measures whether the remaining allowance ever fell to 5% or less. Overshoot CVaR is computed directly from the evaluation episodes for every candidate.
 
 | Training configuration | Stopped utility | Utility net of the common interior loss | Failure probability (range) | Low-reserve frequency | Overshoot CVaR | Training decisions |
 |---|---:|---:|---:|---:|---:|---:|
@@ -31,6 +31,6 @@ The cells report means across six seeds. The range in the failure column is the 
 | CPO and log barrier, cap 0.08 | 2.576 | 0.713 | 0.099 (0.087–0.113) | 0.112 | 0.029 | 251,538 |
 | Log barrier, price 0.45 | 2.993 | 0.819 | 0.047 (0.028–0.065) | 0.061 | 0.007 | 263,128 |
 
-Both CPO variants exceeded the nominal cap of 0.10 on all six evaluation seeds. Lowering the training cap reduced the observed breakdown probabilities. For each CPO variant at the lower cap, two seeds had individual one-sided 95% binomial upper bounds below 0.10. The log-barrier run at price 0.45 had higher stopped utility and lower failure risk than the CPO log-barrier runs in this pilot. The overshoot CVaR run had much higher failure frequency while its mean measured tail cost was close to its cost cap. These are comparisons for this particular actor, optimizer and sample budget.
+For both CPO variants trained at cap 0.10, the measured breakdown frequency exceeded 0.10 on each of the six evaluation seeds. Lowering the training cap reduced the observed breakdown probabilities. For each CPO variant at the lower cap, two seeds had individual one-sided 95% binomial upper bounds below 0.10. The log-barrier run at price 0.45 had higher stopped utility and lower failure risk than the CPO log-barrier runs in this pilot. The overshoot-CVaR configuration had a mean tail cost close to its cap and a mean breakdown frequency of about 40%. An overshoot cap and a breakdown-probability cap impose different deployment criteria. These are comparisons for this particular actor, optimizer and sample budget.
 
 The [per-seed results](../examples/wear_comparison.json) include the fitted parameters, individual binomial upper bounds, number of accepted updates and training and evaluation decision counts. The individual bounds are suitable for examining one fixed candidate. Simultaneous certification across candidates requires a separate error allocation.

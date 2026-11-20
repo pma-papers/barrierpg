@@ -1,9 +1,13 @@
-"""Quickstart without any learning library: the wear-allowance problem of the manuscript.
+"""Evaluate fixed operating policies under the wear allowance.
 
-Runs with numpy and scipy only. It (1) states the requirement and derives a plan, (2) evaluates two
-hand-written candidates (standing still and the incumbent operating rule) through the budget
-wrapper, (3) validates them for the specified horizon through geometric risk, (4) illustrates
-the price-risk expression on the grid benchmark, and (5) prints the report for one candidate.
+This example defines a finite-horizon failure tolerance, evaluates two
+fixed rules with independent geometric maintenance access and translates
+the geometric confidence bound to the specified horizon. It compares
+the outcomes with the tabular grid benchmark and prints the evidence for
+the incumbent rule.
+
+Run with the core package installed:
+    python examples/under-the-hood/wear_quickstart.py
 """
 import sys
 from pathlib import Path
@@ -45,7 +49,8 @@ for name, ev in (("standing still", idle), ("incumbent", inc)):
 
 print(); print("=" * 100); print("4. THE PRICE-RISK EXPRESSION ON THE GRID BENCHMARK"); print("=" * 100)
 runs = [Run(m=m, q_beta=q, U=U, label="grid") for m, (q, U) in EXACT_FRONTIER.items() if m > 0]
-print("Illustration with the no-price grid value and zero grid optimization gap.")
+print("Plug-in calculation using the no-price grid estimate and setting the illustrative gap to zero.")
+print("Certification in the continuous model requires a valid utility bound and optimization gap.")
 for row in check_runs(runs, beta=spec.beta, sup_U=EXACT_FRONTIER[0.0][1], delta=0.0).table:
     print(f"m={row['m']:<5g} grid risk {row['q_beta']:.5f}, plug-in price-risk expression {row['price_risk_bound']:.5f}")
 

@@ -1,9 +1,13 @@
-"""The curvature budget of the paper's convergence theorem ('Convergence of the population gradient flow') for a stage and
-an actor class, and what it does and does not say.
+"""Compute the sufficient curvature threshold for an analytical example.
 
-Reproduces the constants of the paper's analytical example: with the plateau feature's suprema,
-C_m = 1940 and the strength five percent above the threshold, kappa = 1.05 C_m / lambda_W = 2037 at beta = 0.9, m = 1, ubar = 1.
-Run: python examples/under-the-hood/curvature_budget.py   (numpy only)
+The population objective has price m=1 and discount beta=0.9. The feature
+derivative bounds give a value-curvature deficit of 1940. The script uses
+a Gaussian prior and computes the net curvature at a strength five percent
+above the threshold. The result concerns the paper's population gradient
+flow under its representation assumptions.
+
+Run with the core package installed:
+    python examples/under-the-hood/curvature_budget.py
 """
 import sys
 from pathlib import Path

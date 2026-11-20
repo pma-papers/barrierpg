@@ -1,22 +1,11 @@
 # %% [markdown]
-# # 4. A navigation robot with a damage allowance: which requirement does the task mean?
+# # Mean damage and failure probability in navigation
 #
-# In Safety-Gymnasium's PointGoal1 task a point robot earns the distance by which it closes in on a goal and a bonus
-# each time it reaches one; a new goal then appears, so an episode of 1000 steps visits as many goals as the robot
-# reaches. Eight hazards are scattered over the floor, and each step inside one costs a unit. The suite's customary
-# limit is 25 units per episode.
+# Safety-Gymnasium's PointGoal1 task rewards movement toward successive goals. A step in a hazard incurs one unit of damage. We use the same numerical allowance of 25 to distinguish two requirements. One caps mean damage per episode. The other limits the probability that cumulative damage exceeds 25 during the 1,000-action episode. The measured mean below a cap can coexist with frequent crossings.
 #
-# The notebook follows the steps of the [practitioner guide](../docs/practitioner-guide.md):
+# In this notebook, PPO is trained on a fixed-price reward for the crossing event. We compare several prices using the saved training runs. The final binomial calculation tests the crossing probability at the stated horizon. The recorded mean damage is measured under termination at the first crossing, so it concerns that stopped process.
 #
-# 1. decide which requirement the limit means;
-# 2. define the problem as a budget and train it (the code, with the settings of the campaign);
-# 3. compare prices in the full campaign, including one that charges more for a failure than an episode earns;
-# 4. validate, with the direct test rather than a certificate from the value;
-# 5. choose the regularizers when nothing trusted is available.
-#
-# Safety-Gymnasium needs its own Python environment (Python 3.10, Gymnasium 0.28, MuJoCo 2.3), with the toolbox
-# installed into it. The cells that define and train the problem run only there; everywhere else they print a note,
-# and the rest of the notebook reads the records of the campaign in `campaigns/`, which ran this same code.
+# Training and fresh simulation require a separate environment with Python 3.10, Safety-Gymnasium 1.0, Gymnasium 0.28 and MuJoCo 2.3. The saved evaluations can be examined without that simulator. [Practitioner guide](../docs/practitioner-guide.md) · [Formulations](../docs/formulation-comparison.md)
 
 # %%
 import sys
@@ -144,8 +133,7 @@ plt.tight_layout(); plt.show()
 # taking longer ways to the goals. At 0.1 the robot almost stops reaching goals. A failure at the start of an episode is
 # then charged about four times what an episode earns, and the learner gives up earning in order not to fail.
 #
-# **Theory.** The price chooses a point on the trade-off between return and risk, as long as the learner can follow
-# it. `plan` compares what a failure is charged with what an episode earns, before anything is trained:
+# Changing the price alters the training reward. The fitted candidate's attained risk also depends on optimization and the policy class. Use `plan` to compare the failure charge at the start of the episode with the scale of episode earnings.
 
 # %%
 earns = np.mean([np.mean(r["evaluation"]["ret"]) for r in camp.records("no-price")])
@@ -156,7 +144,7 @@ for m in (0.03, 0.1):
 # %% [markdown]
 # ## 4. Validation: the direct test decides
 #
-# The value certificate needs a demonstrated bound on the shaped step rewards. We use the direct failure test.
+# A value certificate requires a verified bound on the shaped step rewards. Here the confidence calculation uses only the first-crossing indicator.
 # We validate the three policies trained at the price of 0.03,
 # on the 300 fresh episodes of their records, with the error shared among the fifteen trained policies.
 #
@@ -174,18 +162,11 @@ for s in camp.seeds("price-0.03"):
     print(f"  (return per episode {np.mean(camp.record('price-0.03', s)['evaluation']['ret']):.2f})\n")
 
 # %% [markdown]
-# Compare the simultaneous upper endpoints above with the 20% requirement. The observed failure rate alone
-# does not decide the verdict. Training seeds also differ in return at the same price.
+# Compare the simultaneous upper endpoints above with the 20% requirement. The requirement is established when the one-sided upper confidence endpoint is at most 20%. Training seeds also differ in return at the same price.
 #
-# ## 5. Regularizers when nothing is trusted
+# ## 5. Training without a reference policy
 #
-# The robot learns from scratch, and no controller or rule is available to serve as a prior or a reference. An anchor
-# would pull the policy toward an arbitrary starting point; there is nothing worth keeping. Action regularization needs
-# a trusted reference, which is missing too. The campaign therefore uses neither, and the entropy bonus is off as well.
-#
-# **Theory.** Every regularizer biases the learned policy toward its reference; the bias is worth paying only when the
-# reference is one you trust.
-#
+# The reported training starts from a random initialization and uses no reference-based penalty. To evaluate a new action or parameter reference, first measure the behavior of the policy it represents. Then compare the fitted policies under common task and evaluation conditions.
 # ## Your own task
 #
 # The cells to change: the cost function (`hazard_cost`), `spec`, `stage`, and `make_env` (your task inside

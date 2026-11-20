@@ -1,4 +1,17 @@
-"""Train a small actor with the native CPO and Gaussian CVaR updates."""
+"""Train a dispatch policy under a mean-cost or upper-tail cost limit.
+
+The actor chooses between two actions. Utility increases from 0.6 to 1.0
+under action one, and that action incurs an extra unit of cost with
+probability one half. CPO constrains mean cost. The CVaR update constrains
+the Gaussian surrogate for the worst quarter of costs. The two baseline
+runs use the original utility and cost directly. A third run adds action
+and parameter penalties to the CVaR objective.
+
+The printed exact CVaR is computed from the final policy's two-point cost
+distribution. Use it to compare the deployment measure with the Gaussian
+quantity used during the updates. With the RL extra installed, run
+    python examples/train_risk_constrained.py
+"""
 import numpy as np
 import torch
 from torch.distributions import Categorical

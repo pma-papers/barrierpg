@@ -1,28 +1,11 @@
 # %% [markdown]
-# # 2. A retailer that finances its stock from cash: writing your own simulator
+# # Cash-constrained inventory control
 #
-# A retailer sells three lines over a year of 52 weeks: a staple with a thin margin and steady demand, a seasonal line
-# with a high margin whose demand peaks before the year end, and a fashion line with a high margin and volatile demand.
-# It pays suppliers when it orders, and the seasonal goods take eight weeks to arrive, so the seasonal stock has to be
-# bought before the season shows how strong it is. A fixed overhead is due every week. The firm starts the year with
-# 2,500 in cash (hundreds of dollars) and has no credit line: the first week that ends with negative cash is
-# insolvency. Buying more seasonal stock earns more on average and makes insolvency more likely in a weak year.
+# The retailer orders three product lines over 52 weeks. Sales replenish cash, while purchases and overhead reduce it. Orders are paid for when placed. The seasonal line has an eight-week lead time, so inventory must be purchased before its demand is known. Initial cash is 2,500 in the simulator's units of hundreds of dollars. Insolvency occurs at the first week ending with negative cash.
 #
-# No Gymnasium task exists for this problem, so we write the simulator ourselves. The notebook goes through the steps
-# of the [practitioner guide](../docs/practitioner-guide.md) with all the code in view:
+# We define the simulator, transform signed net cash use into first-crossing costs, and evaluate a fixed base-stock rule. We then compare PPO policies trained with fixed insolvency losses and with an adaptive failure multiplier. A network fitted to the incumbent rule can also be used as an initialization or a parameter reference. The fixed rule, fitted actor and trained actors are distinct validation candidates.
 #
-# 1. write the simulator: a class with `reset` and `step`;
-# 2. define the problem as a budget: a resource that is also replenished (cash), a known cost of failure;
-# 3. check the wrapped simulator and plan;
-# 4. evaluate the rule already in use, which is a candidate too;
-# 5. train PPO, and read the learning curves;
-# 6. compare the costs of failure in the full campaign, and the dispersion of the deployed policy;
-# 7. start a learner from the rule: fit a prior, anchor to it;
-# 8. aim at a tolerance with an adaptive multiplier;
-# 9. validate the candidates and report.
-#
-# Notes marked **Theory** say what the results behind the method imply at each step. The training here is short; the
-# comparisons use the full campaign in `campaigns/` (10 million steps per run, three seeds), which ran this same code.
+# The live PPO run illustrates the workflow. The comparison uses the saved runs of ten million steps per seed and three seeds per configuration. The final comparison uses fresh simulated years and the stated insolvency tolerance. [Practitioner guide](../docs/practitioner-guide.md)
 
 # %%
 import sys
@@ -304,9 +287,7 @@ print("Convergence at the end of training (the toolbox's check on each run's rec
 print(camp.convergence_table(["no-price", "lump-20000"]))
 
 # %% [markdown]
-# Check the learning curves, and the convergence check, before comparing candidates. Even after 10 million steps, some
-# runs were still changing slowly at the end, mostly a failure rate still falling: their policies are the policies at
-# the end of the run, and a longer run might be safer.
+# Some failure-rate traces were still decreasing at the last recorded update. The comparisons below use the policies at the stated training budget. The traces describe the stability of the run over its final windows.
 #
 # ## 6. The full campaign: costs of failure, and the deployed policy's dispersion
 #
@@ -336,10 +317,7 @@ ax.legend(fontsize=7, loc="lower right"); plt.tight_layout(); plt.show()
 # the differences between seeds. A cost of 20,000, about three years of profit, moves the policies close to the rule's
 # level of risk, and they still earn more than the rule.
 #
-# **Theory.** The price chooses a point on the trade-off between profit and risk: each trained policy is, up to the
-# learner's shortfall, the most profitable policy among those that go insolvent no more often than it does. A price
-# matters when it is large against what a failure already costs; here an insolvent year already forfeits its profit.
-#
+# For a known insolvency loss, the objective uses expected discounted loss at the failure time. The annual crossing rate gives each insolvency by year-end the same weight. The two criteria can rank policies differently. Compare the observed insolvency rate and stopped profit separately.
 # A stochastic policy draws its actions with noise, and the same network without the noise (its mean action) is a
 # different candidate. Here the noise is costly: random orders on lines that should not be ordered tie up cash.
 

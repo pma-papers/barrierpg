@@ -1,25 +1,13 @@
 # %% [markdown]
-# # T3. What the regularizers do: action and parameter regularization, and the roles of their parts
+# # Action and parameter regularization
 #
-# Two regularizers act on different objects, and the paper's guidance is to choose each for what it does.
+# Action relative entropy measures departure from a reference action distribution. Under the paper's path-law assumptions, the achieved stopped divergence $mathcal A$ satisfies $mathrm{kl}(q|q_
+# ho)lemathcal A$, where $q$ and $q_
+# ho$ are the geometric risks of the policy and reference. The comparison uses the achieved divergence, the reference risk and the specified stopping rule.
 #
-# * The **action relative entropy** $\mathcal A$ (weight $\eta$) is a reward term on the *action law*. It holds the
-#   policy near an **action reference** $\rho$ and keeps the trajectory risk within $\mathrm{kl}(q\,\|\,q_\rho)\le\mathcal A$
-#   of the reference's risk (*Action regularization and failure risk*). It adds no curvature to the learning problem.
-# * The **parameter regularizer** $\mathcal H$ (strength $\kappa$) acts on the *law of the network's units*. It supplies
-#   the curvature that makes the population learning problem converge (*Convergence of the population gradient flow*), and its
-#   bias is toward a **prior policy**, whose risk and utility the learner inherits (*Improvement over the prior policy*).
+# Parameter regularization acts on the law of the network's units in the population model. Relative entropy induces noise and drift, while a quadratic potential adds drift with no noise term. A faster-growing divergence integrand penalizes concentration relative to the prior. At fixed strength, the theorem requires enough parameter curvature to exceed the deficit of the other objective terms.
 #
-# In the particle system of the gradient flow (*The prior and the particle system of the gradient flow*) the parameter regularizer splits into **roles**: a divergence
-# injects **noise** into every unit's parameters, a potential **pulls** them toward a reference, and a
-# faster-growing integrand limits their **spread**. Relative entropy alone ties noise and drift to one strength;
-# the general class unties them.
-#
-# Part A shows the roles on the paper's analytical example (numpy only, seconds). Parts B to E show the finite-network
-# counterparts on PPO in the wear-allowance problem at a deliberately low price, $m=0.03$, where the unregularized
-# optimum breaks down in a third of the episodes and a trusted incumbent rule exists. Each PPO run here trains for
-# one million steps (about 45 seconds); the paper used eight million and eight seeds. The notebook takes about twelve
-# minutes on one CPU core.
+# Part A simulates an analytically tractable population model. Parts B to E examine action and parameter references, optimizer anchoring and injected noise under PPO on the wear problem. We evaluate the policy induced by the anchor, including its action dispersion. These finite-network runs use one million steps per run and measure behavior under the specified discrete optimizer. [Theory and implementation](../../docs/under-the-hood/decisions-and-theory.md#5-choose-regularizers-for-their-role)
 
 # %%
 import math
@@ -42,7 +30,7 @@ torch.set_num_threads(1)
 plt.rcParams.update({"figure.dpi": 110, "axes.spines.top": False, "axes.spines.right": False, "font.size": 10})
 
 # %% [markdown]
-# ## Which regularizer, for which condition
+# ## Reference policies and regularizer choice
 #
 # `advise_regularizers` recommends by condition and cites the result behind each recommendation. Here the
 # application has a trusted incumbent rule, a price we do not trust, and a finite network.
@@ -208,7 +196,7 @@ plt.tight_layout(); plt.show()
 # The theoretical risk comparison uses the true action entropy and reference risk. The plotted interval plugs
 # in Monte Carlo estimates and does not account for their uncertainty. Use separate failure validation for deployment.
 #
-# ## Part D. The parameter anchor: the prior is a policy
+# ## Part D. Evaluate the policy induced by the parameter anchor
 #
 # A finite network carries the drift part of a Gaussian prior: weight decay toward parameters $\theta_0$
 # (`ParameterAnchor`; the paper's *The prior and the particle system of the gradient flow*). We fit the actor's mean to the incumbent rule (`fit_actor_mean`) and set its
@@ -259,7 +247,7 @@ print(regularizer_effects(spec, low_price.with_(kappa=10.0), cand(param_runs["an
 # %% [markdown]
 # The anchor moves the learner back from the run without the anchor toward the prior policy as $\kappa_p$ grows, in risk and utility
 # together; at the strongest anchor the candidate sits at the prior policy. In this one-million-step run the free
-# dispersion of the anchor on the mean network only moved only a little. In the paper's study (eight million steps, starting from the
+# dispersion of the anchor on the mean network only changed little. In the paper's study (eight million steps, starting from the
 # learner's wider default dispersion) it grew from 0.37 to 7.5 while the mean network stayed at $\theta_0$, and the
 # policy became bang-bang with a third of the episodes breaking down. The flag in `regularizer_effects` fires when an
 # dispersion left free moves by more than half; whether it does depends on the run, which is why the prior should

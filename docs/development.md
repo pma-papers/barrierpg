@@ -2,33 +2,30 @@
 
 ## The environment
 
-The toolbox uses one virtual environment, kept outside the repository at `~/.venvs/bpg-toolbox` (the repository
-sits in a synced folder, and an environment inside it makes the editor and the sync client crawl its 100,000 files).
+Use an isolated Python environment for development. The core installation provides the finite-model solver,
+finite-scenario comparisons and numerical certificates. Install the optional dependencies for PPO, the simulator
+examples, tests and notebook builds as needed.
 
 ```bash
 python3 -m venv ~/.venvs/bpg-toolbox
 source ~/.venvs/bpg-toolbox/bin/activate
-pip install -e ".[all]"     # editable, with Gymnasium (Box2D, MuJoCo), Stable-Baselines3, PyTorch, Jupyter and pytest
+python -m pip install -e ".[all]"
 ```
 
-The exact package set in use is frozen in `../environments/bpg-toolbox.txt`.
+| Extra | Purpose |
+|---|---|
+| `rl` | Gymnasium, Stable-Baselines3 and PyTorch for policy training and native constrained actor updates |
+| `problems` | Box2D and MuJoCo for the lander and battery simulators |
+| `notebooks` | Jupyter, ipykernel, Matplotlib, nbformat and nbclient |
+| `test` | pytest for the full test suite |
+| `all` | All of the above |
 
-Extras: `rl` (Gymnasium, Stable-Baselines3, PyTorch), `problems` (Box2D for the lander, MuJoCo for the robot),
-`notebooks` (Jupyter, matplotlib, nbformat, nbclient), `test` (pytest), and `all`. The core (`pip install -e .`)
-needs only numpy and scipy. The distribution and the package are both called `barrierpg`; before version 0.6.0 they
-were called `bpg`, a name taken on PyPI by an unrelated package. On Python 3.14, Gymnasium's Box2D extra builds
-`box2d-py`, which needs a `swig` executable on the path (on macOS, `brew install swig`); older Pythons get a prebuilt
-wheel. Tests that need Box2D or MuJoCo are skipped without them.
+The navigation simulator requires a separate environment compatible with Safety-Gymnasium 1.0, Gymnasium 0.28 and MuJoCo 2.3.
+Install the toolbox in that environment with `python -m pip install --no-deps -e .` after installing the simulator's
+dependencies. The navigation notebook can read the saved episodes from the main environment.
 
-The navigation problem needs Safety-Gymnasium 1.0, which requires Python 3.10 or older, Gymnasium 0.28 and MuJoCo 2.3,
-so it lives in a second environment (here `~/.venvs/constrained-rl-safety310`) with the toolbox installed editable
-and without dependencies (`pip install --no-deps -e .`). Only training and new evaluations of the navigation policies
-need it; the navigation notebook reads the shipped records.
-
-Two step-by-step tests compare the toolbox with the paper's own environment classes, which are shipped as test
-fixtures copied verbatim from the replication repository with the hash of their source file: the landing problem of
-revision 77 (`barrierpg.problems.landing` against `tests/fixtures/paper_landing.py`) and the fuel-tank form of revision 76
-(`BudgetWrapper` against `tests/fixtures/paper_fuel_lander.py`). Both need Box2D.
+The landing integration tests compare step rewards, observations and termination against two archived replication fixtures.
+They cover the current landing model and the earlier fuel-tank model. Both fixtures require Box2D.
 
 ## VS Code
 
@@ -67,20 +64,19 @@ and of the earlier fuel-tank environment.
 ## Campaigns
 
 The notebooks of the four problems read trained policies from `campaigns/results/`; [`campaigns/README.md`](../campaigns/README.md)
-explains how to rerun them. Rerunning a campaign changes the numbers in the notebooks' outputs, so rebuild those
-notebooks afterwards.
+explains how to rerun them. Rebuild the affected notebooks after changing the underlying run files.
 
 ## Notebooks and figures
 
 The tutorial notebooks are generated from plain-text sources in `tools/notebook_sources/` (one `.py` file per
 notebook in the "percent" format: `# %%` starts a code cell, `# %% [markdown]` a markdown cell). Edit the source, then
-rebuild and execute:
+rebuild and execute the notebooks. The generated files include outputs for GitHub:
 
 ```bash
 python tools/build_notebooks.py          # all notebooks: the four problems (minutes each) and the under-the-hood track
 python tools/build_notebooks.py 01 T4    # selected notebooks, by the start of their names
 python tools/show_outputs.py notebooks/01_lander_fuel_tank.ipynb   # print the text outputs for review
-python tools/make_readme_figure.py       # the figure on the landing page
+python tools/make_readme_figure.py       # regenerate the overview figure in docs/images/
 ```
 
 ## Following a new revision of the paper
@@ -95,6 +91,6 @@ numbers, so a renumbering needs no change. A new revision is checked for content
 3. Set `PAPER["checked_against"]` to the revision checked.
 4. Run the tests (`test_no_statement_numbers_in_printed_text` fails on any number in printed citations or reports),
    search the documentation for numbers with
-   `grep -rnE "(Proposition|Theorem|Corollary|Remark|Lemma|Table|Section|Appendix) [A-Z]?\.?[0-9]" barrierpg docs examples tools README.md`,
+   `rg -n "(Proposition|Theorem|Corollary|Remark|Lemma|Table|Section|Appendix) [A-Z]?\.?[0-9]" barrierpg docs examples tools README.md`,
    and rebuild the notebooks.
 5. Record the changes in `CHANGELOG.md`.

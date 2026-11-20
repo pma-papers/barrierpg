@@ -1,6 +1,11 @@
-"""Paired PPO pilot that isolates skip connections in a LayerNorm MLP.
+"""Compare PPO with and without residual connections on a wear budget.
 
-From the repository root, run:
+Both configurations use LayerNorm, the same parameter counts and the same
+initialization and simulator seeds within each pair. The experiment toggles
+skip connections in both actor and critic. At matched interaction counts,
+measure stopped utility, breakdown before maintenance and priced value.
+
+With the RL extra installed, run
     python examples/benchmark_residual_wear.py --output /tmp/residual-wear.json
 """
 import argparse

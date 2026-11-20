@@ -1,17 +1,12 @@
-# Under the hood: benchmark problems and validation
+# Technical tutorials
 
-These notebooks are for readers who want to see the results behind the toolbox at work. They use the test problems
-of the paper *The Price of Failure Risk: Clipped Barrier Policy Gradients with Convex Regularization*. The wear
-examples use a grid-based benchmark. The regularizer notebook also uses an analytically tractable policy model.
-The four applied notebooks one folder up introduce the workflow.
+These notebooks connect the paper's results to executable examples. The wear tutorials use a grid-based benchmark for a continuous simulator. The regularization tutorial also examines an analytically tractable policy model. The four [applied notebooks](../../README.md#tutorials-and-examples) describe the workflow on fuel, cash, battery and navigation tasks.
 
-| Notebook | What it shows | Needs | Time |
-|---|---|---|---|
-| [T1. The price on a problem with a grid benchmark](T1_price_and_exact_frontier.ipynb) | the clipped-return identity, candidate policies against the benchmark, and validation | NumPy, SciPy, Matplotlib | 20 s |
-| [T2. Training a learner against a grid benchmark](T2_training_against_an_exact_benchmark.ipynb) | PPO at several prices, descriptive benchmark gaps, multiplier diagnostics, and a smaller-allowance stress test | RL extras | 11 min |
-| [T3. What the regularizers do](T3_roles_of_the_regularizers.ipynb) | action and parameter regularization; noise, drift and spread on a solvable learning problem; the prior is a policy; parameter noise on PPO | RL extras | 12 min |
-| [T4. Validation and the report in detail](T4_validation_in_detail.ipynb) | what zero failures certify, allocation of validation error, geometric and fixed horizons, and a lump sanction with a custom evaluator | NumPy, SciPy, Matplotlib | 1 min |
+| Notebook | Calculation or comparison | Dependencies |
+|---|---|---|
+| [T1. Fixed failure prices and the wear benchmark](T1_price_and_exact_frontier.ipynb) | Clipped-value decomposition, a grid-based policy comparison, and validation under geometric maintenance access | Core and Matplotlib |
+| [T2. PPO and adaptive pricing on the wear problem](T2_training_against_an_exact_benchmark.ipynb) | Trained policies at several prices, adaptive failure pricing, and a sensitivity test at a reduced wear allowance | RL and notebook extras |
+| [T3. Action and parameter regularization](T3_roles_of_the_regularizers.ipynb) | Noise and drift in the population model, prior-policy evaluation, and measured effects of finite-network penalties in PPO | RL and notebook extras |
+| [T4. Statistical validation at fixed and geometric horizons](T4_validation_in_detail.ipynb) | Exact binomial endpoints, error allocation, and a value certificate for a fixed physical horizon | Core and Matplotlib |
 
-The [decisions and the theory behind them](../../docs/under-the-hood/decisions-and-theory.md) go through the
-practitioner guide's steps with the paper's results, and the [results map](../../docs/under-the-hood/results-map.md)
-lists each result by its title with the function that implements it.
+The theory guide provides the conditions behind these calculations. For an exact solution of a known finite transition model, see the dynamic programming guide. [Theory and implementation](../../docs/under-the-hood/decisions-and-theory.md) · [Results and functions](../../docs/under-the-hood/results-map.md) · [Exact dynamic programming](../../docs/dynamic-programming.md)

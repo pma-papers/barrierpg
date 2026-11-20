@@ -76,7 +76,7 @@ def when_to_use_another_method(*, failure_permissible_at_deployment: Optional[bo
                   "the CVaR constraint on the cumulative consumption",
                   "a failure price charges the event of exhaustion, not its size"),
         Condition("the model is known and small", model_known_and_small,
-                  "an exact dynamic program (or a structured policy, when one is available); the toolbox's certificates and validation apply to it too",
+                  "exact backward induction with solve_budget_dp for a known finite-horizon model with one integer budget, or a structured policy for the specified task",
                   "the wear-allowance study compares learned policies with grid-based benchmark policies"),
         Condition("the required price charges far more for a failure than an episode earns", price_exceeds_episode_earnings,
                   "reward normalization or a prescribed-level formulation",

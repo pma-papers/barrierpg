@@ -1,17 +1,11 @@
 # %% [markdown]
-# # T4. Validation and the report in detail
+# # Statistical validation at fixed and geometric horizons
 #
-# The deployment decision rests on validation of the candidate that is deployed (the paper's algorithm
-# *A workflow for practitioners*).
-# Certificates from the value are useful too, but they are informative only in some regimes. This notebook goes
-# through both, with numpy only:
+# For a fixed candidate and independent episodes, the number of observed failures has a binomial distribution under the simulator assumptions. We compute its one-sided exact upper confidence bound and compare it with the deployment tolerance. If several statements are evaluated together, the error budget is allocated before their results are inspected.
 #
-# 1. the direct binomial test and **what zero failures certify**,
-# 2. why the validation error is **allocated before** selecting among candidates,
-# 3. the geometric clock versus a fixed horizon, and what the geometric risk says about when failures occur,
-# 4. when the **value certificate** is informative,
-# 5. a task with a physical horizon and a **lump sanction**, evaluated by your own vectorized simulator,
-# 6. the anatomy of the report: what is established and what is not.
+# We compare direct validation at a fixed horizon with validation under independent geometric stopping. We also examine when an empirical lower bound on the clipped value is precise enough to certify risk. The final example uses a lump penalty with a physical horizon and builds the same reporting object from a vectorized simulator.
+#
+# The notebook uses NumPy, SciPy and Matplotlib. [Practitioner guide](../../docs/practitioner-guide.md#step-8-validate-the-policy-you-deploy)
 
 # %%
 import numpy as np
@@ -71,10 +65,7 @@ print(f"probability of certifying a candidate that violates the tolerance: {np.m
 # ## 3. The geometric clock versus a fixed horizon
 #
 # Under geometric stopping (the wear wrapper's default), each period ends the episode with probability $1-\beta$.
-# A learner with discount one then optimizes the discounted objective exactly, and the failure indicator of an
-# episode has probability $q_\beta$. But the clock **censors** $p_T$: an episode stopped by the clock before $T$ says
-# nothing about failure at $T$. The toolbox then validates $q_\beta$ and uses $p_T\le\beta^{-T}q_\beta$, which is
-# conservative. To test $p_T$ directly, evaluate without the clock, over a fixed horizon.
+# With algorithmic discount one, independently stopping after each nonfailing action with probability $1-\beta$ gives the discounted objective in expectation. The breakdown flag then has mean $q_\beta$. A clock stop before $T$ leaves the finite-horizon event unobserved on that episode. To assess $p_T$, use $p_T\le\beta^{-T}q_\beta$ or evaluate without the geometric clock through action $T$.
 
 # %%
 model = WearModel(); spec = model.spec(ubar=1.0); stage = Stage(m=1.0)
@@ -191,7 +182,7 @@ for buffer in (0.0, 1.0, 2.0):
     print(f"buffer {buffer}: miss probability {ev.p_T:.4f}, cost {-ev.U:.3f}; validated p_51 <= {v.upper:.4f}; lump-sanction value certificate {lump.value:.4f}")
 
 # %% [markdown]
-# ## 6. The anatomy of the report
+# ## 6. Interpreting the validation report
 #
 # `interpret` assembles three kinds of statements, as the paper separates them.
 #
@@ -240,4 +231,4 @@ print(ever_failing_bound(p_T=0.004, P_unresolved=0.002).statement())
 # * The value certificate needs no optimization guarantee but degrades like $\beta^{-T}$.
 # * Under geometric stopping, $p_T$ is censored: validate $q_\beta$, or evaluate over a fixed horizon.
 #
-# The four problem notebooks (01 to 04) apply the whole workflow to RL-level problems with no exact benchmark.
+# The four problem notebooks (01 to 04) apply the whole workflow to the four applied tasks.

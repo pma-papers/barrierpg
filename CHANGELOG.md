@@ -2,6 +2,9 @@
 
 ## Unreleased · revision 78 audit
 
+- Added exact finite-horizon dynamic programming for priced and pathwise resource budgets with stochastic consumption.
+- Revised the landing page, guides and notebooks around the choice of formulation and documented barrier-free CPO and CVaR training.
+
 - Added native PyTorch CPO and Gaussian CVaR actor updates with custom action and parameter penalties. The runnable dispatch example evaluates both fitted and exact tail risk.
 - Added an OmniSafe CPO adapter, a dense CPO reference update, and weighted CVaR and constrained policy selection for finite scenarios.
 - Added reciprocal and linear and quadratic hinge reserve penalties. The tutorial compares them with log and failure-only pricing at common nominal and reduced budgets.

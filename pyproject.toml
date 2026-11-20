@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "barrierpg"
 version = "0.9.0"
-description = "Reinforcement learning when a resource can run out: train any policy-gradient learner under a budget, validate the policy, report what the evidence shows"
+description = "Resource-budget reinforcement learning with exact dynamic programming, constrained actor updates, priced rewards, and policy validation"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}

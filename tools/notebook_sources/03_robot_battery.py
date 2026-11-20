@@ -1,25 +1,11 @@
 # %% [markdown]
-# # 3. A legged robot on a battery: what the policy must observe, the price, and a reserve
+# # Locomotion under a battery budget
 #
-# A robot runs forward (MuJoCo's HalfCheetah) on a mission of 1000 steps. It now carries a battery: each step draws an
-# idle load plus the resistive losses of its motors, which grow with the square of the torques, scaled by an
-# efficiency that varies from mission to mission with battery health and temperature and is not observed. A robot
-# whose battery runs flat before the end of the mission is stranded. Running fast earns the most per step and drains
-# the battery fastest.
+# We impose a battery allowance on MuJoCo's HalfCheetah over a mission of 1,000 actions. Consumption includes an idle load and motor losses that increase with squared torque. An unobserved efficiency parameter varies by mission. The robot is stranded when a step first makes the battery reserve negative.
 #
-# The notebook builds the problem and trains it in the open, following the steps of the
-# [practitioner guide](../docs/practitioner-guide.md):
+# The observations include charge and, in the clock configurations, elapsed mission time. We compare fixed failure prices and an interior barrier using distance, stranding probability and the minimum reserve. To measure sensitivity to available energy, we also evaluate the fixed policies with 90% of the nominal allowance while retaining their nominal reserve observations.
 #
-# 1. add the battery to the task, and define the problem as a budget;
-# 2. decide what the policy must observe: the charge left and the time left;
-# 3. check the wrapped task, and train PPO;
-# 4. compare prices in the full campaign;
-# 5. test a reserve against a battery that holds less than the robot believes;
-# 6. validate and report.
-#
-# Notes marked **Theory** say what the results behind the method imply at each step. The training here is short; the
-# comparisons use the full campaign in `campaigns/` (2 million steps per run, three seeds), which ran this same code.
-# It needs Gymnasium with MuJoCo (`pip install "gymnasium[mujoco]"`) and Stable-Baselines3.
+# The live PPO run illustrates training. The comparisons use saved runs of two million steps per seed and three seeds per configuration. The notebook requires Stable-Baselines3 and Gymnasium with MuJoCo. [Practitioner guide](../docs/practitioner-guide.md)
 
 # %%
 import sys
@@ -186,13 +172,9 @@ print(camp.convergence_table(prices + ["barrier"]))
 
 # %% [markdown]
 # Stranding falls steadily with the price, and so does the distance covered: pacing the battery means running slower.
-# Only the price of 10 meets the 5% tolerance in every seed. Most runs had converged by the end of training; in most
-# configurations one seed was still changing, and its policy is the policy at the end of the run.
+# At price 10, the observed stranding frequency is below 5% for each training seed. Simultaneous validation depends on the confidence endpoints. The table compares the final policies at the common training length.
 #
-# **Theory.** The price chooses a point on the trade-off between distance and the risk of stranding: each trained
-# policy is, up to the learner's shortfall, the best among those stranded no more often than it is. The tolerance
-# decides which price is enough; training at a few prices and validating each finds it.
-#
+# The observed stranding rates compare the fitted candidates at the tested prices and horizon. Use the upper confidence bound for the deployment tolerance. For exact failure-only optimization in the continuing model, the monotonicity result concerns geometric risk.
 # ## 5. A reserve against a weaker battery
 #
 # Every configuration was also evaluated with a battery that holds 10% less than the robot believes: the wrapper's
@@ -200,9 +182,7 @@ print(camp.convergence_table(prices + ["barrier"]))
 # campaign also trained an interior barrier at the price 3, `Stage(m=3, theta=0.5, clip_utility=False)`, which charges
 # a small amount every step that grows as the charge falls.
 #
-# **Theory.** A price on failure alone produces policies that use the budget up whenever that pays, with no reserve.
-# The interior barrier keeps a graded reserve at a cost bounded by its interior loss. If the size of the error is
-# known, planning with the smaller budget is cheaper.
+# A failure-only price deducts utility at a crossing. A positive interior barrier can also deduct utility at a small positive reserve. Compare the resulting reserve distributions with the measured stranding rates. If the reduced allowance is known in advance, it can be used as the training budget.
 
 # %%
 for cfg in ["no-price", "price-1", "price-3", "price-10", "barrier"]:

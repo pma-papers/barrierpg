@@ -1,25 +1,13 @@
 # %% [markdown]
-# # 1. A lunar lander with a fuel tank: adding a budget to a task you already train
+# # Fine-tuning a lunar lander under a fuel budget
 #
-# A lander controller is in use. It was trained on Gymnasium's LunarLanderContinuous, which rewards a soft landing
-# on the pad, punishes a crash, and charges the fuel the engines burn. Now the lander gets a tank of 24 units, and a
-# lander that empties it before touching down has failed. The tank is smaller than the controller needs.
+# We start with an existing PPO controller for Gymnasium's LunarLanderContinuous and impose an allowance of 24 units of fuel. The controller observes the fuel reserve and time elapsed. Fuel failure occurs at the first action after which the reserve is negative. A crash is a separate terminal outcome in this archived experiment and carries the task's original reward.
 #
-# This tutorial uses the earlier fuel-tank task and its saved campaign. For the current manuscript's landing task,
-# use `barrierpg.problems.landing`. That task pays revenue for a landing and treats loss of the lander as a second failure.
+# We first evaluate the existing controller with the new tank. We then continue training at several failure prices and compare references in action and parameter space. The validation step measures fuel failure through the specified horizon. Landing and crash frequencies are reported separately because the training price applies to fuel failure in this task.
 #
-# This notebook builds the problem and trains it in the open, so that you can do the same with your own task. It goes
-# through the steps of the [practitioner guide](../docs/practitioner-guide.md):
+# The short live runs illustrate the procedure. The comparison uses the archived runs with three million frames per fine-tuning run and three seeds. The paper's current landing task pays revenue for a successful landing and includes loss of the lander in its failure event. [Current landing example](../README.md#train-on-a-budget-constrained-task) · [Practitioner guide](../docs/practitioner-guide.md)
 #
-# 1. define the problem as a budget: the resource, the budget, the requirement, the price, the wrapper;
-# 2. check the wrapped environment and plan before training;
-# 3. train, starting from the controller in use;
-# 4. add regularizers that use the controller as a reference;
-# 5. compare the configurations of the full campaign, validate the policy to deploy, and report.
-#
-# Short notes marked **Theory** say what the results behind the method imply at each step. The training here is short,
-# so that the notebook runs in a few minutes; the comparisons use the full campaign in `campaigns/` (3 million frames
-# per run, three seeds), which ran exactly the code shown here. It needs Gymnasium with Box2D and Stable-Baselines3.
+# The notebook requires Stable-Baselines3 and Gymnasium with Box2D.
 
 # %%
 import sys
@@ -72,8 +60,7 @@ def fuel_burned(obs, action, next_obs, reward, info):
 # * The requirement is at most 5% fuel exhaustion within 1000 frames, with the validation error split
 #   between the stochastic and mean-action policies on the final evaluation sample.
 #
-# **Theory.** A loose `ubar` makes the certificates weaker but never wrong. The tolerance `alpha` and the validation
-# error `zeta` are different quantities: the first is about the policy, the second about the test.
+# A verified upper bound on step utility can be conservative. Increasing that bound can make a value certificate uninformative. The tolerance is the maximum failure probability and the validation error governs the confidence bound.
 
 # %%
 spec = BudgetSpec(budgets=[24.0], beta=0.999, ubar=100.0, u_minus=100.0, horizon=1000)
@@ -97,8 +84,7 @@ for t in (0, 500, 900):
 # ### The wrapper
 #
 # `BudgetWrapper` puts these together around the task. It adds the remaining fuel, as a fraction of the tank, to the
-# observation; the policy needs it. It ends the episode when the tank runs dry and charges the price there. A small
-# Gymnasium wrapper records whether the lander landed or crashed, which we want to measure.
+# observation; the policy needs it. It ends the episode when the tank runs dry and charges the price there. A separate Gymnasium wrapper records landing and crash outcomes.
 
 # %%
 class LanderOutcome(gym.Wrapper):
@@ -293,14 +279,11 @@ print(camp.convergence_table(prices))
 # Most runs had converged by the end of training. Where one had not, its policy is the policy at the end of the run:
 # it is validated as such, and a longer run might do better.
 #
-# The price adds little to the tank. Higher prices barely change how often the lander runs dry and make it crash more
-# often, in some seeds in a quarter of the landings or more. Once running dry costs more than a crash, the learner
+# Across these runs, higher prices changed the measured fuel-failure frequency little. Several fitted controllers crashed more often. Once running dry costs more than a crash, the learner
 # sometimes chooses the crash.
 #
-# **Theory.** The price charges running out, and only that. Compare it with the cost of the other ways an episode can
-# end badly in your task. Here continuing with the tank alone met the tolerance in two of three seeds, and no price did
-# better: the task's own reward already priced running dry high enough.
-#
+# Fuel exhaustion and a crash have different consequences in the archived reward. A price change can therefore alter the mix of observed terminal outcomes. Compare fuel failure, crashes and successful landings on the same horizon when interpreting these runs.
+
 # ## 5. Regularizers that use the controller in use
 #
 # The controller in use is the policy one would accept if training gained nothing, which makes it a natural reference.
@@ -348,9 +331,7 @@ print("\nConvergence at the end of training:")
 print(camp.convergence_table(regs))
 
 # %% [markdown]
-# The parameter anchor keeps the controller's flaw. The controller runs dry under the new tank, and anchored to its
-# weights the lander keeps running dry, at every strength tried, down to 0.01. The prior policy here is one the new
-# requirement rejects, and the learner inherits its risk.
+# The initial controller often fails the tighter fuel requirement. At each tested coupled-anchor strength, the fitted policies continued to show high fuel-failure frequencies. The comparison uses the controller induced by the reference weights as a separate candidate.
 #
 # These runs, and the short ones above, use the coupled form of the anchor (`decoupled=False`): the drift is added to
 # the policy gradient before Adam's step, the form of the paper's runs. Adam divides every gradient coordinate by its

@@ -1,7 +1,6 @@
-# Campaigns of the tutorial problems
+# Reproduce the tutorial training runs
 
-The notebooks of the toolbox load trained policies instead of training them, so that they run in minutes. This
-folder holds what produced those policies: the definitions, the scripts, and one record per run.
+The tutorials combine short live runs with saved outcomes from longer PPO training. This directory contains the task specifications, commands, fitted policies and evaluation episodes. Each run is identified by problem, configuration and training seed.
 
 | File | Content |
 |---|---|
@@ -11,9 +10,7 @@ folder holds what produced those policies: the definitions, the scripts, and one
 | `records.py` | reads the records for the notebooks: tables over seeds, evaluations, trained policies |
 | `results/<problem>/<configuration>/seed<k>/` | `model.zip` (the trained policy), `vecnormalize.pkl` (observation statistics, when used), `record.json` |
 
-A configuration fixes everything a run needs: the stage (a price, a lump sum charged once, or an adaptive multiplier
-toward a tolerance), the number of training steps, the regularizers, and where the policy starts (from scratch, from
-a network fitted to an incumbent rule, or from the trained policy of another configuration).
+A configuration fixes the training objective, number of interactions, regularizers and initialization. The stage uses a per-period price or a lump penalty, and some configurations adapt the lump penalty during training. Initial policies include random starts, actors fitted to a rule and checkpoints from another configuration.
 
 `record.json` holds the configuration, the PPO settings (the anchored configurations were trained with the coupled
 form of the parameter anchor, the drift added to the gradient before Adam's step, which `Config.anchor_decoupled=False`

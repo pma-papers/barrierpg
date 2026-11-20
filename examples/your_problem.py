@@ -1,9 +1,15 @@
-"""A template for applying barrier policy gradients to a problem of your own, from the task to the report.
+"""Train and validate a policy under a fixed fuel price in a Gymnasium task.
 
-It runs as it stands on Gymnasium's LunarLanderContinuous with a fuel tank (a few minutes; set STEPS higher for a
-policy worth deploying). To use it for your own task, change the parts marked YOUR PROBLEM. The notebooks in
-`notebooks/` go through the same steps on four problems, with the reasons behind each choice.
+The example uses LunarLanderContinuous-v3 with a 24-unit fuel budget. It
+defines consumption from the engine commands, appends reserve and time to
+the observation, trains PPO and evaluates stochastic and mean-action
+candidates with a shared validation error budget. The default training
+length is illustrative. The final test estimates fuel failure, while
+crashes retain their original terminal reward.
 
+For a different task, replace make_task, resource_used, spec, req and
+stage. The optional initial controller must use the same observation
+and action interfaces. Install the RL and Box2D extras, then run
     python examples/your_problem.py
 """
 import gymnasium as gym
@@ -15,7 +21,7 @@ from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 from barrierpg import BudgetSpec, Requirement, Stage, BudgetWrapper, evaluate, interpret, plan
 from barrierpg.callbacks import ActionAnchor, BudgetMonitor, ParameterAnchor
 
-STEPS = 300_000          # training steps; a lander needs a few million to land well
+STEPS = 300_000          # illustrative PPO training length
 
 # --- YOUR PROBLEM: the task, the resource one step consumes, the budget, the requirement, the price ---------------------
 
@@ -43,24 +49,21 @@ req = Requirement(T=spec.horizon - 1,    # run out within T + 1 steps ...
                   family=2)              # ... with the error shared between the two final action rules
 stage = Stage(m=0.5,                     # the price of failure risk, per step from the failure to the end of the horizon;
               clip_utility=False)        # or Stage(m=0, penalty="multiplier", multiplier=F, clip_utility=False) for a
-                                         # known lump-sum cost F; clip_utility=False when the reward has large penalties
+                                         # known lump-sum cost F; theta=0 retains all pre-failure task utility
 OBSERVE_TIME = True                      # Include elapsed time for the fixed-horizon task.
 
 
 def make_env(stage, **options):
     return BudgetWrapper(make_task(), resource_used, spec, stage, observe_time=OBSERVE_TIME, **options)
 
-# --- YOUR PROBLEM, optional: regularizers. Use one only when you have a reference policy you trust. ------------------
-# START_FROM: a policy in use to continue training from (a saved stable_baselines3 PPO model with the same
-#   observation, including the budget gauge and clock). Start from it when retraining from scratch would not find good behavior.
-# ANCHOR: a parameter anchor of strength kappa_p, weight decay toward START_FROM's weights. The learner inherits that
-#   policy's risk, so anchor only if its behavior is acceptable under the new budget (notebook 1: a controller that
-#   violated the new limit kept violating it when anchored, with the coupled form of the anchor; here the default
-#   applies, the decoupled anchor theta <- theta - lr kappa_p (theta - theta_0) after the optimizer's step).
-# ACTION_ANCHOR: an action anchor of weight eta, which charges how far the action distribution departs from
-#   START_FROM's; it holds the behavior near the reference and gives way where the budget demands a change.
-# To start from a rule rather than a trained policy, fit the network to the rule first (notebook 2: fit_actor_mean on
-#   states that include the bad ones, then set_log_std) and evaluate the fitted network as a policy before training.
+# Optional references for the training objective.
+# START_FROM initializes the actor from a compatible PPO checkpoint.
+# ANCHOR penalizes departures from the checkpoint parameters through a
+# decoupled update. ACTION_ANCHOR penalizes departures from the reference
+# distribution through an action term in the rollout reward.
+# Evaluate the reference under the new budget before choosing these terms.
+# To initialize from a rule, fit the mean on representative observations,
+# specify the action dispersion, and evaluate the fitted stochastic actor.
 START_FROM = None        # e.g. "controller.zip"
 ANCHOR = None            # e.g. 1.0
 ACTION_ANCHOR = None     # e.g. 0.05

@@ -1,4 +1,4 @@
-# Results map: from the paper to the code
+# Results and implementation
 
 Results of *The Price of Failure Risk: Clipped Barrier Policy Gradients with Convex Regularization* are listed by
 the titles the paper gives them, which can be searched in any revision. The toolbox never cites statement, section
@@ -8,7 +8,7 @@ in [`barrierpg/paper.py`](../../barrierpg/paper.py); `barrierpg.paper.results_ta
 
 ## Risk certificates and the fixed price of failure risk
 
-| Result in the paper | What it says | Function |
+| Result in the paper | Conclusion and scope | Function |
 |---|---|---|
 | The inequality $\beta^Tp_T\le q_\beta$ (since $\beta^\tau\ge\beta^T$ on $\tau\le T$) | The geometric risk bounds the finite-horizon risk | `certificates.finite_from_geometric`, `geometric_from_finite` |
 | *The represented class* | Bounded scores impose a lower bound on the risk, $p_T(\pi_\mu)\ge e^{-2L_0(T+1)}p_T(\rho)$ | `certificates.risk_lower_bound` |
@@ -17,15 +17,15 @@ in [`barrierpg/paper.py`](../../barrierpg/paper.py); `barrierpg.paper.results_ta
 | *The geometric risk as a risk measure of the failure time* | Mean failure time over the earliest $\varepsilon$-fraction of all trajectories is at least $\log(\varepsilon/q_\beta)/\log(1/\beta)$, assigning infinite failure time to non-failing paths | `certificates.earliest_failures_time` |
 | *Matched-risk performance comparison* | Utility shortfall charged with interior loss, regularization cost, optimization error and the part of the level not used; its signed form | `certificates.matched_risk_utility_gap`, `matched_risk_signed`, `frontier.complementarity_gap` |
 | *Fixed price of failure risk*, optimality at the attained risk | A fixed-price optimum is optimal for $U-\mathcal I_m$ at the risk it attains | `frontier.check_runs` (dominance), `report.interpret` (the fixed-price reading) |
-| *Fixed price of failure risk*, price–risk bound | The attained risk is at most a comparison policy's plus order $1/m$; a second bound with the $(m+\bar u)$ denominator | `certificates.price_risk_bound`, `conservative_price`, `conservative_multiplier` |
-| *Fixed price of failure risk*, monotonicity in the price | A higher price raises the attained risk only through the errors and the interior loss | `certificates.price_monotonicity`, `frontier.check_runs` |
+| *Fixed price of failure risk*, price–risk bound | Bounds excess geometric risk over a specified comparison policy. The $1/m$ rate requires uniform bounds on the charged terms. | `certificates.price_risk_bound`, `conservative_price`, `conservative_multiplier` |
+| *Fixed price of failure risk*, monotonicity in the price | Under exact failure-only optimization in a fixed class, geometric risk is nonincreasing in the price. The general bound includes interior loss and optimization error. | `certificates.price_monotonicity`, `frontier.check_runs` |
 | *Fixed price of failure risk*, learned laws | The price–risk bound for a minimizer of the regularized objective, with the regularization cost charged | `certificates.learned_law_risk`, `comparison_law_risk` |
 | *The fixed price of failure risk* (the section) | A prescribed level below the lower bound on the risk is unattainable, and no multiplier converges | `certificates.prescribed_level_attainable`, `convergence.multiplier_diagnosis` |
 | *Action regularization and failure risk* | $\mathrm{kl}(q\,\|\,q_\rho)\le\mathcal A$: departure from the action reference's risk | `certificates.action_risk_bound`, `kl_upper_inverse`, `kl_lower_inverse` |
 
 ## Convergence, the prior and the roles of the regularizers
 
-| Result in the paper | What it says | Function |
+| Result in the paper | Conclusion and scope | Function |
 |---|---|---|
 | *Admissible parameter regularizer*, *Admissible families* | Relative entropy with any displacement-convex integrand, convex potentials, and their sums are admissible; the integrand adds no curvature | `convergence.supplied_curvature`, `gaussian_prior_curvature`, `roles.RegularizerMix.curvature` |
 | *Convergence of the population gradient flow* | Exponential convergence when $\Lambda_m=\kappa\lambda_{\mathcal H}-C_m-\eta C_{\mathcal A}>0$; two flows contract for every sign | `convergence.curvature_budget`, `rate`, `certified_kappa`, `time_to_fraction` |
@@ -42,7 +42,7 @@ in [`barrierpg/paper.py`](../../barrierpg/paper.py); `barrierpg.paper.results_ta
 
 ## Deployment and validation
 
-| Result in the paper | What it says | Function |
+| Result in the paper | Conclusion and scope | Function |
 |---|---|---|
 | *Population-to-network transfer* | From a learned law to one sampled network; widths for a tolerance | `certificates.finite_network_transfer`, `width_for_tolerance`, `width_for_direct_tolerance` |
 | *Validate the deployed candidate at its specified horizon*, the direct test | Exact binomial upper bound; the bound $1-\zeta^{1/N}$ at zero failures; errors allocated over a family | `validation.validate_direct`, `binomial_upper`, `zero_failure_bound`, `episodes_for_tolerance`, `allocate_error`; `Evaluation.validate` |
@@ -50,7 +50,7 @@ in [`barrierpg/paper.py`](../../barrierpg/paper.py); `barrierpg.paper.results_ta
 | The same section, a physical horizon | The certificate when the task ends after $H$ actions | `validation.physical_horizon_risk` |
 | *The risk priced by a physical horizon*, with *Value and objective certificates* | The value certificate with a lump sum at failure, $p_T\le(\bar uS_H-V^{(H)})/(F\beta^T)$ | `validation.lump_sanction_risk` |
 | *A workflow for practitioners* (Online Resource) | Train at a fixed stage, then validate the deployed candidate | `evaluate`, `evaluation_from_episodes`, `Evaluation.validate`, `interpret` |
-| *Delay without eventual feasibility* | A small geometric risk is not an eventual-risk guarantee | stated in every report |
+| *Delay without eventual feasibility* | Eventual-failure risk can equal one even when geometric risk is small | stated in every report |
 | *Price sequences reaching a tolerance* | A sequence of prices reaches a tolerance when the charged errors grow slower than the price | `frontier.price_sequence_check` |
 
 ## Related formulations

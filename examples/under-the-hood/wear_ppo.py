@@ -1,16 +1,17 @@
-"""Train PPO on the wear-allowance problem and validate the resulting policy.
+"""Train PPO on the wear-allowance task and evaluate the fixed actor.
 
-Runtime: a Python with gymnasium, stable-baselines3 and torch (pip install -e ".[rl]").
-Configurations: fixed price m (optionally with the interior barrier), adaptive multiplier at a tolerance,
-the fixed price with a parameter anchor toward the initial actor, and the anchor with injected parameter
-noise (the noise and drift roles of the paper's study of the roles of the regularizers). The defaults are the paper's PPO settings (32 environments,
-minibatches of 1024, a linearly decaying learning rate) at a quarter of its budget: two million steps, about
-90 seconds per run on one CPU core.
+The environment ends at breakdown or independent geometric maintenance
+access. The algorithmic discount is one. Choose a fixed failure price,
+an adaptive failure multiplier, a parameter anchor, or the anchor with
+injected parameter noise. The default run uses two million training
+interactions. Compare sample sizes and model assumptions before interpreting
+the resulting bound as evidence about a deployment tolerance.
 
-  python examples/under-the-hood/wear_ppo.py --config fixed --m 1
-  python examples/under-the-hood/wear_ppo.py --config adaptive --alpha 0.02 --m 1.7   # --m: where fixed-price runs attain about alpha
-  python examples/under-the-hood/wear_ppo.py --config fixed --m 1 --theta 0.1
-  python examples/under-the-hood/wear_ppo.py --config noise --m 0.03 --kappa-p 10 --kappa1 0.1
+Install the RL extra and run one of the following configurations:
+    python examples/under-the-hood/wear_ppo.py --config fixed --m 1
+    python examples/under-the-hood/wear_ppo.py --config adaptive --alpha 0.02 --m 1.7
+    python examples/under-the-hood/wear_ppo.py --config fixed --m 1 --theta 0.1
+    python examples/under-the-hood/wear_ppo.py --config noise --m 0.03 --kappa-p 10 --kappa1 0.1
 """
 import argparse
 import sys

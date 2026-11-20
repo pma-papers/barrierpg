@@ -1,6 +1,8 @@
-# Choose a budget formulation and a regularizer
+# Formulations, learning algorithms and regularization
 
-Start with the quantity the deployed policy must control. The formulation specifies the reward objective and any constraint. A learning algorithm searches for a policy. Examples include proximal policy optimization (PPO), constrained policy optimization (CPO), and trust-region CVaR (TRC). The resulting policy acts as the controller. Conditional value-at-risk (CVaR) is a risk measure that can enter a formulation as a constraint. Action and parameter regularizers change the objective and can be varied separately from the algorithm.
+A resource-budget formulation specifies what is optimized, what is constrained and when that quantity is measured. The same consumption process can enter an expected-cost constraint, a probability of exceeding the budget, or a tail constraint on the size of the excess. In a fixed-price formulation, the stated cost enters the training objective. These criteria can select different policies from the same class.
+
+Proximal policy optimization (PPO) can optimize a reward supplied by the wrapper. Constrained policy optimization (CPO) estimates an update subject to a local expected-cost limit. A trust-region update under a Gaussian conditional value-at-risk (CVaR) constraint uses a different cost surrogate. Action and parameter regularizers change the optimized utility term. A comparison should specify the objective, constraint and learning algorithm separately.
 
 Run the comparison from the toolbox repository after installing the core package.
 
@@ -10,12 +12,13 @@ python examples/compare_formulations.py
 
 ## When can the solutions agree?
 
-| Requirement | Formulation | Example algorithm or implementation | What to measure |
+| Known model or requirement | Formulation or solution method | Example algorithm or implementation | What to measure |
 |---|---|---|---|
+| Small finite model with known outcomes | Exact dynamic programming | `solve_budget_dp` for priced or pathwise feasible decisions | Model-based value, utility and failure probability |
 | Running out ends the task and has a known cost | Failure-only price | PPO on a reward wrapped with `BudgetWrapper` | Stopped utility and failure frequency at the deployment horizon |
-| Operating with low reserve has a cost | Deduct a reserve penalty from utility | PPO with the modified reward or CPO with an additional expected-cost constraint | Minimum reserve and performance under a budget shift |
+| Operating with low reserve has a cost | Deduct a reserve penalty from utility | PPO with the modified reward or CPO with an expected-cost constraint and utility net of the reserve penalty | Minimum reserve and performance under a budget shift |
 | Mean cumulative cost must meet a cap | Expected-cost constraint | CPO or a policy-gradient algorithm using an adaptive multiplier | Mean cost and update-time violations |
-| A crossing must be uncommon | Chance constraint encoded as the expectation of the first-crossing indicator | CPO with the specified event cost | First-crossing probability by the specified horizon |
+| Failure by a specified action must have probability at most a tolerance | Chance constraint encoded as the expectation of the first-crossing indicator | CPO with the specified event cost | First-crossing probability by the specified horizon |
 | Large losses in the worst outcomes must be limited | CVaR constraint on total consumption, overshoot or another specified loss | TRC or exact selection from finite-scenario candidates | Held-out tail loss and its uncertainty |
 | Every trajectory must meet the limit | Pathwise feasibility | A model-based feasible policy class or a safety layer | The model assumptions and the resulting pathwise guarantee |
 
@@ -45,6 +48,12 @@ In OmniSafe 0.5.0, the slack uses the logged sum of costs per episode, while the
 
 `upper_cvar(costs, tail_mass, probabilities)` averages the worst `tail_mass` of the cost distribution, splitting a probability atom at the boundary when needed. For example, `tail_mass=0.05` means the worst 5% and corresponds to a CVaR level of 0.95. `select_scenario_policy` picks the highest-utility feasible candidate from a fixed list and reports each candidate's measured risk. Use actual end-of-trajectory costs for the comparison. For a sequence of candidate checkpoints, estimate tail risk during selection and use a separate scenario set or fresh rollouts for final evaluation. The finite-scenario routine is checked against the CVaR linear program in SciPy HiGHS. For a learned continuous controller, the authors' TRC implementation provides a policy-search baseline with its own cost-distribution approximation. [CVaR formulation](https://web.stanford.edu/~boyd/papers/pdf/cvar_qp.pdf) · [SciPy HiGHS](https://docs.scipy.org/doc/scipy/reference/optimize.linprog-highs.html) · [TRC implementation](https://github.com/rllab-snu/Trust-Region-CVaR)
 
+### Select from a finite policy list
+
+`select_scenario_policy` takes one expected utility per candidate and a matrix with one row per candidate and one column per common scenario. Supply scenario probabilities where they are unequal. For `formulation="chance"`, `budget` sets the strict crossing threshold for the supplied path statistic and `cost_limit` is a probability. Use a first-crossing statistic such as the largest cumulative use through the horizon if consumption can decrease after a crossing. For `formulation="pathwise"`, the cost limit applies to each positive-probability scenario.
+
+The returned risk array contains the selected statistic for every candidate. The index is `None` when the given policy list contains no feasible candidate. For a finite model with known probabilities this comparison is exact on the listed scenarios. For sampled scenarios it is a sample-based comparison and calls for independent evaluation after selection.
+
 ## Compare reserve penalties
 
 Let `r = z/b` be the fraction of a single budget remaining after a decision. The package sums the corresponding terms over resources. Pass the shape as `BudgetWrapper(..., barrier=penalty)`. Leaving it out gives the original `Stage(theta=...)` convention, with a log barrier at positive strength and failure-only pricing at zero.
@@ -52,10 +61,10 @@ Let `r = z/b` be the fraction of a single budget remaining after a decision. The
 | Shape | Penalty per resource | Effect on the reward signal |
 |---|---|---|
 | Failure-only | Zero before crossing | Retains the original utility on successful steps. When nearly all rollouts succeed or fail, the event alone may give little information about which actions preserve reserve. |
-| `LogBarrier` | `theta * log(1 + 1/r)` | Charges reserve use across the interior and grows near zero. A useful starting point when near-depletion trajectories need a graded signal. |
+| `LogBarrier` | `theta * log(1 + 1/r)` | Charges reserve use across the interior and grows near zero. Its derivative increases in magnitude as the reserve approaches zero. |
 | `InverseBarrier` | `theta / r` | Has a steeper rise near zero than log. Early clipping can flatten this distinction. Check the fraction of rewards at the floor and the variability across seeds. |
-| `ReserveHinge(..., fraction=h)` | `theta * max(0, h-r)` | Leaves rewards above the target reserve alone and has a constant slope below it. With `h=1` and reserve never above its initial value, it prices used budget linearly. |
-| `ReserveHinge(..., fraction=h, power=2)` | `theta * max(0, h-r)**2` | Has a smooth onset and puts more pressure deeper into the shortfall. The penalty stays finite at zero. |
+| `ReserveHinge(..., fraction=h)` | `theta * max(0, h-r)` | Applies no deduction above the specified reserve fraction and a linear deduction below it. With `h=1` and reserve never above its initial value, it prices used budget linearly. |
+| `ReserveHinge(..., fraction=h, power=2)` | `theta * max(0, h-r)**2` | Gives a continuous first derivative at the specified reserve fraction and an increasing marginal deduction below it. The penalty stays finite at zero. |
 
 Log and inverse diverge at zero, where the wrapper uses the clipped reward floor. Finite hinges also permit an explicit charge at zero without treating zero as a failure. With clipping, changes in a penalty beyond `u + m` have no effect on that step's reward. With no clipping, near-zero reserve may produce very large charges under singular shapes. All shapes retain the strict crossing event. A finite hinge is a soft reserve penalty with a different boundary behavior from the paper's singular barrier.
 
@@ -69,7 +78,7 @@ The exact one-stage example matches all positive penalties at 20% reserve and ac
 | Linear hinge | 0.82 | 1.640 | 0% | 100% | 0.00 |
 | Quadratic hinge | 0.82 | 1.640 | 0% | 100% | 0.00 |
 
-These are grid optima for the stated example. The inverse penalty buys a larger margin at lower utility. Both hinges choose the same action here despite different slopes. In a learning experiment, use the same policy class, horizon, environment calls and training seeds. Calibrate weights at a meaningful reserve level or match the slope there. Record raw utility, the reserve distribution, the share of clipped steps, failure timing and the deployment risk. Compare reserve shapes at matched deployment risk when possible, and use the budget uncertainty actually relevant to the task.
+These are grid optima for the stated example. The inverse penalty selects a policy with a larger minimum reserve and lower stopped utility in this comparison. Both hinges choose the same action here despite different slopes. In a learning experiment, use the same policy class, horizon, environment calls and training seeds. Calibrate weights at a meaningful reserve level or match the slope there. Record raw utility, the reserve distribution, the share of clipped steps, failure timing and the deployment risk. Compare reserve shapes at matched deployment risk when possible, and use the budget uncertainty actually relevant to the task.
 
 ## Vary action and parameter regularization independently
 
@@ -77,7 +86,7 @@ Use the unregularized objective as a baseline. Add one form at a time and save t
 
 | Choice | Use | What may change |
 |---|---|---|
-| Action KL to a fixed reference | Give the action distributions a common support and measure their discounted stopped KL | Pulls actions toward an incumbent. The paper's KL bound on risk departure uses achieved stopped KL and the reference's risk. |
+| Action KL to a fixed reference | Give the action distributions a common support and measure their discounted stopped KL | Penalizes departure from the reference distribution. The risk bound uses the achieved stopped KL and the reference's risk. |
 | Squared Hellinger or squared probability distance | Compare categorical distributions in a differentiable custom loss | Both are convex in policy probabilities. Their gradients and treatment of small probabilities differ from KL. Evaluate trajectory risk separately. |
 | Fixed action cost | Penalize movement, energy or distance from a reference action using the ordinary reward or the SB3 `ActionCost` callback | The penalty is linear in the action law. Its scale and whether it applies to the failing decision affect behavior. |
 | Quadratic parameter potential | Anchor weights to a trained reference, including dispersion when it is trainable | The pull grows linearly with displacement and supplies uniform curvature in parameter space. |
@@ -106,13 +115,29 @@ For finite-scenario policy selection under a CVaR constraint, pass regularized u
 
 The one-state Gaussian example runs the reference CPO updates repeatedly with exact reward and cost expectations. With the same cost cap of 1.822, the unregularized run reaches cost 1.822. Adding the action KL and a quadratic potential yields cost 1.657. Keeping the same action KL and using a pseudo-Huber potential yields 1.696 and higher raw utility than the quadratic run. These are endpoints of the specified updates. The strength, reference, and optimizer affect what happens in a learned controller.
 
-## Train a small policy with the native actor updates
+## CPO and CVaR training without an interior barrier
 
-The runnable [dispatch example](../examples/train_risk_constrained.py) collects a fresh batch of episodes before each CPO update or trust-region update under the Gaussian CVaR constraint. It uses PyTorch and the toolbox's own code for the policy update.
+Use the original task utility to compute reward advantages. Supply separate trajectory costs for the constraint. For instance, a mean fuel cap uses cumulative fuel as the cost, a finite-horizon chance constraint uses the indicator of first crossing, and an overshoot CVaR constraint uses the amount by which the allowance is exceeded. No `BudgetWrapper`, failure price or reserve penalty is required in these actor updates.
+
+The runnable dispatch example collects fresh episodes for each update. It compares barrier-free CPO with barrier-free Gaussian CVaR training and reports both the Gaussian surrogate and exact upper-tail CVaR in the specified dispatch model. Install `-e ".[rl]"` for PyTorch. [Dispatch example](../examples/train_risk_constrained.py)
 
 ```bash
 python examples/train_risk_constrained.py
 ```
+
+The two calls below use the same actor interface. In `batch`, provide observations, sampled actions, utility advantages, cost advantages and the current mean cumulative cost. For CVaR, also provide `variance`, containing the cost variance and its advantages. The limits in the two calls have different meanings even when their numerical values are equal.
+
+```python
+from barrierpg.on_policy import cpo_policy_update, cvar_policy_update
+
+# Use separate actors and collect on-policy data before each update.
+cpo = cpo_policy_update(mean_actor, mean_batch, cost_limit=0.62, kl_limit=0.01)
+cvar = cvar_policy_update(
+    tail_actor, tail_batch, variance, cost_limit=0.62, tail_mass=0.25, kl_limit=0.01
+)
+```
+
+For CPO the cap concerns mean cumulative cost. For the CVaR update it concerns the Gaussian surrogate for the average of the worst quarter of costs. In the dispatch example, compare the resulting mean cost, Gaussian CVaR and exact CVaR in the output table. The modeled cost distribution is discrete, so its exact CVaR can differ from the Gaussian surrogate. Estimate the corresponding deployment quantity on independent trajectories. In a finite model, `upper_cvar` computes CVaR exactly from the loss distribution, including atoms at the tail boundary.
 
 The [actor update source](../barrierpg/on_policy.py) takes a module that returns a PyTorch distribution. Its inputs include the observed reward and cost advantages and the current mean cumulative cost. The Gaussian CVaR update also takes the current cost variance and its advantages. Both compute the old-to-new KL Hessian, solve a dense single-cost trust-region subproblem and check the trial step on the batch before changing the actor. Use the dense implementation for small actors. The caller supplies rollouts and any critic estimates, making the reward, cost and advantage estimators visible. Keep the actor forward pass deterministic when constructing the distribution, for example by disabling dropout during sampling and line search.
 
@@ -127,6 +152,8 @@ On matched gradients and a matched Fisher matrix, the dense solver agreed with t
 
 ## Use CPO to solve an objective with an interior barrier
 
-When reserve depletion has a cost and failure risk has a prescribed limit, use stopped utility net of the clipped interior loss as the reward objective, then constrain the desired failure cost in CPO. Keep the interior loss fixed while tuning the solver. If the full priced barrier return is supplied as reward under the same cap, the fixed failure charge is still part of the objective. This can favor a safer policy with lower utility even when both candidates satisfy the limit.
+When reserve depletion has a cost and failure risk has a prescribed limit, use stopped utility net of the clipped interior loss as the reward objective, then constrain the desired failure cost in CPO. Define the same interior loss for all candidates before comparing constraints or solvers. If the full priced barrier return is supplied as reward under the same cap, the fixed failure charge is still part of the objective. This can favor a safer policy with lower utility even when both candidates satisfy the limit.
 
 The [paired wear-allowance pilot](wear-benchmark.md) runs both CPO variants, fixed prices with and without a log barrier, and a separate overshoot-CVaR constraint. The full design and seed-level results are kept with the code.
+
+For a small, explicitly specified model, backward induction can compute an optimal policy for a fixed failure charge or a pathwise budget. [Dynamic programming guide](dynamic-programming.md)

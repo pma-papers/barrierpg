@@ -1,165 +1,141 @@
-# barrierpg: reinforcement learning when a resource can run out
+# Reinforcement learning under resource budgets
 
-**Keep the learner you use. Add the budget. Know how often the trained policy runs out, and show it.**
+`barrierpg` supports several formulations for resource-budget problems. A retailer may face a known cost of insolvency, a lander may have a maximum tolerated probability of losing the vehicle, and a robot may be subject to a limit on mean energy use. These specifications lead to different training objectives, constraints and validation measurements.
 
-![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-3776ab)
-![License: MIT](https://img.shields.io/badge/license-MIT-2e9e5b)
-![Core: numpy + scipy](https://img.shields.io/badge/core-numpy%20%2B%20scipy-8a8a8a)
+| Method or formulation | Support in the toolbox |
+|---|---|
+| Exact dynamic programming | Bellman backward induction for a known finite model with stochastic consumption and an integer budget. Solve a priced or pathwise feasible policy and compute its model-based failure probability. |
+| Fixed failure price and reserve penalties | A Gymnasium reward wrapper for compatible learners such as proximal policy optimization (PPO). Use a failure-only price, a fixed lump penalty, or an optional penalty for small reserves. |
+| Expected-cost constraint | A single-cost constrained policy optimization (CPO) actor update on the original utility and a separate cost signal. An optional OmniSafe adapter supports full CPO training. |
+| Chance constraint at a specified horizon | Exact one-sided binomial validation of first crossing. An adaptive failure multiplier or a CPO update with the corresponding event cost can be used in training. Finite-scenario selection is also available. |
+| Conditional value-at-risk (CVaR) constraint | Upper-tail risk and policy selection on finite scenarios, plus a barrier-free trust-region actor update using a Gaussian CVaR surrogate. |
+| Pathwise feasibility | Backward induction in a finite transition model, or selection from candidate policies that meet the cost limit in every positive-probability scenario. |
 
-Many control and decision problems have a resource that can run out: the fuel of a lander, the charge of a robot's
-battery, the cash of a firm, an allowance of damage or emissions. Running out is a failure, and the question after
-training is always the same: how often does the policy we deploy run out, and can we show it?
+The formulation specifies the objective, the quantity constrained and the horizon. The learning algorithm produces a candidate policy. Validation then evaluates that policy against the deployment requirement. CPO and CVaR can both be used with unmodified utility. Action penalties, parameter penalties and an interior barrier are optional objective terms. [Formulation tutorial](docs/formulation-comparison.md)
 
-`barrierpg` answers it for any policy-gradient learner. A wrapper turns the budget into part of the problem: the policy
-observes what is left, the episode ends when it runs out, and a price is charged at that moment. You train PPO, SAC
-or any other learner on the wrapped environment unchanged. The toolbox then validates the policy you deploy with an
-exact statistical test and writes a report that says what the evidence shows and what it does not.
+The budget wrapper and risk certificates follow *The Price of Failure Risk: Clipped Barrier Policy Gradients with Convex Regularization* (Malo, Viitasaari, Suominen, Vilkkumaa and Tahvonen). For a first-crossing requirement, the policy observes the remaining reserve. Failure occurs at the first action after which any reserve is negative. A reserve of exactly zero is permitted.
 
-![What the toolbox is about](docs/images/overview.png)
+## First-crossing risk and the priced objective
 
-## Four problems, four notebooks
+A finite-horizon chance constraint takes the form $p_T(\pi) = \Pr_\pi(\tau \le T) \le \alpha$. Here $\tau$ is the first failure index, $T$ is the last action index covered by the requirement, and $\alpha$ is the tolerated failure probability. The confidence level for validation is $1-\zeta$. For example, a policy can be required to keep its annual insolvency probability at or below 2%, with 95% confidence from simulated years.
 
-Each notebook starts from a problem as a practitioner meets it and builds it in the open: the resource and the
-budget, the requirement, the price, the wrapper and a check of it, the training code (run live on a short budget),
-the regularizers, the validation and the report. Short notes say what the theory behind the method implies at each
-step. The comparisons use the shipped policies of each problem's full campaign, so every notebook runs in minutes.
+One way to train a candidate is to use a fixed failure price. In the continuing formulation, the clipped value equals stopped utility less the interior loss and a charge of $m/(1-\beta)$ per unit of geometric failure risk. Stopped utility is the discounted utility earned before failure. Geometric risk weights a failure at action $t$ by $\beta^t$, where $\beta$ is the utility discount. An optional interior barrier deducts utility as the reserve approaches zero. With a physical horizon, the per-period charge ends at the last action of the task. A known one-off loss can be charged at failure through a fixed lump penalty.
 
-| Notebook | Problem | What it shows |
-|---|---|---|
-| [1. Lander with a fuel tank](notebooks/01_lander_fuel_tank.ipynb) | Gymnasium's LunarLander with a tank smaller than its controller needs | adding a budget to a task you already train; continuing from a controller in use, and what to anchor to |
-| [2. Retailer with a cash balance](notebooks/02_retailer_cash.ipynb) | a three-line retailer that pays suppliers from cash; insolvency is the failure | writing your own simulator; a resource that is also replenished; a failure with a known cost; a rule in use as the prior and as a benchmark |
-| [3. Robot on a battery](notebooks/03_robot_battery.ipynb) | MuJoCo's HalfCheetah with a battery whose efficiency varies by mission | what the policy must observe (a clock), the price, and a reserve against a battery that holds less than expected |
-| [4. Navigation with a damage allowance](notebooks/04_navigation_allowance.ipynb) | Safety-Gymnasium's PointGoal1 with its cost limit read as an allowance | which requirement a task means; a price that charges more than an episode earns |
+The attained risk depends on the policy class and the policy returned by training. A price therefore provides a training incentive, and independent validation establishes whether a fixed candidate meets the deployment tolerance. When several candidates or horizons are assessed on the same validation data, the statistical error is allocated across those assessments.
 
-Notebook 1 uses the earlier fuel-tank task and its archived campaign. The current manuscript uses
-`barrierpg.problems.landing`, which pays revenue for a landing and treats loss of the lander as a second failure.
-The example below shows how to run the current task.
-
-The [practitioner guide](docs/practitioner-guide.md) goes through the same decisions step by step, with what the
-theory behind the method implies for each.
-The [formulation tutorial](docs/formulation-comparison.md) compares fixed-price objectives, expected-cost constraints, chance constraints and CVaR constraints,
-then varies reserve penalties and convex action and parameter regularizers on runnable examples.
-The [native actor updates](barrierpg/on_policy.py) and [dispatch example](examples/train_risk_constrained.py)
-show where to supply action and parameter penalties in CPO and in trust-region training under a Gaussian CVaR constraint. The [wear benchmark](docs/wear-benchmark.md) compares the methods on the same simulator.
-The [residual network guide](docs/residual-networks.md) shows how to use attention-free MLPs with skip connections
-and LayerNorm for vector observations.
-
-## Install
+## Installation
 
 ```bash
-git clone <this repository> bpg-toolbox && cd bpg-toolbox
-python -m venv ~/.venvs/bpg-toolbox && source ~/.venvs/bpg-toolbox/bin/activate
-pip install -e ".[all]"      # core + Gymnasium (Box2D, MuJoCo), Stable-Baselines3, PyTorch, Jupyter, pytest
-python -m pytest -q
+git clone https://github.com/pma-papers/barrierpg.git
+cd barrierpg
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e ".[rl]"
 ```
 
-The core needs only numpy and scipy (`pip install -e .`). The navigation problem needs Safety-Gymnasium, which pins
-older versions of Gymnasium and MuJoCo; use a separate environment for it (see the notebook).
+Python 3.10 or later is required. Install `-e .` for the NumPy and SciPy core, `-e ".[rl,problems]"` for PPO and the Box2D or MuJoCo examples, or `-e ".[all]"` to include the Jupyter and test dependencies. Training on the navigation task uses a separate Safety-Gymnasium environment. [Development and installation notes](docs/development.md)
 
-## Sixty seconds: validate a policy and read the verdict
+## Solve a known finite model
+
+When the transition probabilities and consumption outcomes are known, use `solve_budget_dp` to compute an optimal decision at each state, time and reserve. The solver supports a fixed failure price, a lump charge and pathwise feasibility, with optional interior loss. It reports the selected policy's stopped utility and failure probability under the supplied model.
+
+```bash
+python examples/solve_finite_budget.py
+```
+
+The example compares two policies under stochastic wear. [Dynamic programming guide](docs/dynamic-programming.md)
+
+## Train with CPO or CVaR
+
+Supply the original utility to the actor update and define the constrained cost separately. The dispatch example uses the same actions and outcomes for a CPO mean-cost constraint and a Gaussian CVaR constraint. It evaluates the final policy's mean cost and exact tail cost under the model.
+
+```bash
+python examples/train_risk_constrained.py
+```
+
+The example requires the RL extra. [CPO and CVaR without an interior barrier](docs/formulation-comparison.md#cpo-and-cvar-training-without-an-interior-barrier)
+
+## Validate a fixed policy
+
+The retailer starts each 52-week episode with 2,500 units of cash. We evaluate its base-stock ordering rule on 2,000 simulated years. An episode fails when its cash balance first becomes negative. The stage charges 5,000 units once at insolvency. The policy is fixed before these episodes, and the test covers the full year.
 
 ```python
 from barrierpg import Requirement, Stage, evaluate, interpret
-from barrierpg.problems.inventory import Retailer, make_inventory_env, BaseStockRule
+from barrierpg.problems.inventory import BaseStockRule, Retailer, make_inventory_env
 
-retailer = Retailer()                                   # three product lines, 52 weeks, starting cash 2,500
-spec = retailer.spec()                                  # the budget is the cash; failure is the first week with negative cash
-req = Requirement(T=51, alpha=0.02, zeta=0.05)          # insolvency within the year: at most 2%, at 95% confidence
-stage = Stage(m=0.0, penalty="multiplier", multiplier=5000.0, clip_utility=False)   # insolvency costs 5,000
+retailer = Retailer()
+spec = retailer.spec()
+requirement = Requirement(T=51, alpha=0.02, zeta=0.05)
+stage = Stage(m=0.0, penalty="multiplier", multiplier=5_000.0)
+rule = BaseStockRule(retailer, cover=2.0, reserve=300.0)
 
-rule = BaseStockRule(retailer, cover=2.0, reserve=300.0)   # any callable obs -> action: a rule or a trained network
-ev = evaluate(lambda: make_inventory_env(stage, retailer), rule.deterministic, 2000, spec=spec, stage=stage, T=51)
-print(interpret(spec, req, stage, ev, candidate_name="the base-stock rule").summary(resource="cash", period="weeks"))
+episodes = evaluate(
+    lambda: make_inventory_env(stage, retailer),
+    rule.deterministic,
+    2_000,
+    spec=spec,
+    stage=stage,
+    T=requirement.T,
+    seed=0,
+)
+report = interpret(spec, requirement, stage, episodes, candidate_name="the base-stock rule")
+print(report.summary(resource="cash", period="weeks"))
 ```
 
-```text
-The base-stock rule was run on 2000 fresh episodes. It ran out of cash within 52 weeks in 6 of them (0.30%).
-With confidence 0.95, its probability of running out within 52 weeks is at most 0.652%.
-Requirement (at most 2.00%): met.
-Utility per episode: 6620 (standard error 73).
-Episodes that came within 5% of running out, or ran out: 0.4%.
+In this run the rule failed in 6 of 2,000 episodes. The observed frequency was 0.30%, and the exact one-sided 95% upper confidence bound was 0.652%. The rule met the 2% tolerance in the specified simulator. The same procedure applies to a trained policy, including its action sampling and any observation normalization used in deployment. `report.text()` gives the assumptions behind the available bounds.
 
-What this test does not show:
-  - that the policy is the best possible at this risk: how far training fell short of the optimum is not measured;
-  - its risk over more than 52 weeks, or that of other policies (its mean action, a retrained network);
-  - its behavior outside the simulator.
-Every bound with its assumptions: report.text().
-```
+## Train on a budget-constrained task
 
-## Your own problem
+To use an existing Gymnasium task, provide a function that returns one nonnegative consumption per resource after each action. In `BudgetSpec`, specify the budgets, utility discount, and physical horizon where applicable. `BudgetWrapper` adds reserve information to the observation and accounts for the failure charge at termination. For a task with a fixed horizon, include time in the observation when the remaining time affects decisions.
 
-[`examples/your_problem.py`](examples/your_problem.py) shows how to define step costs and wrap a Gymnasium task.
-For the manuscript's landing task, use the packaged simulator and choose a charge in units of landing revenue.
+The following example trains on the paper's landing problem. The two failure events are fuel exhaustion and loss of the lander. `landing.stage(1.0)` sets the failure charge at the reference action to one landing revenue. The training aid is disabled during evaluation. The short run illustrates training and subsequent evaluation. Its output includes the validation decision for the fitted candidate.
 
 ```python
 from stable_baselines3 import PPO
+
 from barrierpg import Requirement, evaluate, interpret, sb3_policy
 from barrierpg.problems.landing import Landing, make_landing_env
 
 landing = Landing()
 spec = landing.spec()
-req = Requirement(T=spec.horizon - 1, alpha=0.05, zeta=0.05)
+requirement = Requirement(T=spec.horizon - 1, alpha=0.05, zeta=0.05)
 stage = landing.stage(1.0)
 env = make_landing_env(stage, landing)
-model = PPO("MlpPolicy", env, gamma=spec.beta, seed=0)
-model.learn(32_768)  # A short training run to demonstrate the workflow.
-ev = evaluate(lambda: make_landing_env(stage, landing, aid=False), sb3_policy(model), 500,
-              spec=spec, stage=stage, T=req.T, seed=100_000)
-print(interpret(spec, req, stage, ev).text())
-env.close()
+try:
+    model = PPO("MlpPolicy", env, gamma=spec.beta, seed=0)
+    model.learn(32_768)
+finally:
+    env.close()
+
+episodes = evaluate(
+    lambda: make_landing_env(stage, landing, aid=False),
+    sb3_policy(model),
+    500,
+    spec=spec,
+    stage=stage,
+    T=requirement.T,
+    seed=100_000,
+)
+print(interpret(spec, requirement, stage, episodes).text())
 ```
 
-The failure event covers fuel exhaustion and loss of the lander. Use the direct validation verdict to assess
-the trained candidate. The training budget above is intended to demonstrate the workflow.
+The practitioner guide covers price selection, reserve penalties, action and parameter regularization, and validation design. The template defines a cost function and wraps an existing simulator. [Practitioner guide](docs/practitioner-guide.md) · [Custom task template](examples/your_problem.py)
 
-Regularizers that use a policy you trust (a parameter anchor, an action anchor, a prior fitted to a rule in use) are
-optional; the template and notebooks 1 and 2 show them in code. The wrapper appends the remaining budget to the
-observation, ends the episode when the budget is exhausted, and charges the price there. Options cover a reserve before exhaustion (`Stage(theta=...)`), a lump sum charged once at failure
-(`Stage(penalty="multiplier", multiplier=F)`), an adaptive multiplier toward a tolerance (the `DualAscent`
-callback), a budget that is smaller than the policy believes (`true_budget_scale=0.9`), and a resource that is also
-replenished, such as cash (`RunningMaxCost`). The modules in [`barrierpg/problems/`](barrierpg/problems) show the
-mapping from a task to a budget for each of the four problems and serve as templates.
+## Tutorials and examples
 
-## When to use another method
+| Applied notebook | What it examines |
+|---|---|
+| [Lander with a fuel tank](notebooks/01_lander_fuel_tank.ipynb) | Fine-tuning an existing controller under a fuel budget and comparing action and parameter references. This notebook uses the earlier fuel-tank task and its archived runs. |
+| [Retailer with a cash balance](notebooks/02_retailer_cash.ipynb) | Modeling replenished cash, charging an insolvency loss once, and comparing learned policies with an incumbent ordering rule. |
+| [Robot with a battery](notebooks/03_robot_battery.ipynb) | Including remaining time in the observation and assessing reserve under a 10% reduction in available energy. |
+| [Navigation with a damage allowance](notebooks/04_navigation_allowance.ipynb) | Distinguishing a mean damage limit from a probability of exceeding the allowance and validating the latter at a fixed horizon. |
 
-The method is a reasonable first choice when failures can be allowed in simulation and deployment tolerates a small
-probability of failure or carries a known cost of failure. It is not claimed to outperform methods built for
-particular constraint structures. Another method is the better choice when
+The notebooks pair short runnable examples with results from longer training runs. The run configuration, training traces, trained policies and episode-level measurements are available in the repository. [Training runs and reproduction commands](campaigns/README.md)
 
-1. **no failure is permissible** and a set of states from which failure can always be avoided is known (a safety
-   layer, or a method with an infinite penalty);
-2. **a prescribed tolerance must be met closely** and you can tune a multiplier's step (a Lagrangian method);
-3. **violations during training matter** (constrained policy optimization);
-4. **the loss grows with the size of the excess** (a constraint on the tail of the cumulative consumption);
-5. **the model is known and small** (solve it exactly; the toolbox's validation applies to that policy too).
+- For the choice among a fixed failure price, an expected-cost limit, a chance constraint, a conditional value-at-risk (CVaR) limit, and pathwise feasibility, see the [formulation tutorial](docs/formulation-comparison.md). Its [dispatch example](examples/train_risk_constrained.py) runs barrier-free CPO and Gaussian CVaR updates on the same utility and separate cost outcomes.
+- For empirical comparisons on the wear-allowance task, see the [paired benchmark](docs/wear-benchmark.md) and the [guide to residual policies](docs/residual-networks.md).
+- For the clipped-value identity, the wear benchmark, the roles of regularization, and validation at geometric and fixed horizons, see the [technical notebooks](notebooks/under-the-hood/), the [theory guide](docs/under-the-hood/decisions-and-theory.md) and the [map from results to functions](docs/under-the-hood/results-map.md). The paper's experiments can be reproduced through the [replication repository](https://github.com/pma-papers/bpg-replication).
 
-`plan(spec, req, ...)` states these cases for your problem before anything is trained.
+## Citation and license
 
-## Under the hood
-
-The method comes from the paper *The Price of Failure Risk: Clipped Barrier Policy Gradients with Convex
-Regularization* (Malo, Viitasaari, Suominen, Vilkkumaa, Tahvonen). For readers who want to see the guarantees at
-work, the [under-the-hood track](notebooks/under-the-hood/) runs the paper's test problems: price and training against the grid-based wear benchmark, the roles
-of the regularizers on a solvable learning problem, and the validation in detail. The
-[decisions and the theory behind them](docs/under-the-hood/decisions-and-theory.md) and the
-[results map](docs/under-the-hood/results-map.md) connect each function to the result it implements; results are
-cited by the paper's titles, never by numbers. The paper's own studies are reproduced in the separate
-[replication repository](https://github.com/pma-papers/bpg-replication).
-
-## Campaigns
-
-[`campaigns/`](campaigns) holds the definitions, scripts and records of the four problems' training campaigns: one
-command trains a configuration (`python campaigns/run.py retailer lump-5000 --seed 1`), and every record keeps the
-training traces and the per-episode evaluation from which the notebooks rebuild their results.
-
-## Citing
-
-If you use the toolbox, please cite the paper and the software; [`CITATION.cff`](CITATION.cff) has the details. The
-software is archived on Zenodo: [10.5281/zenodo.23597362](https://doi.org/10.5281/zenodo.23597362) for all versions,
-[10.5281/zenodo.24166681](https://doi.org/10.5281/zenodo.24166681) for version 0.8.0,
-[10.5281/zenodo.23986884](https://doi.org/10.5281/zenodo.23986884) for version 0.7.1 and
-[10.5281/zenodo.23597363](https://doi.org/10.5281/zenodo.23597363) for version 0.7.0.
-
-## License
-
-MIT; see [`LICENSE`](LICENSE).
+The toolbox is distributed under the [MIT license](LICENSE). Citation metadata and archive information are in [`CITATION.cff`](CITATION.cff) and the [Zenodo archive](https://doi.org/10.5281/zenodo.23597362).

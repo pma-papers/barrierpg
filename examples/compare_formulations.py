@@ -1,4 +1,14 @@
-"""Run with python examples/compare_formulations.py after installing barrierpg."""
+"""Compare several resource-budget formulations on explicit finite examples.
+
+The first comparison uses the same candidate utilities and consumption
+scenarios for a linear price, a mean-cost cap, a chance constraint, CVaR
+and pathwise feasibility. The later examples compare reserve penalties
+and regularized objective gradients under a common cost constraint.
+The finite-scenario comparisons use the supplied outcomes and weights.
+
+Run from the repository root after installing the core package:
+    python examples/compare_formulations.py
+"""
 import numpy as np
 from scipy.optimize import approx_fprime
 
