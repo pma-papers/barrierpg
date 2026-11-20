@@ -47,7 +47,10 @@ class Report:
         return self.validation is not None and self.validation.passed
 
     def best_bound(self) -> Optional[Bound]:
-        cands = [b for b in self.bounds if b.name.startswith(f"p_{self.requirement.T}")]
+        if self.requirement.kind == "eventual":
+            return None
+        event = "q_beta" if self.requirement.kind == "geometric" else f"p_{self.requirement.T}"
+        cands = [b for b in self.bounds if b.name.startswith(f"{event} upper bound")]
         return min(cands, key=lambda b: b.value) if cands else None
 
     def summary(self, resource: str = "the budget", period: str = "steps") -> str:
@@ -61,7 +64,8 @@ class Report:
             lines = [f"{who} was run on {e.n} fresh episodes, each ending at a random time (the geometric clock). "
                      f"It ran out of {resource} in {e.failures} of them ({e.failures / e.n:.2%})."]
         else:
-            lines = [f"{who} was run on {e.n} fresh episodes. It ran out of {resource} within {steps} in {e.failures} of them "
+            observed = "during the episode" if e.T is None else f"within {e.T + 1} {period}"
+            lines = [f"{who} was run on {e.n} fresh episodes. It ran out of {resource} {observed} in {e.failures} of them "
                      f"({e.failures / e.n:.2%})."]
         if v is not None:
             share = f" (the error {r.zeta:g} is shared among {r.family} candidates)" if r.family > 1 else ""
@@ -112,9 +116,10 @@ class Report:
         else:
             who = (f"Candidate under the flat failure penalty nu = {s.multiplier:g} "
                    f"(price-equivalent m = (1-beta) nu = {price_from_multiplier(s.multiplier, self.spec.beta):.4g})")
+        event = {"finite": f"p_{r.T}", "geometric": "q_beta", "eventual": "P(ever failing)"}[r.kind]
         head = (who
                 + (f", barrier theta = {s.theta:g}" if s.theta else "")
-                + f"; requirement p_{r.T} <= {r.alpha:g} at error {r.zeta:g}" + (f"/{r.family}" if r.family > 1 else "") + ".")
+                + f"; requirement {event} <= {r.alpha:g} at error {r.zeta:g}" + (f"/{r.family}" if r.family > 1 else "") + ".")
         lines = [head, "", "Measured on fresh episodes:", "  " + e.summary().replace("\n", "\n  "), ""]
         lines.append("Verdict: " + ("CERTIFIED by direct validation at the specified horizon." if self.certified else
                                     "NOT certified at the specified horizon (failure to certify does not prove violation)."))
@@ -136,16 +141,18 @@ def interpret(spec: BudgetSpec, requirement: Requirement, stage: Stage, evaluati
               lower_barrier: Optional[float] = None, multiplier: Optional[MultiplierDiagnosis] = None,
               trends: Optional[dict] = None, seeds: Optional[dict] = None, exact_frontier_gap: Optional[float] = None,
               candidate_name: str = "the final stochastic policy", effects: Optional[RegularizerEffects] = None,
-              training: Optional[TrainingConvergence] = None) -> Report:
+              training: Optional[TrainingConvergence] = None, value_lower: Optional[float] = None) -> Report:
     """Compose the report for one candidate.
 
-    delta          optimization error (measured against an exact frontier, or a conservative allowance);
+    delta          justified upper bound on the optimization gap in the candidate's own objective;
                    None means unknown and the optimality statements are stated conditionally.
     sup_U          upper bound on the stopped utility over the class (price-risk bound).
     comparator     dict(U0=, I0=, q0=) of a comparison policy (standing still by default) for the price-risk bound;
                    optionally also C_B= and R= for part (iv) of the fixed-price proposition (learned laws).
     action_entropy, reference_risk   A of the candidate and the risk of the action reference (the action-risk proposition).
     lower_barrier  underline B(eps) at a chosen reserve threshold (certificate for a small reserve).
+    value_lower    valid lower bound on the continuing clipped value, with any confidence allocation
+                   accounted for by the caller.
     multiplier     diagnosis of a dual-ascent trace (adaptive configurations).
     trends         BudgetMonitor.diagnostics() of the training run.
     training       BudgetMonitor.convergence() of the training run: whether it had stopped changing (stated in the summary).
@@ -157,9 +164,18 @@ def interpret(spec: BudgetSpec, requirement: Requirement, stage: Stage, evaluati
     beta, ubar, T = spec.beta, spec.ubar, requirement.T
     m = stage.m if stage.penalty == "price" else price_from_multiplier(stage.multiplier, beta)   # price-equivalent of a flat penalty
     bounds, reading, evidence, missing = [], [], [], []
+    failure_only = stage.failure_only if evaluation.failure_only is None else evaluation.failure_only
+    physical_price = stage.penalty == "price" and m > 0 and (failure_only or stage.clip_utility)
+    physical_lump = stage.penalty == "multiplier" and failure_only and stage.multiplier > 0
+    physical_value = (requirement.kind == "finite" and spec.horizon is not None and T < spec.horizon
+                      and not evaluation.geometric_stop and (physical_price or physical_lump))
+    direct_finite = requirement.kind == "finite" and evaluation.event == "p_T" and evaluation.T == T
+    test_family = requirement.family * (2 if direct_finite and physical_value else 1)
     # --- validation at the specified horizon --------------------------------------------
     val = None
-    if evaluation.event == "q_beta":
+    if requirement.kind == "eventual":
+        missing.append("eventual failure needs a separate bound on failures beyond the evaluated horizon")
+    elif evaluation.event == "q_beta":
         # geometric clock: the validated event is q_beta; for a finite requirement use beta^T p_T <= q_beta
         target = requirement.alpha if requirement.kind == "geometric" else requirement.alpha * beta ** T
         val = evaluation.validate(target, requirement.zeta, requirement.family)
@@ -173,12 +189,14 @@ def interpret(spec: BudgetSpec, requirement: Requirement, stage: Stage, evaluati
                             + f" (p_{T} <= {b.value:.4g}); p_T itself is censored by the clock, so evaluate without geometric stopping to test it directly")
         else:
             evidence.append(("passes" if val.passed else "does not pass") + f" the geometric tolerance {requirement.alpha:g}")
-    elif evaluation.T == T:
-        val = evaluation.validate(requirement.alpha, requirement.zeta, requirement.family)
+    elif direct_finite:
+        val = evaluation.validate(requirement.alpha, requirement.zeta, test_family)
         bounds.append(val.bound(T))
         evidence.append(f"direct validation: {val.failures} failures in {val.n} episodes through action {T}; exact binomial upper endpoint "
                         f"{val.upper:.4g} at error {val.err:.3g} (smallest certifiable tolerance {val.zero_failure_bound:.3g}); " + ("passes" if val.passed else "does not pass")
                         + f" the tolerance {requirement.alpha:g}")
+    elif requirement.kind == "geometric":
+        missing.append("the finite-horizon evaluation did not use the geometric clock required for direct geometric-risk validation")
     else:
         missing.append(f"the evaluation counted failures at T = {evaluation.T}, not at the requirement's T = {T}: re-evaluate at T to validate")
     # --- the fixed-price reading ---------------------------------------------------------
@@ -188,7 +206,7 @@ def interpret(spec: BudgetSpec, requirement: Requirement, stage: Stage, evaluati
                        "direct validation assesses the executed candidate independently of optimization.")
         if stage.penalty == "multiplier" and multiplier is not None:
             evidence.append(f"multiplier diagnosis: {multiplier.status}; {multiplier.explanation}")
-    elif stage.penalty == "price" and m > 0:
+    elif stage.penalty == "price" and m > 0 and spec.horizon is None:
         d = "exactly" if delta == 0 else (f"up to the optimization error delta = {delta:.3g}" if delta is not None else "up to its (unmeasured) optimization error")
         reading.append(f"Fixed-price reading ({cite('fixed_price', 'i')}): among the policies of its class with no greater geometric risk, "
                        f"{candidate_name} maximizes U - I_m {d}; it is optimal at the risk it attains, q_beta = {evaluation.q_beta:.4g}. "
@@ -199,45 +217,41 @@ def interpret(spec: BudgetSpec, requirement: Requirement, stage: Stage, evaluati
                           f"Its risk is above the geometric level alpha beta^T = {requirement.alpha * beta ** T:.4g}, so nothing of that level is left unused; "
                           "validation decides the finite-horizon requirement."))
     elif stage.penalty == "multiplier":
-        if spec.horizon is not None:
-            reading.append(f"Fixed-multiplier reading: the flat penalty nu = {stage.multiplier:g} is charged once at the failing action (a lump sanction "
-                           f"under the physical horizon H = {spec.horizon}); the objective is U - nu E[beta^tau], and the fixed-price results apply with "
-                           f"I_m = 0 [{cite('fixed_price')}]: among the policies of its class with no greater discounted failure probability it maximizes U"
-                           + (f" up to the optimization error delta = {delta:.3g}" if delta is not None else " up to its (unmeasured) optimization error") + ".")
-        else:
-            reading.append(f"Fixed-multiplier reading: a multiplier that has converged to nu returns the fixed-price optimum for m = (1-beta) nu = "
-                           f"{m:.4g} ({cite('fixed_price')} with I_m = 0): among the policies of its class with no greater geometric risk it maximizes U"
-                           + (f" up to the optimization error delta = {delta:.3g}" if delta is not None else " up to its (unmeasured) optimization error")
-                           + f"; it is optimal at the risk it attains, q_beta = {evaluation.q_beta:.4g}. The certificates below use the price-equivalent m.")
+        reading.append(f"The flat penalty nu = {stage.multiplier:g} is charged once at the failing action. "
+                       "A multiplier trace alone gives no bound on the optimization gap of the returned policy.")
         if multiplier is not None:
             evidence.append(f"multiplier diagnosis: {multiplier.status}; {multiplier.explanation}")
             if multiplier.status != "stable":
                 missing.append("the multiplier has not converged, so the candidate is not a fixed-price optimum at any identified price")
+    elif m > 0:
+        reading.append(f"The price at a physical horizon weights the discounted charge periods that remain after failure [{cite('physical_price')}].")
     else:
-        reading.append("No price (m = 0): no risk is priced; the candidate maximizes utility and has no risk bound from the formulation.")
-    if stage.theta > 0:
+        reading.append("At m = 0, the reward charges nothing at failure.")
+    if not failure_only:
         reading.append(f"Interior barrier: the candidate pays an interior loss I_m = {evaluation.I_m:.4g} for keeping a reserve before exhaustion; "
                        f"its reserve falls to 5% of the allowance or less with frequency {evaluation.near.get(0.05, float('nan')):.3g}.")
     # --- certificates from the measured value ------------------------------------------
-    if m > 0:
-        V_low = evaluation.V_m - 2.0 * evaluation.V_m_se
-        b = risk_from_value(V_low, m, ubar, beta, T)
-        b.note = (b.note or "") + " ; V_m taken as the point estimate minus two standard errors (descriptive, not a Hoeffding bound)"
-        bounds.append(b)
+    if m > 0 and spec.horizon is None and stage.penalty == "price" and requirement.kind != "eventual":
+        if value_lower is not None:
+            bounds.append(risk_from_value(value_lower, m, ubar, beta, T if requirement.kind == "finite" else None))
         if sup_U is not None and delta is not None:
             comp = dict(U0=0.0, I0=0.0, q0=0.0) if comparator is None else comparator
             bounds.append(price_risk_bound(m, beta, sup_U, comp.get("U0", 0.0), comp.get("I0", 0.0), comp.get("q0", 0.0), delta or 0.0, ubar))
-            bounds.append(finite_from_geometric(bounds[-1].value, beta, T))
+            if requirement.kind == "finite":
+                bounds.append(finite_from_geometric(bounds[-1].value, beta, T))
             if "C_B" in comp and "R" in comp:
-                bounds.append(comparison_law_risk(comp.get("q0", 0.0), comp["C_B"], comp["R"], delta or 0.0, m, ubar, beta, T=T))
-        if stage.penalty == "price" and spec.horizon is not None and not evaluation.geometric_stop and T < spec.horizon:
+                bounds.append(comparison_law_risk(comp.get("q0", 0.0), comp["C_B"], comp["R"], delta or 0.0, m, ubar, beta,
+                                                  T=T if requirement.kind == "finite" else None))
+        if value_lower is not None and lower_barrier is not None and not failure_only and stage.clip_utility:
+            bounds.append(small_reserve_bound(value_lower, m, ubar, beta, T, lower_barrier))
+    if physical_value:
+        err = requirement.zeta / test_family
+        if physical_price:
             bounds.append(physical_horizon_risk(evaluation.V_m, spec.horizon, m, ubar, beta, T, N=evaluation.n,
-                                                zeta=requirement.error_per_statement))
-        if stage.penalty == "multiplier" and spec.horizon is not None and stage.multiplier > 0 and not evaluation.geometric_stop:
+                                                zeta=err, u_minus=spec.u_minus if failure_only else 0.0))
+        else:
             bounds.append(lump_sanction_risk(evaluation.V_m, spec.horizon, stage.multiplier, ubar, beta, T, N=evaluation.n,
-                                             zeta=requirement.error_per_statement, u_minus=spec.u_minus))
-        if lower_barrier is not None and stage.theta > 0:
-            bounds.append(small_reserve_bound(V_low, m, ubar, beta, T, lower_barrier))
+                                             zeta=err, u_minus=spec.u_minus))
     if action_entropy is not None and reference_risk is not None:
         bounds.append(action_risk_bound(action_entropy, reference_risk, beta))
         evidence.append(f"action relative entropy A = {action_entropy:.4g} to the action reference (risk {reference_risk:.4g}): the departure bound "
@@ -252,10 +266,10 @@ def interpret(spec: BudgetSpec, requirement: Requirement, stage: Stage, evaluati
         for k, sdp in seeds.items():
             evidence.append(sdp.explain(k))
     if exact_frontier_gap is not None:
-        evidence.append(f"shortfall from the exact frontier at the attained risk: {exact_frontier_gap:.2%} (the measured optimization error)")
+        evidence.append(f"relative utility shortfall from the supplied frontier at the attained risk: {exact_frontier_gap:.2%}")
     elif delta is None:
         missing.append("the optimization error is not measured: price-comparison bounds are not evaluated with delta = 0; "
-                       "independent validation is the operative deployment evidence. Descriptive value bounds remain conditional on a valid value lower bound")
+                       "independent validation is the operative deployment evidence")
     # --- standing non-claims --------------------------------------------------------------
     missing += [
         f"probability of ever failing: a small q_beta or a certificate at T does not bound P(tau < inf) ({cite('delay_example')}); a hard almost-sure budget is the case alpha = 0 of that requirement",
@@ -267,8 +281,8 @@ def interpret(spec: BudgetSpec, requirement: Requirement, stage: Stage, evaluati
         "model error: every certificate and validation is conditional on the simulator",
     ]
     if stage.kappa > 0:
-        missing.append("the regularization bias is toward the prior policy; the certificates are evaluated on the learned policy, so a harmful bias shows as a "
-                       f"failed certificate, never as a passed one [{cite('bias')}]")
+        missing.append("a failed certificate can reflect statistical resolution, looseness of the bound or excess candidate risk "
+                       f"[{cite('bias')}]")
     if effects is not None:
         missing += ["regularizer flag: " + f for f in effects.flags]
     return Report(spec, requirement, stage, evaluation, val, bounds, effects, reading, evidence, missing, candidate_name, multiplier,

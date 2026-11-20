@@ -39,6 +39,8 @@ will be rewritten on it.
 
 The [practitioner guide](docs/practitioner-guide.md) goes through the same decisions step by step, with what the
 theory behind the method implies for each.
+The [formulation tutorial](docs/formulation-comparison.md) compares CPO, CVaR, chance and price formulations,
+then varies reserve penalties and convex action and parameter regularizers on runnable examples.
 
 ## Install
 
@@ -137,8 +139,7 @@ particular constraint structures. Another method is the better choice when
 
 The method comes from the paper *The Price of Failure Risk: Clipped Barrier Policy Gradients with Convex
 Regularization* (Malo, Viitasaari, Suominen, Vilkkumaa, Tahvonen). For readers who want to see the guarantees at
-work, the [under-the-hood track](notebooks/under-the-hood/) runs the paper's test problems, which have exact
-solutions: the price against an exact trade-off of utility and risk, training against an exact benchmark, the roles
+work, the [under-the-hood track](notebooks/under-the-hood/) runs the paper's test problems: price and training against the grid-based wear benchmark, the roles
 of the regularizers on a solvable learning problem, and the validation in detail. The
 [decisions and the theory behind them](docs/under-the-hood/decisions-and-theory.md) and the
 [results map](docs/under-the-hood/results-map.md) connect each function to the result it implements; results are

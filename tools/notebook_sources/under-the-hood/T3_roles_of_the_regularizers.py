@@ -326,6 +326,6 @@ print(f"joint: q_beta = {e.q_beta:.4f}, U = {e.U:.3f}, A = {A:.3f}\n"); print(jo
 #
 # * Specify the prior as a policy, through every parameter that shapes it, and evaluate it before training.
 # * Set the strengths for conditioning, not at the threshold.
-# * Validate the learned policy: a harmful bias shows up as a failed certificate or validation, never as a passed one.
+# * Validate the learned policy. An inconclusive certificate can reflect the bound, the sample size or excess candidate risk.
 #
 # Next: **notebook T4** goes through validation and the report in detail.

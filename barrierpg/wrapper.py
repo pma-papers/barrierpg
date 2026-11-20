@@ -7,6 +7,7 @@ Per step the wrapper computes the K costs g_k from a user function, updates the 
 z_{t+1,k} = (z_{t,k} - g_k) / gamma_k, and replaces the reward:
   before failure   r = max{-m, u - B(z_{t+1})}      (clip_utility=True, the paper's clipped reward)
                    r = u - B(z_{t+1})               (clip_utility=False, fixed-multiplier form)
+                   r = u                            (failure-only, including at zero reserve)
   at failure       r = -m / (1 - beta)              (absorbing implementation, horizon None)
                    r = -m (1 - beta^(H - t)) / (1 - beta)   (physical horizon H)
                    r = -nu                          (penalty='multiplier', nu set by dual ascent)
@@ -79,6 +80,8 @@ class BudgetWrapper(_Base):
     geometric_stop: end the episode after each period with probability 1 - beta (see above).
     true_budget_scale: judge failure against scale * b while observing the nominal reserve.
     observe_time: also observe t/H, the elapsed fraction of the horizon (needs spec.horizon).
+    barrier: optional nonnegative penalty of the true post-transition reserve.
+    An explicit barrier overrides the default log shape and the failure-only shortcut.
     """
 
     def __init__(self, env, cost: CostFn, spec: BudgetSpec, stage: Stage, *, utility: Optional[UtilityFn] = None,
@@ -96,6 +99,7 @@ class BudgetWrapper(_Base):
         self.horizon = spec.horizon
         self.penalty, self.multiplier = stage.penalty, float(stage.multiplier)
         self.clip_utility = bool(stage.clip_utility)
+        self.failure_only = stage.failure_only and barrier is None
         self.observe, self.geometric_stop = observe, bool(geometric_stop)
         self.true_scale = float(true_budget_scale)
         self.observe_time = bool(observe_time)
@@ -106,7 +110,7 @@ class BudgetWrapper(_Base):
         if gym is not None and observe != "none" and hasattr(env, "observation_space") \
                 and isinstance(env.observation_space, gym.spaces.Box):
             low = np.append(env.observation_space.low, np.zeros(self.K + int(self.observe_time))).astype(np.float32)
-            hi = np.ones(self.K) if observe == "fraction" else self.b
+            hi = np.ones(self.K) if observe == "fraction" else np.where(self.gam < 1, np.inf, self.b)
             high = np.append(env.observation_space.high, np.append(hi, np.ones(int(self.observe_time)))).astype(np.float32)
             self.observation_space = gym.spaces.Box(low, high, dtype=np.float32)
 
@@ -142,8 +146,8 @@ class BudgetWrapper(_Base):
         if hasattr(self.cost_fn, "reset"):
             self.cost_fn.reset()
         self.t = 0
-        self.cum = np.zeros(self.K)                       # sum_j gamma^j g_j
         self.reserve = self.b.copy()                      # nominal reserve z_t (observed)
+        self.true_reserve = self.true_scale * self.b
         self.min_true_fraction = 1.0
         self.U = self.I = self.clipped = 0.0
         self.tau = None
@@ -153,13 +157,12 @@ class BudgetWrapper(_Base):
     def step(self, action):
         o, r, terminated, truncated, info = self.env.step(action)
         g = np.asarray(self.cost_fn(self.last_obs, action, o, r, info), dtype=float).reshape(-1)
-        if g.shape != (self.K,) or np.any(g < 0):
-            raise ValueError(f"cost must return {self.K} nonnegative numbers")
+        if g.shape != (self.K,) or not np.all(np.isfinite(g)) or np.any(g < 0):
+            raise ValueError(f"cost must return {self.K} finite nonnegative numbers")
         u = float(r) if self.utility_fn is None else float(self.utility_fn(self.last_obs, action, o, r, info))
         t = self.t
-        self.cum = self.cum + self.gam ** t * g
         nominal_next = (self.reserve - g) / self.gam
-        true_next = self.gam ** (-(t + 1)) * (self.true_scale * self.b - self.cum)
+        true_next = (self.true_reserve - g) / self.gam
         failed = bool(np.any(true_next < 0.0))
         self.min_true_fraction = float(min(self.min_true_fraction, np.min(true_next / self.b)))
         w = 1.0 if self.geometric_stop else self.beta ** t
@@ -170,14 +173,17 @@ class BudgetWrapper(_Base):
             self.tau = t
             terminated = True
         else:
-            Bz = self.B(nominal_next if self.true_scale == 1.0 else true_next)
-            if self.stage.theta == 0.0 and (self.penalty == "multiplier" or not self.clip_utility):
-                interior = 0.0            # failure-only price, unclipped (fixed-multiplier) form: only the failure is priced
+            if self.failure_only:
+                interior = 0.0
             else:
-                interior = interior_term(Bz, u, self.m, self.clip_utility)
+                penalty = float(self.B(true_next))
+                if np.isnan(penalty) or penalty < 0:
+                    raise ValueError("barrier must return a nonnegative penalty")
+                interior = interior_term(penalty, u, self.m, self.clip_utility)
                 if not np.isfinite(interior):
-                    # a reserve of exactly zero (possible with whole-unit costs) under the unclipped form: the barrier is
-                    # infinite there, and the step is charged as the clipped reward charges it, down to -m
+                    if not (penalty == np.inf and np.any(true_next == 0) and np.isfinite(u)):
+                        raise ValueError("nonfinite interior loss; use clipping or a numerically finite barrier")
+                    # At exact depletion a singular barrier uses the failure-price floor.
                     interior = u + self.m
             reward = u - interior
             utility = u
@@ -185,6 +191,7 @@ class BudgetWrapper(_Base):
             self.I += w * interior
         self.clipped += w * reward
         self.reserve = nominal_next
+        self.true_reserve = true_next
         self.t = t + 1
         self.last_obs = o
         if not failed and self.horizon is not None and self.t >= self.horizon:

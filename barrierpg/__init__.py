@@ -14,8 +14,10 @@ The numpy/scipy core needs no learning library; the wrapper uses gymnasium when 
 callbacks need Stable-Baselines3. Every bound cites its result through barrierpg.paper.cite.
 """
 from . import certificates, convergence, frontier, paper, planning, regularizers, report, roles, validation
-from .barrier import LogBarrier
+from .alternatives import cpo_step, cpo_update, omnisafe_cpo, select_scenario_policy, upper_cvar
+from .barrier import InverseBarrier, LogBarrier, ReserveHinge
 from .bounds import Bound
+from .convex import categorical_action_divergence, parameter_law_divergence, parameter_potential, regularized_utility
 from .evaluate import Evaluation, evaluate, evaluation_from_episodes, sb3_policy, stopped_action_relative_entropy
 from .paper import PAPER, cite
 from .planning import Plan, plan, when_to_use_another_method
@@ -32,7 +34,9 @@ __all__ = ["Bound", "BudgetSpec", "Requirement", "Stage", "BudgetWrapper", "Runn
            "Report", "interpret", "RegularizerAdvice", "RegularizerEffects", "advise_regularizers", "regularizer_effects",
            "RegularizerMix", "PAPER", "cite", "discounted_total", "failure_charge", "multiplier_from_price", "price_from_multiplier",
            "price_from_multiplier_physical", "certificates", "convergence", "frontier", "paper", "planning", "regularizers", "report",
-           "roles", "validation"]
+           "roles", "validation", "InverseBarrier", "ReserveHinge", "cpo_step", "cpo_update", "omnisafe_cpo",
+           "select_scenario_policy", "upper_cvar", "categorical_action_divergence", "parameter_potential",
+           "parameter_law_divergence", "regularized_utility"]
 
 
 # names of version 0.7.1 and earlier, kept with a DeprecationWarning

@@ -7,7 +7,8 @@ the clipped return. From n fresh episodes the evaluation estimates
 
   p_T       frequency of tau <= T (the finite-horizon risk; T = None counts every failure),
   q_beta    mean of beta^tau 1{failed} (the geometric risk), or the plain failure frequency when
-            the wrapper ends episodes by geometric stopping,
+            the wrapper ends episodes by geometric stopping. At a physical horizon this still
+            measures discounted failure, while a continuing charge through H prices a different risk.
   U, I_m    stopped utility and interior loss,
   V_m       U - I_m - m E[weight of the price after failure] with the horizon convention of the spec (absorbing or physical
             horizon) or the fixed-multiplier form when the stage does not clip,
@@ -60,6 +61,7 @@ class Evaluation:
     clipped_returns: np.ndarray = field(repr=False)
     failed: np.ndarray = field(repr=False)
     min_reserve: np.ndarray = field(repr=False)
+    failure_only: Optional[bool] = None
 
     @property
     def q_se(self) -> float:
@@ -100,11 +102,11 @@ def evaluate(env_factory: Callable[[], object], policy: Callable, n: int, *, spe
     The clipped value uses the stage's price and the spec's horizon convention. If the policy is
     stochastic and samples with numpy's global state, set policy_seed for reproducibility.
     """
+    if n < 1:
+        raise ValueError("n must be positive")
     env = env_factory()
     if policy_seed is not None:
         np.random.seed(policy_seed)
-    beta, m = float(spec.beta), float(stage.m)
-    H = spec.horizon
     tau = np.full(n, -1); failed = np.zeros(n, dtype=bool); U = np.zeros(n); I = np.zeros(n)
     length = np.zeros(n); minres = np.ones(n); clipped = np.zeros(n); geo = False
     for i in range(n):
@@ -118,35 +120,45 @@ def evaluate(env_factory: Callable[[], object], policy: Callable, n: int, *, spe
         if rec is None:
             raise RuntimeError("episode did not end within max_steps; the environment must terminate or truncate")
         geo = bool(rec.get("geometric_stop", False))
+        if trunc and not term:
+            raise ValueError("evaluation encountered a truncated episode; use actual task termination or the specified clock")
         failed[i] = rec["failed"]; tau[i] = -1 if rec["tau"] is None else rec["tau"]
         U[i], I[i], length[i], minres[i], clipped[i] = rec["U"], rec["I"], rec["length"], rec["min_reserve_fraction"], rec["clipped_return"]
     return evaluation_from_episodes(failed, tau, U, I, spec=spec, stage=stage, T=T, geometric_stop=geo, length=length,
-                                    min_reserve=minres, clipped_returns=clipped, seed=seed, near_thresholds=near_thresholds)
+                                    min_reserve=minres, clipped_returns=clipped, seed=seed, near_thresholds=near_thresholds,
+                                    failure_only=getattr(env, "failure_only", None))
 
 
 def evaluation_from_episodes(failed, tau, U, I, *, spec: BudgetSpec, stage: Stage, T: Optional[int] = None,
                              geometric_stop: bool = False, length=None, min_reserve=None, clipped_returns=None,
-                             seed: Optional[int] = None, near_thresholds: Sequence[float] = (0.02, 0.05, 0.1, 0.2)) -> Evaluation:
+                             seed: Optional[int] = None, near_thresholds: Sequence[float] = (0.02, 0.05, 0.1, 0.2),
+                             failure_only: Optional[bool] = None) -> Evaluation:
     """Build an Evaluation from per-episode arrays produced by any evaluator (for example a vectorized simulator run on
     common random numbers): failure flags, failure indices tau (-1 for no failure), stopped utilities U and interior
     losses I (discounted by beta, or undiscounted under geometric stopping), and optionally episode lengths, minimum
-    true reserve fractions and clipped returns. The value, risks and validation follow the conventions of evaluate()."""
+    true reserve fractions and clipped returns. The records must cover the claimed horizon or clock, with no
+    administrative censoring. Pass failure_only=False for an active custom reserve penalty
+    even if stage.theta is zero. The value, risks and validation follow the conventions of evaluate()."""
     failed = np.asarray(failed, dtype=bool); n = failed.size
     tau = np.asarray(tau, dtype=int); U = np.asarray(U, dtype=float); I = np.asarray(I, dtype=float)
+    if n == 0 or any(a.shape != (n,) for a in (failed, tau, U, I)):
+        raise ValueError("failed, tau, U and I must be nonempty vectors of the same length")
+    if np.any(tau[failed] < 0) or np.any(tau[~failed] != -1):
+        raise ValueError("tau is the nonnegative index of a failure, or -1 when no failure occurred")
     length = np.full(n, np.nan) if length is None else np.asarray(length, dtype=float)
     minres = np.ones(n) if min_reserve is None else np.asarray(min_reserve, dtype=float)
     beta, m = float(spec.beta), float(stage.m)
     H = spec.horizon
     geo = bool(geometric_stop)
-    if geo:
-        weight = failed.astype(float)                       # the episode itself is the geometric clock
-        tail = m / (1.0 - beta) * weight
-    else:
-        weight = np.where(failed, beta ** np.where(failed, tau, 0), 0.0)
-        tail = np.array([failure_charge(m, beta, int(t), H) if f else 0.0 for f, t in zip(failed, tau)])
-    V = U - I - tail
+    if H is not None and np.any(tau[failed] >= H):
+        raise ValueError("failure indices must be before the physical horizon")
+    weight = failed.astype(float) if geo else np.where(failed, beta ** np.maximum(tau, 0), 0.0)
     if stage.penalty == "multiplier":
-        V = U - I - stage.multiplier * weight            # fixed-multiplier value U - nu q (I is the barrier part only)
+        V = U - I - stage.multiplier * weight
+    else:
+        charge = np.zeros(n)
+        charge[failed] = [failure_charge(m, beta, t, H) for t in tau[failed]]
+        V = U - I - charge * weight
     clipped = V.copy() if clipped_returns is None else np.asarray(clipped_returns, dtype=float)
     if geo:
         sel, event, pT = failed, "q_beta", float("nan")        # the clock censors p_T; the episode event is q_beta
@@ -158,7 +170,7 @@ def evaluation_from_episodes(failed, tau, U, I, *, spec: BudgetSpec, stage: Stag
     se = (lambda x: float(x.std(ddof=1) / np.sqrt(n)) if n > 1 else float("nan"))
     return Evaluation(n, seed, T, beta, m, k, int(failed.sum()), pT, float(weight.mean()), float(U.mean()), se(U), float(I.mean()),
                       float(V.mean()), se(V), float(np.nanmean(length)) if np.isfinite(length).any() else float("nan"), near, qs, geo, event,
-                      tau, U, I, V, clipped, failed, minres)
+                      tau, U, I, V, clipped, failed, minres, failure_only)
 
 
 def stopped_action_relative_entropy(env_factory: Callable[[], object], policy_with_kl: Callable, n: int, *, beta: float,
@@ -177,8 +189,12 @@ def stopped_action_relative_entropy(env_factory: Callable[[], object], policy_wi
             a, kl = policy_with_kl(obs)
             A[i] += kl if geo else beta ** t * kl
             obs, r, term, trunc, info = env.step(a)
-            if term or trunc:
+            if term:
                 break
+            if trunc:
+                raise ValueError("action-entropy evaluation encountered a truncated episode")
+        else:
+            raise RuntimeError("action-entropy evaluation exceeded max_steps before termination")
     return dict(A=float(A.mean()), A_se=float(A.std(ddof=1) / np.sqrt(n)) if n > 1 else float("nan"))
 
 

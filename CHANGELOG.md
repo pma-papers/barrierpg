@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased · revision 78 audit
+
+- Added an OmniSafe CPO adapter, a dense CPO reference update, and weighted CVaR and constrained policy selection for finite scenarios.
+- Added reciprocal and linear and quadratic hinge reserve penalties. The tutorial compares them with log and failure-only pricing at common nominal and reduced budgets.
+- Added categorical action divergences, fixed action costs in SB3, and configurable convex parameter potentials. The tutorial uses the same objective terms with CPO and CVaR and includes KL plus power divergences on a parameter-law grid.
+- Failure-only rewards retain utility before a strict budget violation, including at zero reserve.
+- Evaluation discounts a delayed failure charge and uses the remaining charge periods at a physical horizon. Exact validation rejects administrative censoring.
+- Reports distinguish finite, geometric and eventual requirements. At a physical horizon the value certificate uses the correct reward range. When both direct and value-based tests are reported, they share the assigned confidence budget. Continuing value certificates accept an explicit lower value bound.
+- A risk lower bound can rule out a tolerance. When it leaves feasibility open, `prescribed_level_attainable(...)["attainable"]` is `None`.
+- The wear examples use their discretized solutions as benchmarks. Their measured shortfalls are descriptive comparisons. The paper registry and selection guidance follow revision 78.
+
 ## 0.9.0 (2026-11-19): checked against revision 77; the landing problem of the paper's lander study
 
 - New `barrierpg.problems.landing`: the landing problem with which revision 77 replaces the fuel-tank study. It is built

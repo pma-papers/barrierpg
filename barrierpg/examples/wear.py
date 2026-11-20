@@ -9,7 +9,7 @@ before access. Standing still never fails and earns nothing; every positive rate
 WearCore is the raw simulator (reward = utility, info carries the wear); wrap it with
 BudgetWrapper(cost=wear_cost, ...) to obtain the paper's objectives. Policies: idle, full rate,
 the incumbent rule a = min{1, z/(3b)} with Gaussian dispersion in the pre-clipping variable,
-and the exact benchmark's reference numbers for comparison.
+and reference numbers from the discretized benchmark for comparison.
 """
 from __future__ import annotations
 

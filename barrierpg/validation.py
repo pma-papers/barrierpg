@@ -26,19 +26,23 @@ from ._deprecation import RenamedKeys, module_getattr, renamed_attribute
 def binomial_upper(k: int, n: int, err: float) -> float:
     """One-sided exact (Clopper-Pearson) upper endpoint at confidence 1 - err: the (1-err) quantile of
     Beta(k+1, n-k); 1 when k = n."""
-    if n <= 0:
-        raise ValueError("n >= 1")
-    if k >= n:
+    if n < 1 or int(n) != n or int(k) != k or not 0 <= k <= n:
+        raise ValueError("require integer counts with 0 <= k <= n and n >= 1")
+    if not 0.0 < err < 1.0:
+        raise ValueError("err must lie in (0, 1)")
+    if k == n:
         return 1.0
     if k == 0:
-        return 1.0 - err ** (1.0 / n)
+        return zero_failure_bound(n, err)
     from scipy.stats import beta as beta_dist
-    return float(beta_dist.ppf(1.0 - err, k + 1, n - k))
+    return float(beta_dist.isf(err, k + 1, n - k))
 
 
 def zero_failure_bound(n: int, err: float) -> float:
     """Smallest tolerance that n failure-free episodes can certify at error err: 1 - err^(1/n)."""
-    return 1.0 - err ** (1.0 / n)
+    if n < 1 or int(n) != n or not 0.0 < err < 1.0:
+        raise ValueError("require integer n >= 1 and err in (0, 1)")
+    return -math.expm1(math.log(err) / n)
 
 
 def episodes_for_tolerance(alpha: float, err: float, expected_failure_rate: float = 0.0) -> int:
@@ -47,7 +51,9 @@ def episodes_for_tolerance(alpha: float, err: float, expected_failure_rate: floa
     upper endpoint at k = round(p N) failures is at most alpha (searched numerically)."""
     if alpha <= 0:
         return 0 if alpha < 0 else int(1e18)
-    n0 = int(math.ceil(math.log(err) / math.log(1.0 - alpha)))
+    if alpha == 1.0:
+        return 1
+    n0 = int(math.ceil(math.log(err) / math.log1p(-alpha)))
     if expected_failure_rate <= 0:
         return n0
     if expected_failure_rate >= alpha:
@@ -63,6 +69,8 @@ def episodes_for_tolerance(alpha: float, err: float, expected_failure_rate: floa
 
 def allocate_error(zeta: float, family: int) -> float:
     """Per-statement error for `family` simultaneous statements at overall error zeta (union bound)."""
+    if family < 1 or int(family) != family or not 0.0 < zeta < 1.0:
+        raise ValueError("require integer family >= 1 and zeta in (0, 1)")
     return zeta / family
 
 
@@ -132,20 +140,26 @@ def value_resolution_check(beta: float, H: int, T: int, N: int, zeta: float, alp
 
 
 def physical_horizon_risk(V_mH: float, H: int, m: float, ubar: float, beta: float, T: int,
-                          N: Optional[int] = None, zeta: Optional[float] = None) -> Bound:
+                          N: Optional[int] = None, zeta: Optional[float] = None, *, u_minus: float = 0.0) -> Bound:
     """Task that ends after H actions, T < H:
     p_T <= min{1, (ubar S_H - V_m^(H)) / ((m+ubar) beta^T (1-beta^(H-T))/(1-beta))}  (physical horizon).
-    With N and zeta, V_mH is the mean complete return and the sampling error (m+ubar) S_H sqrt(log(1/zeta)/(2N))
-    is subtracted first (no truncation error)."""
+    With N and zeta, V_mH is the mean complete return. Use u_minus for a reward that pays
+    unclipped utility before failure, with -u_minus a valid utility lower bound. Its sampling
+    range is (max(m, u_minus) + ubar) S_H, while the failure charge uses m."""
+    if not 0 <= T < H or m + ubar <= 0 or u_minus < 0:
+        raise ValueError("require 0 <= T < H, m + ubar > 0 and u_minus >= 0")
+    if (N is None) != (zeta is None):
+        raise ValueError("N and zeta must be supplied together")
     S_H = discounted_sum_to(beta, H)
     V = V_mH
-    if N is not None and zeta is not None:
-        V = V_mH - (m + ubar) * S_H * math.sqrt(math.log(1.0 / zeta) / (2.0 * N))
+    if N is not None:
+        V = hoeffding_lower(V_mH, N, zeta, -max(m, u_minus) * S_H, ubar * S_H)
     den = (m + ubar) * beta ** T * (1.0 - beta ** (H - T)) / (1.0 - beta)
     return Bound(f"p_{T} upper bound (physical horizon H={H})", clip01((ubar * S_H - V) / den),
                  cite("validation") + ", physical-horizon value certificate",
-                 ["failure at t is charged the remaining discounted total -m(1-beta^(H-t))/(1-beta)", "ubar bounds the utility"],
-                 dict(V_mH=V_mH, V_used=V, H=H, m=m, ubar=ubar, beta=beta, T=T, N=N, zeta=zeta))
+                 ["failure at t is charged the remaining discounted total -m(1-beta^(H-t))/(1-beta)",
+                  "ubar bounds the utility; u_minus bounds the magnitude of any unclipped negative pre-failure utility"],
+                 dict(V_mH=V_mH, V_used=V, H=H, m=m, ubar=ubar, beta=beta, T=T, N=N, zeta=zeta, u_minus=u_minus))
 
 
 def hoeffding_lower(mean: float, N: int, zeta: float, low: float, high: float) -> float:

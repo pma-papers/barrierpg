@@ -68,20 +68,19 @@ def when_to_use_another_method(*, failure_permissible_at_deployment: Optional[bo
         Condition("a prescribed level is attainable with slack and the multiplier's step can be tuned",
                   _both(prescribed_level_attainable_with_slack, multiplier_step_tunable),
                   "an adaptive multiplier (a Lagrangian chance-constrained policy gradient)",
-                  "a fixed price leaves the attained risk to the optimizer, and a risk below the tolerance costs utility; a multiplier keeps increasing "
-                  "when the level cannot be attained or the dual step is poorly scaled, as for the tolerance zero in the wear-allowance study"),
-        Condition("violations during training matter", violations_during_training_matter,
+                  "a fixed price sets the utility-risk trade-off. The exact dual has no finite minimizer if the risk has a positive infeasibility gap"),
+        Condition("approximate expected-cost control during updates matters", violations_during_training_matter,
                   "constrained policy optimization",
-                  "the clipped barrier is trained where failures are permitted, in a simulator"),
+                  "CPO enforces a local expected-cost constraint approximately. If individual failures are impermissible, use a pathwise guarantee"),
         Condition("the loss grows with the amount by which the consumption exceeds the budget", loss_grows_with_excess_consumption,
                   "the CVaR constraint on the cumulative consumption",
                   "a failure price charges the event of exhaustion, not its size"),
         Condition("the model is known and small", model_known_and_small,
                   "an exact dynamic program (or a structured policy, when one is available); the toolbox's certificates and validation apply to it too",
-                  "use it whenever available; in the wear-allowance study the learned policies came within a few percent of its exact frontier"),
+                  "the wear-allowance study compares learned policies with grid-based benchmark policies"),
         Condition("the required price charges far more for a failure than an episode earns", price_exceeds_episode_earnings,
                   "reward normalization or a prescribed-level formulation",
-                  "in the lander study the optimization error grew with the price; increasing the price is not an optimization guarantee"),
+                  "in the lander study the own-charge shortfalls against the best tested values grew at higher charges"),
         Condition("the size of a possible allowance error is known", allowance_error_known,
                   "a correspondingly reduced allowance instead of the interior barrier",
                   "the interior barrier keeps a graded reserve for an error of unknown size; a known error is covered more cheaply by reducing the allowance"),
@@ -176,8 +175,8 @@ def plan(spec: BudgetSpec, requirement: Requirement, *, sup_U: Optional[float] =
 
     sup_U         an upper bound on the stopped utility over the class (for example the utility of the optimum without a price, or
                   ubar/(1-beta)); needed for the conservative price or penalty.
-    comparator    dict(U0=, I0=, q0=) of a comparison policy of the class (default standing still, with q0 = U0 = I0 = 0,
-                  valid when standing still never fails).
+    comparator    dict(U0=, I0=, q0=) of a comparison policy of the class. Use the risk priced
+                  by the objective for q0. The default describes a policy that stands still with zero utility and risk.
     delta         optimization error to allow for.
     stage         a stage to assess; if None, the conservative price is used with no barrier.
     expected_failure_rate  the failure rate the candidate is expected to have (below alpha), to size the validation sample.
@@ -197,17 +196,24 @@ def plan(spec: BudgetSpec, requirement: Requirement, *, sup_U: Optional[float] =
     notes, warnings = [], []
     beta, ubar, u_minus = spec.beta, spec.ubar, spec.u_minus
     comp = dict(U0=0.0, I0=0.0, q0=0.0) if comparator is None else comparator
-    alpha_geo = requirement.alpha * beta ** requirement.T if requirement.kind == "finite" else requirement.alpha
+    H = spec.horizon
+    T = requirement.T if H is None else min(requirement.T, H - 1)
+    alpha_priced = requirement.alpha * beta ** T if requirement.kind == "finite" else requirement.alpha
+    flat_charge = stage is not None and stage.penalty == "multiplier"
+    if H is not None and not flat_charge:
+        remaining_fraction = 1.0 - beta ** (H - T) if requirement.kind == "finite" else 1.0 - beta
+        alpha_priced *= remaining_fraction
     # --- price or penalty ----------------------------------------------------------------------
     price_bound = None
-    if sup_U is not None:
-        if stage is not None and stage.penalty == "multiplier":
-            price_bound = conservative_multiplier(alpha_geo, sup_U, comp["U0"], comp["q0"], delta)
+    if sup_U is not None and requirement.kind != "eventual":
+        if flat_charge:
+            price_bound = conservative_multiplier(alpha_priced, sup_U, comp["U0"], comp["q0"], delta)
         else:
-            price_bound = conservative_price(alpha_geo, beta, sup_U, comp["U0"], comp["I0"], comp["q0"], delta, u_minus)
+            price_bound = conservative_price(alpha_priced, beta, sup_U, comp["U0"], comp["I0"], comp["q0"], delta, u_minus)
         if requirement.kind == "finite":
-            notes.append(f"the price-risk bound bounds q_beta; the finite-horizon requirement p_T <= alpha was converted to q_beta <= alpha beta^T = {alpha_geo:.4g}, "
-                         "which can be very conservative at large T; validation at T is the sharper route")
+            risk = "q_beta,H" if H is not None and not flat_charge else "q_beta"
+            notes.append(f"the sufficient target on the priced risk is {risk} <= {alpha_priced:.4g}. "
+                         "The direct test uses failure by the deployment horizon.")
         if stage is None:
             stage = Stage(m=price_bound.value if math.isfinite(price_bound.value) else 0.0)
     if stage is None:
@@ -236,17 +242,16 @@ def plan(spec: BudgetSpec, requirement: Requirement, *, sup_U: Optional[float] =
         loss_grows_with_excess_consumption=loss_grows_with_excess_consumption, model_known_and_small=model_known_and_small,
         price_exceeds_episode_earnings=exceeds, allowance_error_known=allowance_error_known)
     if violations_during_training_matter:
-        warnings.append("violations during training matter: the clipped barrier is trained where failures are permitted, in a simulator; "
-                        "constrained policy optimization addresses violations during training")
+        warnings.append("CPO addresses approximate expected-cost limits during updates. Pathwise safety requires its own guarantee.")
     if requirement.kind == "eventual":
         warnings.append("an eventual requirement P(tau < inf) <= alpha is not certified by a small q_beta or by a finite-horizon test "
                         f"[{cite('delay_example')}]; it needs a bound on the future consumption ({cite('ever_failing')}) or almost-sure feasibility")
     if no_failure:
-        warnings.append("no failure is permissible: a positive price never prohibits failure, no multiplier converges when every policy of the "
-                        "class has positive risk, and a zero-failure validation certifies only the bound 1 - zeta^(1/N)"
+        warnings.append("no failure is permissible: an exact dual has no finite minimizer under a positive infeasibility gap, "
+                        "and a zero-failure validation gives the bound 1 - zeta^(1/N)"
                         + ("; with a known controlled-invariant set an almost-sure method is the better choice" if controlled_invariant_set_known else
                            "; an almost-sure method needs a known controlled-invariant set"))
-    if stage.penalty == "price" and stage.m < u_minus and stage.clip_utility:
+    if stage.penalty == "price" and not stage.failure_only and stage.m < u_minus and stage.clip_utility:
         warnings.append(f"m = {stage.m:g} is below u_minus = {u_minus:g}: clipping at -m erases utility values below -m (for example a crash penalty); "
                         "choose m >= u_minus or use the fixed-multiplier form (clip_utility=False)")
     if stage.theta > 0:

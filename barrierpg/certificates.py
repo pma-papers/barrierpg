@@ -75,14 +75,12 @@ def risk_lower_bound(p_T_reference: float, L0: float, T: int) -> Bound:
 
 @renamed_arguments(risk_floor_value="risk_lower_bound_value")
 def prescribed_level_attainable(alpha: float, risk_lower_bound_value: float) -> dict:
-    """A prescribed level below the lower bound on the risk of the class is unattainable, and the dual of the
-    prescribed-level problem is unbounded below: a multiplier iteration cannot converge (the paper's fixed-price section),
-    whereas a fixed price stays well posed at every m."""
-    ok = alpha > risk_lower_bound_value
-    return RenamedKeys(renamed={"floor": "risk_lower_bound"}, attainable=ok, alpha=alpha, risk_lower_bound=risk_lower_bound_value,
-                explanation=("the tolerance lies above the lower bound on the risk of the class" if ok else
-                             "the tolerance lies below the lower bound on the risk: no multiplier converges; a fixed price stays well posed "
-                             "and its certificates bound the risk it attains [" + cite("fixed_price_section") + "]"))
+    """Return False when the lower bound rules out the tolerance, and None when it leaves feasibility open."""
+    below_bound = alpha < risk_lower_bound_value
+    explanation = ("the tolerance lies below the risk lower bound, so the constraint is infeasible and the exact dual has no finite minimizer"
+                   if below_bound else "the risk lower bound leaves feasibility open")
+    return RenamedKeys(renamed={"floor": "risk_lower_bound"}, attainable=False if below_bound else None,
+                       alpha=alpha, risk_lower_bound=risk_lower_bound_value, explanation=explanation)
 
 
 # ---------------------------------------------------------------------------------------------

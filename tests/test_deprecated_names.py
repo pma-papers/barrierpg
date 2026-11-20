@@ -40,7 +40,7 @@ def test_unknown_names_still_fail():
 def test_old_arguments_attributes_and_keys():
     with pytest.warns(DeprecationWarning, match="risk_lower_bound_value"):
         out = C.prescribed_level_attainable(0.05, risk_floor_value=0.01)
-    assert out["attainable"] and out["risk_lower_bound"] == 0.01
+    assert out["attainable"] is None and out["risk_lower_bound"] == 0.01
     with pytest.warns(DeprecationWarning, match="risk_lower_bound"):
         assert out["floor"] == 0.01
     with pytest.warns(DeprecationWarning, match="kappa_drift"):

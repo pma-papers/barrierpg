@@ -88,8 +88,40 @@ def dual_step_suggestion(expected_multiplier: float, rollouts_to_reach: int = 20
 
 
 # ---------------------------------------------------------------------------------------------
-# Action relative entropy
+# Action costs and relative entropy
 # ---------------------------------------------------------------------------------------------
+def _apply_action_charge(callback, penalty):
+    rewards = callback.locals["rewards"]
+    venv = callback.model.get_vec_normalize_env()
+    scale = float(np.sqrt(venv.ret_rms.var + venv.epsilon)) if getattr(venv, "norm_reward", False) else 1.0
+    rewards[:] -= (penalty / scale).astype(rewards.dtype)
+
+
+class ActionCost(BaseCallback):
+    """Charge a fixed decision cost in an SB3 on-policy rollout.
+
+    cost(obs_batch, action_batch) returns one nonnegative cost per decision.
+    The return objective includes the cost under the learner's discount. Use
+    the policy's pre-clipping action convention in the cost, or transform it
+    explicitly if the cost is specified in the environment's action variable.
+    """
+
+    def __init__(self, strength: float, cost: Callable, verbose: int = 0):
+        super().__init__(verbose)
+        if not math.isfinite(strength) or strength < 0:
+            raise ValueError("strength must be finite and nonnegative")
+        self.strength, self.cost = float(strength), cost
+
+    def _on_step(self):
+        if self.strength:
+            actions = np.asarray(self.locals["actions"])
+            costs = np.asarray(self.cost(self.model._last_obs, actions), dtype=float).reshape(-1)
+            if costs.shape != (len(actions),) or not np.isfinite(costs).all() or np.any(costs < 0):
+                raise ValueError("action cost must return one finite nonnegative value per decision")
+            _apply_action_charge(self, self.strength * costs)
+        return True
+
+
 class ActionAnchor(BaseCallback):
     """Charges eta [log pi(a|y) - log rho(a|y)] as a reduction of the reward, for an on-policy Gaussian-policy
     learner (PPO): the sample-wise form of the action relative entropy A to the action reference rho.
@@ -123,11 +155,7 @@ class ActionAnchor(BaseCallback):
             charged = np.ones_like(ratio)
         else:
             charged = np.array([not info.get("failure", False) for info in self.locals["infos"]], dtype=float)
-        scale = 1.0
-        venv = self.model.get_vec_normalize_env()
-        if venv is not None and getattr(venv, "norm_reward", False):
-            scale = float(np.sqrt(venv.ret_rms.var + venv.epsilon))
-        self.locals["rewards"][:] -= (self.eta * ratio * charged / scale).astype(self.locals["rewards"].dtype)
+        _apply_action_charge(self, self.eta * ratio * charged)
         self.total += float(np.sum(ratio * charged))
         self.count += int(charged.sum())
         return True
@@ -215,19 +243,37 @@ class ParameterAnchor:
     prior policy, the actor at theta_0 with its dispersion; evaluate it as a candidate before training. Never anchor
     the critic, which has no prior (actor_parameters excludes it).
 
+    For a different convex potential, pass potential(displacement) returning
+    a differentiable scalar and set decoupled=False. Its derivative is added
+    to the optimizer gradient; the quadratic contraction formulas do not
+    apply. The function is summed over the actor tensors.
+
     Usage: anchor = ParameterAnchor(model, kappa_p).install()  before model.learn(...), in either order with a
     ParameterNoise (the noise is always added after the drift). theta_0 defaults to the parameters at installation.
     Record the optimizer, its stability constant, the order of gradient clipping and the anchor, and the form.
     """
 
     def __init__(self, model, kappa_p: float, theta0: Optional[Sequence] = None, include_log_std: bool = True,
-                 decoupled: bool = True):
+                 decoupled: bool = True, *, potential: Optional[Callable] = None):
         import torch
+        if not math.isfinite(kappa_p) or kappa_p < 0:
+            raise ValueError("kappa_p must be finite and nonnegative")
+        if decoupled and potential is not None:
+            raise ValueError("a custom potential requires decoupled=False")
         self.torch = torch
         self.model, self.kappa_p, self.include_log_std = model, float(kappa_p), bool(include_log_std)
         self.decoupled = bool(decoupled)
+        self.potential = potential
         self.params = actor_parameters(model, include_log_std)
-        self.theta0 = [p.detach().clone() for p in self.params] if theta0 is None else [torch.as_tensor(t) for t in theta0]
+        if theta0 is None:
+            self.theta0 = [p.detach().clone() for p in self.params]
+        else:
+            if len(theta0) != len(self.params):
+                raise ValueError("theta0 must contain one prior tensor per actor tensor")
+            self.theta0 = [torch.as_tensor(t, device=p.device, dtype=p.dtype).detach().clone()
+                           for p, t in zip(self.params, theta0)]
+            if any(p.shape != p0.shape for p, p0 in zip(self.params, self.theta0)):
+                raise ValueError("prior tensor shapes must match the actor tensors")
         self._prior_dispersion = self.dispersion()      # the dispersion at installation, also when only the mean network is anchored
         self.steps = 0
 
@@ -277,7 +323,13 @@ class ParameterAnchor:
                     with torch.no_grad():
                         for p, p0 in zip(params, theta0):
                             if p.grad is not None:
-                                p.grad.add_(self.kappa_p * (p - p0))
+                                displacement = p - p0
+                                derivative = displacement
+                                if self.potential is not None:
+                                    with torch.enable_grad():
+                                        loss = self.potential(displacement.requires_grad_())
+                                        derivative, = torch.autograd.grad(loss, displacement)
+                                p.grad.add_(derivative, alpha=self.kappa_p)
                 self.steps += 1
 
             hooks["before"].append(pull)
@@ -297,7 +349,10 @@ class ParameterAnchor:
         return self.distance() / math.sqrt(max(self.n_parameters, 1))
 
     def regularizer_value(self) -> float:
-        """kappa_p/2 ||theta - theta_0||^2, the potential regularizer's value ('Admissible families')."""
+        """Evaluate the installed parameter potential, including its strength."""
+        if self.potential is not None:
+            with self.torch.no_grad():
+                return self.kappa_p * sum(float(self.potential(p - p0)) for p, p0 in zip(self.params, self.theta0))
         return 0.5 * self.kappa_p * self.distance() ** 2
 
     def dispersion(self) -> Optional[float]:
@@ -536,5 +591,5 @@ class BudgetMonitor(BaseCallback):
         return "\n".join(lines)
 
 
-__all__ = ["DualAscent", "dual_step_suggestion", "ActionAnchor", "actor_parameters", "ParameterAnchor", "ParameterNoise",
+__all__ = ["DualAscent", "dual_step_suggestion", "ActionAnchor", "ActionCost", "actor_parameters", "ParameterAnchor", "ParameterNoise",
            "set_log_std", "fit_actor_mean", "BudgetMonitor"]

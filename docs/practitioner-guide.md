@@ -85,13 +85,16 @@ write it down too. It is then the price, not a tuning parameter.
   guarantees safety with probability one (a safety layer or an infinite penalty);
 * a prescribed tolerance must be met closely and you can tune a multiplier's step: an adaptive multiplier (a
   Lagrangian method) targets the tolerance directly;
-* violations during training matter: use constrained policy optimization;
+* a mean-cost limit matters at policy updates: consider CPO, and verify the limit on fresh rollouts;
 * the loss grows with the amount of the excess: use a constraint on the tail of the cumulative consumption (CVaR);
 * the model is known and small: solve it exactly; the toolbox's validation applies to that policy too.
 
 Two further cases concern the barrier itself: a price that charges far more for a failure than an episode earns
 (normalize the reward or use a prescribed-level method), and a budget error of known size (tighten the budget instead
 of adding a reserve).
+
+The [formulation comparison](formulation-comparison.md) runs the methods on the same candidates and explains
+when a constraint and price can select the same policy.
 
 ## Step 4. Wrap the environment
 
@@ -163,9 +166,16 @@ kept a reserve under the weaker battery, while the barrier at a lower price help
 widely across them; a reserve is worth testing for, whichever way it is obtained. If you know how large the error can
 be, tightening the budget by that amount is cheaper than either.
 
+Compare the [log, reciprocal and hinge shapes](formulation-comparison.md#compare-reserve-penalties) at matched
+charges near the reserve you care about. Measure failure under the uncertain budget as well as utility and reserve
+under the nominal one.
+
 ## Step 7. Choose the regularizers for what they do
 
 Two kinds of regularization act on different things, and each has a use.
+
+The [regularizer comparison](formulation-comparison.md#vary-action-and-parameter-regularization-independently)
+includes multiple choices for each and shows how to use the same objective terms with CPO or a scenario CVaR cap.
 
 * **Action regularization** (`ActionAnchor`) charges the policy, at every step, for how much its action distribution
   departs from a reference policy you trust. It keeps the policy close to that reference and keeps its risk of

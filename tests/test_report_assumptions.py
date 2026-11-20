@@ -34,3 +34,20 @@ def test_known_error_keeps_the_conditional_price_comparison():
                     candidate(), sup_U=10., delta=.2)
     assert any("price-risk bound" in b.source for b in rep.bounds)
     assert any("delta = 0.2" in x for x in rep.reading)
+
+
+def test_report_does_not_certify_a_different_risk_event():
+    spec = BudgetSpec(budgets=[1.], beta=.9, ubar=1.)
+    for kind in ("geometric", "eventual"):
+        report = interpret(spec, Requirement(T=0, alpha=1.0, kind=kind), Stage(m=1.), candidate())
+        assert not report.certified and report.validation is None and report.best_bound() is None
+
+
+def test_physical_return_only_uses_the_physical_certificate_and_shares_error():
+    spec = BudgetSpec(budgets=[1.], beta=.9, ubar=1., u_minus=4., horizon=3)
+    requirement = Requirement(T=0, alpha=.1, zeta=.05, family=5)
+    report = interpret(spec, requirement, Stage(m=1.), candidate())
+    assert report.validation.err == .005
+    value_bound, = (b for b in report.bounds if "physical-horizon value" in b.source)
+    assert value_bound.inputs["zeta"] == .005 and value_bound.inputs["u_minus"] == 4.
+    assert len(report.bounds) == 2

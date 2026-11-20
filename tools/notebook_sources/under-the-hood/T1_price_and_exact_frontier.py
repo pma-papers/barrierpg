@@ -8,7 +8,7 @@
 # 1. state a budget problem and a deployment requirement,
 # 2. see what the clipped barrier reward does and check the identity the paper turns on,
 # 3. get a plan: a starting price, a validation budget, and the conditions under which another method is better,
-# 4. evaluate a few hand-made candidates and place them against the exact frontier,
+# 4. evaluate a few hand-made candidates and place them against the grid benchmark,
 # 5. validate a candidate at its horizon and read the report.
 #
 # Notebook T2 trains a learner through the same wrapper. Results are cited by their titles in the paper,
@@ -100,28 +100,22 @@ print("largest per-episode difference:", float(np.max(np.abs(ev.clipped_returns 
 
 # %%
 req = Requirement(T=19, alpha=0.05, zeta=0.05, family=6)   # six candidates will be inspected
-sup_U = EXACT_FRONTIER[0.0][1]          # utility of the optimum without a price: an upper bound on the utility at stake
+sup_U = spec.ubar / (1 - spec.beta)    # an upper bound on the continuous-model stopped utility
 p = plan(spec, req, sup_U=sup_U, expected_failure_rate=0.01, validation_H=300, validation_N=20000,
          allowance_error_known=False, failure_permissible_at_deployment=True, model_known_and_small=True)
 print(p.explain())
 
 # %% [markdown]
-# The plan flags one case honestly: this model is known and small, and the paper solves it exactly by dynamic
-# programming, so for this problem the exact program is the better choice. Here it serves as the benchmark against
-# which the candidates are measured; the workflow below is the one for problems without such a solution.
+# The model is known, so dynamic programming on a grid gives a benchmark for the candidates.
 #
-# The conservative price is large because the bound charges the entire utility at stake to the risk. It is a safe
-# start, not the price to aim for: the certificates and validation bound the risk actually attained, and in the
-# wear study the bound was conservative by a factor of twenty to thirty. Below we use the price $m=1$.
+# This calculation uses a uniform utility bound. An optimization gap still has to be justified, and validation assesses the returned policy. Below we use $m=1$.
 
 # %% [markdown]
-# ## Candidates against the exact frontier
+# ## Candidates against the grid benchmark
 #
 # A **candidate** is one fixed policy that may be deployed. Here the candidates are hand-made rules: standing
 # still, and rules that run at a rate proportional to the remaining allowance, $a=\min\{1, z/(\text{span}\cdot b)\}$.
-# The **exact frontier** is the set of (risk, utility) pairs of the exact optima of the failure-only price as $m$
-# varies, computed by dynamic programming in the paper. By *Fixed price of failure risk* every fixed-price optimum
-# lies on it: it is optimal at the risk it attains.
+# The plotted points are the grid-based wear benchmark across prices. A true fixed-price optimum is optimal at its attained risk under the conditions of *Fixed price of failure risk*.
 
 # %%
 stage = Stage(m=1.0)
@@ -137,9 +131,9 @@ for name, e in evals.items():
 qf = np.array([v[0] for k, v in EXACT_FRONTIER.items()]); Uf = np.array([v[1] for k, v in EXACT_FRONTIER.items()])
 order = np.argsort(qf)
 fig, ax = plt.subplots(figsize=(6, 3.6))
-ax.plot(qf[order], Uf[order], color="0.2", lw=1.5, label="exact frontier (failure-only prices)")
+ax.plot(qf[order], Uf[order], color="0.2", lw=1.5, label="grid benchmark (failure-only prices)")
 qb = [v[0] for v in EXACT_BARRIER.values()]; Ub = [v[1] for v in EXACT_BARRIER.values()]
-ax.plot(qb, Ub, color="C2", ls="--", marker=".", label="exact barrier optima, $\\theta=0.1$")
+ax.plot(qb, Ub, color="C2", ls="--", marker=".", label="grid benchmark, $\\theta=0.1$")
 for name, e in evals.items():
     if name != "standing still":
         ax.plot(e.q_beta, e.U, "o", color="C0", ms=5)
@@ -149,26 +143,23 @@ ax.set_xscale("log"); ax.set_xlabel("breakdown probability $q_\\beta$"); ax.set_
 ax.legend(fontsize=8, loc="lower right"); plt.tight_layout(); plt.show()
 
 # %% [markdown]
-# The hand-made rules sit inside the frontier: at their risk, a fixed-price optimum earns more. The barrier optima
-# sit lower still at nominal conditions: their interior loss keeps a reserve for the case of a smaller true allowance
-# (notebook T2 measures that reserve).
+# Compare the rules' estimated utility at their measured risk with the grid curves. Notebook T2 measures the protection under a smaller allowance.
 #
-# ## The price–risk bound on the exact solutions
+# ## A plug-in price–risk calculation
 #
-# `frontier.check_runs` compares runs at several prices with the price–risk bound and with monotonicity in the price
-# (the price–risk bound and monotonicity in the price). With exact optimizers the optimization error is zero.
+# We plug the no-price benchmark utility into the price–risk expression, as in the wear study. The comparison assumes zero gap for illustration. The grid data do not establish those assumptions for the continuous model.
 
 # %%
 from barrierpg.frontier import Run, check_runs
 runs = [Run(m=mm, q_beta=q, U=U, label="exact") for mm, (q, U) in EXACT_FRONTIER.items() if mm > 0]
-chk = check_runs(runs, beta=spec.beta, sup_U=sup_U, delta=0.0)
-print("consistent with the fixed-price results:", chk.consistent)
+chk = check_runs(runs, beta=spec.beta, sup_U=EXACT_FRONTIER[0.0][1], delta=0.0)
+print("plug-in comparison across prices:")
 ms = np.array([r["m"] for r in chk.table]); qs = np.array([r["q_beta"] for r in chk.table]); law = np.array([r["price_risk_bound"] for r in chk.table])
 fig, ax = plt.subplots(figsize=(5, 3.2))
-ax.loglog(ms, qs, "o-", color="0.2", label="exact breakdown probability")
-ax.loglog(ms, law, "--", color="C1", label="price–risk bound, $(1-\\beta)\\sup U/m$")
+ax.loglog(ms, qs, "o-", color="0.2", label="grid benchmark risk")
+ax.loglog(ms, law, "--", color="C1", label="plug-in estimate")
 ax.set_xlabel("price $m$"); ax.set_ylabel("$q_\\beta$"); ax.legend(fontsize=8); plt.tight_layout(); plt.show()
-print("law / exact at m = 1, 10:", [round(float(l / q), 1) for l, q, mm in zip(law, qs, ms) if mm in (1.0, 10.0)])
+print("plug-in estimate / benchmark risk at m = 1, 10:", [round(float(l / q), 1) for l, q, mm in zip(law, qs, ms) if mm in (1.0, 10.0)])
 
 # %% [markdown]
 # The bound has the right dependence on the price, order $1/m$, and is conservative by a factor of about twenty.
@@ -207,4 +198,4 @@ print(rep.text())
 # * The identity $V_m=U-\mathcal I_m-\tfrac{m}{1-\beta}q_\beta$ is exact; every certificate rests on it.
 # * Validation of the deployed candidate, with the error shared across the candidates inspected, is the deployment decision.
 #
-# Next: **notebook T2** trains PPO through the wrapper and measures how close it gets to the exact frontier.
+# Next: **notebook T2** trains PPO through the wrapper and measures how close it gets to the grid benchmark.

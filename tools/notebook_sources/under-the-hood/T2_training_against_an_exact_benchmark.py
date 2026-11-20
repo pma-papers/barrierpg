@@ -1,5 +1,5 @@
 # %% [markdown]
-# # T2. Training a learner against an exact benchmark
+# # T2. Training a learner against a grid-based benchmark
 #
 # The point of barrier policy gradients is that the learner stays unchanged: the remaining budget enters the
 # state, the reward is replaced by the clipped barrier reward, and PPO trains as usual. This notebook trains
@@ -8,8 +8,8 @@
 #
 # * training traces that show whether the run has converged,
 # * the deployed candidates (stochastic and mean-action) evaluated separately,
-# * the optimization error, measured against the exact frontier that this problem happens to have,
-# * training at several prices, checked against the price–risk bound and the price-sequence condition,
+# * the measured clipped-value shortfall against the grid benchmark,
+# * estimated performance across tested prices and discussion of the price-sequence condition,
 # * an adaptive multiplier toward a prescribed level, with a diagnosis of its trace,
 # * the reserve kept by the interior barrier when the true allowance is smaller than planned,
 # * the report.
@@ -30,7 +30,7 @@ from barrierpg import Requirement, Stage, evaluate, interpret, sb3_policy
 from barrierpg.callbacks import BudgetMonitor, DualAscent, dual_step_suggestion
 from barrierpg.convergence import seed_dispersion
 from barrierpg.examples.wear import WearModel, make_wear_env, EXACT_FRONTIER, EXACT_BARRIER
-from barrierpg.frontier import Run, check_runs, interpolate_frontier, price_sequence_check
+from barrierpg.frontier import Run, interpolate_frontier
 from barrierpg.spec import discounted_total, price_from_multiplier
 
 torch.set_num_threads(1)
@@ -58,8 +58,8 @@ def train(stage, seed=0, steps=2_000_000, callbacks=(), n_envs=32):
     return ppo
 
 
-def exact_value(m):
-    """V_m of the exact failure-only optimum at price m (grid values from the paper's dynamic program)."""
+def benchmark_value(m):
+    """V_m of the failure-only grid benchmark at price m."""
     q, U = EXACT_FRONTIER[m]
     return U - m * q / (1 - spec.beta)
 
@@ -86,27 +86,24 @@ plt.tight_layout(); plt.show()
 # ## Two candidates from one network
 #
 # The stochastic policy and its **mean-action** policy (the same network without its dispersion) are different
-# candidates; each needs its own evaluation and validation. Because this problem has an exact solution, we can
-# also measure the **optimization error**: the shortfall of the learned clipped value from the exact optimum at the
-# same price. The paper's fixed-price results charge exactly this quantity, written $\delta$.
+# candidates; each needs its own evaluation and validation. We compare the learned clipped value with the grid-based
+# benchmark at the same price. The shortfall is a benchmark comparison. A certificate requires a justified upper bound on the optimization gap.
 
 # %%
 env = lambda: make_wear_env(stage, model)
 ev_s = evaluate(env, sb3_policy(ppo, deterministic=False), 10_000, spec=spec, stage=stage, seed=1, T=19)
 ev_d = evaluate(env, sb3_policy(ppo, deterministic=True), 10_000, spec=spec, stage=stage, seed=2, T=19)
 for name, e in (("stochastic", ev_s), ("mean-action", ev_d)):
-    delta = exact_value(1.0) - e.V_m
-    print(f"{name:11s} q_beta = {e.q_beta:.4f}  U = {e.U:.3f}  V_m = {e.V_m:.3f}  delta = {delta:+.3f}  "
+    shortfall = benchmark_value(1.0) - e.V_m
+    print(f"{name:11s} q_beta = {e.q_beta:.4f}  U = {e.U:.3f}  V_m = {e.V_m:.3f}  shortfall = {shortfall:+.3f}  "
           f"reserve below 5% of b = {e.near[0.05]:.3f}")
-print(f"exact optimum at m = 1: q_beta = {EXACT_FRONTIER[1.0][0]:.4f}, U = {EXACT_FRONTIER[1.0][1]:.3f}, V_m = {exact_value(1.0):.3f}")
+print(f"grid benchmark at m = 1: q_beta = {EXACT_FRONTIER[1.0][0]:.4f}, U = {EXACT_FRONTIER[1.0][1]:.3f}, V_m = {benchmark_value(1.0):.3f}")
 
 # %% [markdown]
 # ## Training at several prices
 #
 # The price selects a point on the frontier; it does not prescribe a risk level. Training at three prices, with a
-# second seed at $m=1$, shows the price–risk trade-off on the learned policies. `check_runs` compares them with the
-# price–risk bound and with monotonicity in the price, and flags runs that are dominated (a sign of optimization
-# error, not of the formulation).
+# second seed at $m=1$, shows the measured price–risk trade-off.
 
 # %%
 prices = (0.3, 1.0, 3.0)
@@ -116,18 +113,13 @@ for mm, sd in ((0.3, 0), (3.0, 0), (1.0, 1)):
     pol = train(st, seed=sd)
     by_price[(mm, sd)] = evaluate(lambda: make_wear_env(st, model), sb3_policy(pol), 10_000, spec=spec, stage=st, seed=100 + sd, T=19)
 for (mm, sd), e in sorted(by_price.items()):
-    print(f"m = {mm:<4g} seed {sd}: q_beta = {e.q_beta:.4f} (exact {EXACT_FRONTIER[mm][0]:.4f}), U = {e.U:.3f} "
-          f"(exact {EXACT_FRONTIER[mm][1]:.3f}), delta = {exact_value(mm) - e.V_m:+.3f}")
+    print(f"m = {mm:<4g} seed {sd}: q_beta = {e.q_beta:.4f} (benchmark {EXACT_FRONTIER[mm][0]:.4f}), U = {e.U:.3f} "
+          f"(benchmark {EXACT_FRONTIER[mm][1]:.3f}), shortfall = {benchmark_value(mm) - e.V_m:+.3f}")
 
 # %%
-runs = [Run(m=mm, q_beta=e.q_beta, U=e.U, label=f"seed {sd}") for (mm, sd), e in by_price.items()]
-deltas = {mm: max(0.0, max(exact_value(mm) - e.V_m for (k, sd), e in by_price.items() if k == mm)) for mm in prices}
-chk = check_runs(runs, beta=spec.beta, sup_U=EXACT_FRONTIER[0.0][1], delta=max(deltas.values()), tol=0.005)
-print(chk.explain())
-
 qf = np.array([v[0] for v in EXACT_FRONTIER.values()]); Uf = np.array([v[1] for v in EXACT_FRONTIER.values()]); o = np.argsort(qf)
 fig, ax = plt.subplots(figsize=(6, 3.6))
-ax.plot(qf[o], Uf[o], color="0.2", label="exact frontier")
+ax.plot(qf[o], Uf[o], color="0.2", label="grid benchmark")
 for i, mm in enumerate(prices):
     pts = [e for (k, sd), e in by_price.items() if k == mm]
     ax.plot([e.q_beta for e in pts], [e.U for e in pts], "o", color=f"C{i}", label=f"PPO, m = {mm:g}")
@@ -137,16 +129,13 @@ ax.set_xscale("log"); ax.set_xlabel("breakdown probability $q_\\beta$"); ax.set_
 plt.tight_layout(); plt.show()
 
 # %% [markdown]
-# Crosses mark the exact optimum at each price. The learned policies follow the price: a higher price gives a lower
-# breakdown probability at a utility cost. Each lies short of the exact point at its price by its optimization
-# error $\delta$, which this problem lets us measure.
+# Crosses mark the grid benchmark. The points show how estimated risk and utility change across the tested prices.
 #
 # **Can raising the price reach a tolerance?** By the paper's *Price sequences reaching a tolerance*, a sequence of prices reaches a tolerance
-# when some policy has risk to spare and the charged errors grow slower than the price. `price_sequence_check` reads
-# that condition from the measured shortfalls. A learner whose shortfall grows in proportion to the price fails it.
+# when some policy has risk to spare and the charged errors grow slower than the price. A finite set of benchmark shortfalls does not verify this limit.
 
 # %%
-print(price_sequence_check(list(deltas), list(deltas.values())).explain())
+print({m: [round(benchmark_value(m) - e.V_m, 3) for (price, _), e in by_price.items() if price == m] for m in prices})
 
 # %% [markdown]
 # With three prices and one or two seeds this is a rough reading of one learner at one training budget. The check is
@@ -158,9 +147,9 @@ print(price_sequence_check(list(deltas), list(deltas.values())).explain())
 # A multiplier method charges a flat penalty $\nu$ at failure and updates it after each rollout,
 # $\nu\leftarrow\max\{0,\nu+c(\hat q-\alpha)\}$. If it converges to $\nu$, it returns the fixed-price optimum at
 # $m=(1-\beta)\nu$ (the paper's section *The fixed price of failure risk*). The step $c$ is sized from the level the
-# multiplier has to reach. The learned policies above attain more risk than the exact optima at the same price, so
-# that level comes from the learned runs, not from the exact frontier: we interpolate, on a log scale, the price at
-# which they attain the prescribed level. Sized from the exact frontier, which attains it at about a third of that
+# multiplier has to reach. The learned policies above attain more risk than the grid policies at the same price, so
+# that level comes from the learned runs, not from the grid benchmark: we interpolate, on a log scale, the price at
+# which they attain the prescribed level. Sized from the grid benchmark, which attains it at about a third of that
 # price, the multiplier is still rising when training ends.
 #
 # The step is half the expected level per rollout in which every episode fails. Early in training, when many episodes
@@ -234,17 +223,16 @@ for r in rows:
 #
 # ## Validate and report
 #
-# The fixed-price stochastic candidate is the one we would deploy. Its optimization error is known here from the
-# exact optimum, so the report can state the fixed-price reading with that $\delta$. Every learned candidate
+# We validate the stochastic candidate directly. The benchmark comparison is descriptive. Every learned candidate
 # inspected in this notebook shares the validation error (`family=12`). The requirement $p_{19}\le0.05$ is tested
 # here through $q_\beta\le0.05\,\beta^{19}$, which is conservative under geometric stopping; notebook T4 tests
 # $p_T$ directly.
 
 # %%
-delta_s = max(0.0, exact_value(1.0) - ev_s.V_m)
-gap = (interpolate_frontier([Run(m=k, q_beta=q, U=U) for k, (q, U) in EXACT_FRONTIER.items()], ev_s.q_beta) - ev_s.U) / ev_s.U
+benchmark_U = interpolate_frontier([Run(m=k, q_beta=q, U=U) for k, (q, U) in EXACT_FRONTIER.items()], ev_s.q_beta)
+gap = (benchmark_U - ev_s.U) / benchmark_U
 seeds_q = seed_dispersion([by_price[(1.0, 0)].q_beta, by_price[(1.0, 1)].q_beta])
-rep = interpret(spec, req, stage, ev_s, sup_U=EXACT_FRONTIER[0.0][1], delta=delta_s, trends=mon.diagnostics(window=40),
+rep = interpret(spec, req, stage, ev_s, trends=mon.diagnostics(window=40),
                 seeds={"q_beta at m = 1": seeds_q}, exact_frontier_gap=gap)
 print(rep.text())
 
@@ -268,8 +256,7 @@ print("\n".join(rep_fixed.text().split("\n")[:12]))
 # ## Summary
 #
 # * PPO is trained unchanged; the wrapper carries the budget and the clipped reward.
-# * The learned fixed-price policies follow the price and fall short of the exact optimum by an optimization error
-#   that this problem lets us measure. On a new problem there is no exact frontier: the four problem notebooks (01 to 04) show what can be said then.
+# * The grid-based comparisons illustrate measured performance. The validation test uses the candidate's failure counts.
 # * A multiplier method targets a level, needs a step that respects the time scales, and should aim below the tolerance.
 # * The barrier keeps a measurable reserve for a smaller true allowance.
 #

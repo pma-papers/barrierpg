@@ -259,3 +259,24 @@ def test_anchor_and_noise_compose_pull_then_noise_in_either_order():
         assert abs(noise.injected_variance - 2 * kappa1 * lr) < 1e-12
         results.append(torch.cat([p.detach().reshape(-1) for p in anchor.params]))
     assert torch.allclose(results[0], results[1])                     # the installation order does not matter
+
+
+def test_ppo_accepts_action_cost_and_custom_convex_potential():
+    from barrierpg import Stage, parameter_potential
+    from barrierpg.callbacks import ActionCost, ParameterAnchor
+
+    model = _small_ppo(Stage(m=1.0))
+    observed_batches = []
+
+    def movement_cost(obs, actions):
+        observed_batches.append(len(actions))
+        return (actions ** 2).reshape(len(actions), -1).sum(axis=-1)
+
+    anchor = ParameterAnchor(
+        model, kappa_p=0.05, decoupled=False,
+        potential=lambda displacement: parameter_potential(displacement, form="pseudo_huber", scale=0.2),
+    ).install()
+    model.learn(total_timesteps=128, callback=ActionCost(0.1, movement_cost))
+    assert len(observed_batches) == 64
+    assert anchor.steps > 0 and math.isfinite(anchor.regularizer_value())
+    assert anchor.regularizer_value() > 0

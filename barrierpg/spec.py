@@ -121,9 +121,8 @@ class Stage:
                   (failure-only price).
     eta           weight of the action relative entropy to the action reference.
     kappa         strength of the parameter regularizer (weight decay / divergence to the prior).
-    clip_utility  True: the paper's clipped reward max{-m, u - B}. False: the fixed-multiplier
-                  form, pre-failure reward u - B unclipped, only the failure priced; use it when the
-                  utility takes values below -m (for example a crash penalty).
+    clip_utility  With an interior barrier, True gives max{-m, u - B}. False leaves u - B unclipped
+                  at positive reserve. A failure-only stage always pays the full utility before failure.
     penalty       'price' (fixed price, the discounted total of m charged at failure) or
                   'multiplier' (a flat penalty nu at failure, updated by dual ascent; m is then only
                   the clipping level of a barrier reward and is unused when theta = 0).
@@ -160,8 +159,10 @@ def discounted_total(m: float, beta: float) -> float:
 
 
 def price_from_multiplier(nu: float, beta: float) -> float:
-    """A multiplier method that converges to a flat failure penalty nu returns the fixed-price optimum
-    for m = (1 - beta) nu (the fixed-price proposition and the text after it), in the absorbing form and without an interior barrier."""
+    """Equivalent continuing per-period charge for a lump penalty nu at failure.
+
+    A common optimum additionally requires the same utility, cost and admissible policy class.
+    """
     return (1.0 - float(beta)) * float(nu)
 
 

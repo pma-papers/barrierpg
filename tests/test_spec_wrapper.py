@@ -1,7 +1,9 @@
 import math
 import numpy as np
+import pytest
 from barrierpg.spec import BudgetSpec, Requirement, Stage, discounted_total, failure_charge, price_from_multiplier, price_from_multiplier_physical
 from barrierpg.barrier import LogBarrier
+from barrierpg.evaluate import evaluate, evaluation_from_episodes
 from barrierpg.wrapper import BudgetWrapper
 
 
@@ -75,7 +77,7 @@ def test_wrapper_modes():
     # equality is not failure
     w = BudgetWrapper(Counter([1.0]), lambda o, a, o2, r, i: [i["g"]], BudgetSpec(budgets=[1.0], beta=0.9, ubar=1.0), Stage(m=1.0))
     w.reset(); _, r, term, _, info = w.step(0)
-    assert not info["failure"] and r == -1.0        # z = 0: barrier infinite, clipped to -m (theta = 0 gives B(0) = inf)
+    assert not info["failure"] and r == 1.0
     # horizon termination without failure
     w = BudgetWrapper(Counter([0.0] * 10), lambda o, a, o2, r, i: [0.0], spec, Stage(m=1.0))
     w.reset()
@@ -92,3 +94,41 @@ def test_wrapper_modes():
     w = BudgetWrapper(Counter([0.5, 0.5]), lambda o, a, o2, r, i: [i["g"]], spec2, Stage(m=1.0), true_budget_scale=0.7)
     w.reset(); w.step(0); _, _, term, _, info = w.step(0)
     assert term and info["failure"]                                        # 0.75 > 0.7 while the nominal reserve is 1.0
+
+
+def test_failure_only_keeps_negative_utility_and_interior_barrier_clips_at_zero():
+    spec = BudgetSpec(budgets=[1.0], beta=0.5, ubar=1.0, u_minus=3.0)
+    cost = lambda o, a, o2, r, i: [i["g"]]
+    for stage, reward in ((Stage(m=1.0), -3.0), (Stage(m=1.0, theta=0.2), -1.0)):
+        wrapper = BudgetWrapper(Counter([1.0, 0.1]), cost, spec, stage, utility=lambda *args: -3.0)
+        wrapper.reset()
+        _, actual, terminated, _, info = wrapper.step(0)
+        assert actual == reward and not terminated and not info["failure"]
+        assert wrapper.step(0)[4]["failure"]
+
+
+def test_delayed_failure_charge_agrees_with_realized_discounted_return():
+    stage = Stage(m=2.0)
+    cost = lambda o, a, o2, r, i: [i["g"]]
+    for horizon, expected in ((None, 0.5), (4, 0.75)):
+        spec = BudgetSpec(budgets=[1.0], beta=0.5, ubar=1.0, horizon=horizon)
+        result = evaluate(lambda: BudgetWrapper(Counter([0.2, 0.2, 1.0]), cost, spec, stage), lambda o: 0,
+                          4, spec=spec, stage=stage, T=2)
+        assert result.q_beta == 0.25
+        np.testing.assert_allclose(result.V_episodes, result.clipped_returns)
+        assert result.V_m == expected
+        geometric = evaluation_from_episodes([True], [2], [2.0], [0.0], spec=spec, stage=stage, geometric_stop=True)
+        assert geometric.V_m == (2.0 - (4.0 if horizon is None else 3.0))
+
+
+def test_evaluation_rejects_administrative_censoring():
+    class Truncated(Counter):
+        def step(self, a):
+            obs, reward, _, _, info = super().step(a)
+            return obs, reward, False, True, info
+
+    spec = BudgetSpec(budgets=[1.0], beta=0.9, ubar=1.0, horizon=4)
+    stage = Stage(m=1.0)
+    with pytest.raises(ValueError, match="truncated"):
+        evaluate(lambda: BudgetWrapper(Truncated([0.0]), lambda *args: [0.0], spec, stage), lambda o: 0,
+                 1, spec=spec, stage=stage, T=3)

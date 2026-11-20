@@ -22,7 +22,7 @@ from typing import Dict, Optional, Tuple
 PAPER = dict(
     title="The Price of Failure Risk: Clipped Barrier Policy Gradients with Convex Regularization",
     authors="Pekka Malo, Lauri Viitasaari, Antti Suominen, Eeva Vilkkumaa, Olli Tahvonen",
-    checked_against="revision 77 (2026-11-18)",
+    checked_against="revision 78 (2026-11-20)",
 )
 
 # key -> (kind, title in the paper)
@@ -47,8 +47,10 @@ RESULTS: Dict[str, Tuple[str, str]] = {
     "admissible_families": ("proposition", "Admissible families"),
     "flow": ("theorem", "Convergence of the population gradient flow"),
     "optimization_error": ("corollary", "Optimization error and risk along the gradient flow"),
-    "prior_improvement": ("remark", "Improvement over the prior policy"),
-    "bias": ("remark", "The regularization bias is priced and detected"),
+    "prior_improvement": ("proposition", "Improvement over the prior policy"),
+    "bias": ("remark", "Regularization cost in the risk comparison"),
+    "schedules": ("section", "Fixed strengths and schedules"),
+    "decreasing_strength": ("proposition", "Decreasing strength"),
     "particle": ("section", "The prior and the particle system of the gradient flow"),
     "finite_training": ("proposition", "Finite-network training under a potential"),
     "gaussian_prior": ("section", "The prior and the particle system of the gradient flow"),

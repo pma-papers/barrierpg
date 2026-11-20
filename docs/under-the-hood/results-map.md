@@ -32,7 +32,7 @@ in [`barrierpg/paper.py`](../../barrierpg/paper.py); `barrierpg.paper.results_ta
 | *Value and action-law curvature* | The deficits from the kernel bounds $B_1,B_2,K_0,K_1,K_2$; the softmax instance | `convergence.KernelConstants`, `FeatureConstants`, `curvature_constants` |
 | *Optimization error and risk along the gradient flow* | The risk bound along the population gradient flow at learning time $\ell$ | `convergence.learning_risk_bound`, `learning_time_for_slack`, `initial_gap_upper`; `certificates.learning_slack` |
 | *Improvement over the prior policy* (with its proof) | Clipped value at least the prior policy's; risk within a slack of order $\kappa^{-1/2}$; a second slack with $\eta>0$; the $\kappa$ that meets a tolerance | `convergence.risk_slack_from_prior`, `action_slack_from_prior`, `kappa_for_tolerance` |
-| *The regularization bias is priced and detected* | The bias enters only through the comparison law's regularization cost and shows as a failed certificate | `regularizers.regularizer_effects` (bias terms), `report.interpret` |
+| *Regularization cost in the risk comparison* | The bias enters only through the comparison law's regularization cost and shows as a failed certificate | `regularizers.regularizer_effects` (bias terms), `report.interpret` |
 | *The prior and the particle system of the gradient flow* | Noise $\sqrt{2\kappa_1}\,dB$, drift $-\kappa_1\nabla W-\kappa_2\nabla P$, spread from the integrand; stationary spread under plain gradient steps; with injected noise the anchor is the only drift | `roles.RegularizerMix`, `stationary_spread`, `kappa1_for_spread`, `noise_and_anchor_spread`; `callbacks.ParameterNoise` |
 | *Finite-network training under a potential* | Noiseless finite-network training is the flow from its empirical law, with the same contraction; value and risk transfer | `convergence.finite_training_transfer` |
 | *The prior and the particle system of the gradient flow* (the Gaussian prior as entropy plus weight decay) | Entropy plus weight decay of weight $\kappa/\sigma^2$; the rate depends on $\kappa/\sigma^2$ only | `convergence.gaussian_prior_curvature`; `callbacks.ParameterAnchor` |
@@ -69,7 +69,7 @@ price-equivalent.
 | *Which formulation to prefer*: the cases in which another method is the better choice | `planning.when_to_use_another_method`, `plan` |
 | *Choice of method, scope and conclusion* and *A workflow for practitioners* | `plan`, `advise_regularizers` |
 | *Scope of the guarantees* | `report.interpret` (the "not established" list) |
-| The wear-allowance study | `examples.wear` (model, rules, exact benchmark numbers) |
+| The wear-allowance study | `examples.wear` (model, rules, grid benchmark numbers) |
 | The lander study | `problems.landing` (the landing problem, the training aid, the charges `Landing.price` and `Landing.charge`) |
 | The analytical example and the roles of the regularizers | `examples.plateau` (model, particle simulation, the paper's roles table) |
 | The parameter-anchor study | `callbacks.ParameterAnchor`, `fit_actor_mean`, `set_log_std` |
