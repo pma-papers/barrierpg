@@ -41,6 +41,8 @@ The [practitioner guide](docs/practitioner-guide.md) goes through the same decis
 theory behind the method implies for each.
 The [formulation tutorial](docs/formulation-comparison.md) compares CPO, CVaR, chance and price formulations,
 then varies reserve penalties and convex action and parameter regularizers on runnable examples.
+The [native actor updates](barrierpg/on_policy.py) and [dispatch example](examples/train_risk_constrained.py)
+show where to supply action and parameter penalties in sampled CPO and Gaussian CVaR training. The [wear benchmark](docs/wear-benchmark.md) compares the methods on the same simulator.
 
 ## Install
 

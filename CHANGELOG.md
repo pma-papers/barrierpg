@@ -2,6 +2,7 @@
 
 ## Unreleased · revision 78 audit
 
+- Added native PyTorch CPO and Gaussian CVaR actor updates with custom action and parameter penalties. The runnable dispatch example evaluates both fitted and exact tail risk.
 - Added an OmniSafe CPO adapter, a dense CPO reference update, and weighted CVaR and constrained policy selection for finite scenarios.
 - Added reciprocal and linear and quadratic hinge reserve penalties. The tutorial compares them with log and failure-only pricing at common nominal and reduced budgets.
 - Added categorical action divergences, fixed action costs in SB3, and configurable convex parameter potentials. The tutorial uses the same objective terms with CPO and CVaR and includes KL plus power divergences on a parameter-law grid.

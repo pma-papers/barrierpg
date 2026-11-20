@@ -1,0 +1,36 @@
+# Paired pilot on the wear-allowance model
+
+This pilot compares fixed failure prices and CPO on the same geometric breakdown event. It also shows what changes when reserve loss enters the objective or overshoot CVaR replaces failure probability as the constraint. The code uses the wear dynamics of the manuscript with a small categorical policy over three operating rates.
+
+```bash
+python examples/benchmark_wear.py --output /tmp/wear-comparison.json
+```
+
+## Design
+
+Each setting uses six seeds, the same initial actor and 18 updates with 768 complete episodes per update. The initial policy's measured breakdown probability is 6.7–7.1%. Within each seed, methods share the sequences of wear shocks, price shocks, maintenance times and action uniforms. Ten thousand fresh episodes per seed are used for evaluation, with common random numbers within each evaluation pair. The fixed-price runs use the unconstrained step of the same trust-region solver. Matching the episode count leaves different numbers of decisions, which are reported.
+
+The CPO cost is the indicator of a breakdown before independent maintenance access. Its mean is the geometric risk used in the fixed-price objective. The log-barrier runs share the interior loss at strength 0.10 and clipping price 0.30. In the CPO variant the objective is stopped utility minus this fixed interior loss. In the priced variants there is an additional fixed failure charge. At price 0.45 the clip is held at 0.30 so the interior loss stays the same. The Gaussian CVaR run controls the worst 20% of overshoots, where overshoot is the amount by which wear exceeds the allowance on the failing decision and is zero on all other episodes.
+
+The CPO cap of 0.08 and the failure price of 0.45 were added after the nominal-cap pilot. The reported evaluation stream was generated separately after these sensitivity settings were chosen.
+
+## Results
+
+The cells report means across six seeds. The range in the failure column is the range of seed estimates. The low-reserve frequency includes breakdowns and measures whether the remaining allowance ever fell to 5% or less. Overshoot CVaR is computed directly from the evaluation episodes for every candidate.
+
+| Training objective | Stopped utility | Utility net of the common interior loss | Failure probability (range) | Low-reserve frequency | Overshoot CVaR | Training decisions |
+|---|---:|---:|---:|---:|---:|---:|
+| Fixed price 0.10 | 4.508 | 2.533 | 0.306 (0.273–0.336) | 0.346 | 0.096 | 228,208 |
+| Fixed price 0.30 | 3.864 | 1.417 | 0.097 (0.070–0.116) | 0.125 | 0.016 | 254,530 |
+| Fixed price 1.00 | 2.826 | 0.694 | 0.030 (0.015–0.049) | 0.040 | 0.003 | 269,169 |
+| CPO, cap 0.10 | 2.949 | 1.009 | 0.122 (0.116–0.132) | 0.140 | 0.033 | 248,943 |
+| Log barrier, price 0.30 | 3.509 | 1.307 | 0.115 (0.065–0.163) | 0.140 | 0.025 | 249,715 |
+| CPO and log barrier, cap 0.10 | 2.728 | 0.879 | 0.120 (0.110–0.127) | 0.135 | 0.038 | 247,857 |
+| Gaussian overshoot CVaR, cap 0.16 | 4.630 | 3.030 | 0.396 (0.377–0.408) | 0.423 | 0.156 | 218,022 |
+| CPO, cap 0.08 | 2.670 | 0.757 | 0.097 (0.083–0.106) | 0.112 | 0.026 | 253,140 |
+| CPO and log barrier, cap 0.08 | 2.576 | 0.713 | 0.099 (0.087–0.113) | 0.112 | 0.029 | 251,538 |
+| Log barrier, price 0.45 | 2.993 | 0.819 | 0.047 (0.028–0.065) | 0.061 | 0.007 | 263,128 |
+
+Both CPO variants exceeded the nominal cap of 0.10 on all six evaluation seeds. Lowering the training cap reduced the observed breakdown probabilities. For each CPO variant at the lower cap, two seeds had individual one-sided 95% binomial upper bounds below 0.10. The log-barrier run at price 0.45 had higher stopped utility and lower failure risk than the CPO log-barrier runs in this pilot. The overshoot CVaR run had much higher failure frequency while its mean measured tail cost was close to its cost cap. These are comparisons for this particular actor, optimizer and sample budget.
+
+The [per-seed results](../examples/wear_comparison.json) include the fitted parameters, individual binomial upper bounds, number of accepted updates and training and evaluation decision counts. The individual bounds are suitable for examining one fixed candidate. Simultaneous certification across candidates requires a separate error allocation.
