@@ -54,9 +54,13 @@ def chi_second(theta):
 
 
 def feature_bounds() -> Dict[str, float]:
-    """(L0, L1, L2) of the feature a chi(theta), a in [0, 1], computed on a fine grid."""
-    th = np.linspace(-12, 12, 480001)
-    return dict(L0=1.0, L1=float(np.max(np.abs(chi_prime(th)))), L2=float(np.max(np.abs(chi_second(th)))))
+    """Suprema of a chi(theta) and its first two derivatives for a in [0, 1]."""
+    # With t = (|theta| - 1)**-2, the nonzero branches of the derivative
+    # magnitudes are 2 t**1.5 exp(-t) and |4 t**3 - 6 t**2| exp(-t).
+    first = 2 * 1.5**1.5 * math.exp(-1.5)
+    second = max(abs((4 * t**3 - 6 * t**2) * math.exp(-t))
+                 for t in ((9 - math.sqrt(33)) / 4, (9 + math.sqrt(33)) / 4))
+    return dict(L0=1.0, L1=first, L2=second)
 
 
 class PlateauModel:

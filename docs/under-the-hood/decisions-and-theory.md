@@ -55,20 +55,23 @@ stochastic policy and its mean-action policy are different candidates.
    certificates, and `interpret(...).text()` for the report.
 
 ```python
-from barrierpg import BudgetSpec, Requirement, Stage, BudgetWrapper, evaluate, interpret, plan
+from barrierpg import Requirement, Stage, evaluate, interpret, plan
+from barrierpg.examples.wear import IncumbentRule, WearModel, make_wear_env
 
-spec = BudgetSpec(budgets=[1.0], beta=0.95, ubar=1.0)            # one budget, utility in [0, 1]
-req = Requirement(T=19, alpha=0.05, zeta=0.05, family=2)        # p_19 <= 5%, two candidates share the error
-p = plan(spec, req, sup_U=5.4, expected_failure_rate=0.01)      # conservative price, validation budget, notes
+wear = WearModel()
+spec = wear.spec()
+req = Requirement(T=19, alpha=0.05, zeta=0.05)
+p = plan(spec, req, sup_U=spec.ubar / (1 - spec.beta), expected_failure_rate=0.01)
 print(p.explain())
 
-stage = Stage(m=1.0)                                             # a fixed failure-only price
-env = BudgetWrapper(my_simulator, cost=my_step_cost, spec=spec, stage=stage)
-# ... train any policy-gradient learner on env ...
-ev = evaluate(lambda: BudgetWrapper(my_simulator, cost=my_step_cost, spec=spec, stage=stage),
-              policy, 20000, spec=spec, stage=stage, T=19)
-print(interpret(spec, req, stage, ev, sup_U=5.4).text())
+stage = Stage(m=1.0)
+ev = evaluate(lambda: make_wear_env(stage, wear, geometric_stop=True),
+              IncumbentRule(seed=0), 20_000, spec=spec, stage=stage, T=req.T, seed=100_000)
+print(interpret(spec, req, stage, ev).text())
 ```
+
+The geometric clock produces an estimate of breakdown risk before maintenance. The report tests the finite-horizon
+requirement by comparing its upper confidence bound with $\alpha\beta^T$.
 
 ## 1. Specify the requirement
 
@@ -170,8 +173,8 @@ price `m`, so training at many prices is not required.
 * **Let the certificates and validation bound the attained risk.** After training, the value
   certificates (`certificates.risk_from_value`, `validation.risk_from_validation_value`,
   `validation.physical_horizon_risk`) and direct validation (section 6 of this guide) bound the risk of
-  the candidate. A bound on `q_beta` also bounds when failures occur: the earliest `eps`-fraction of
-  failures occurs on average no earlier than `log(eps/q_beta)/log(1/beta)` periods
+  the candidate. A bound on `q_beta` also bounds the average failure time over the earliest `eps`-fraction
+  of trajectories, assigning infinite failure time to trajectories that never fail. The lower bound is `log(eps/q_beta)/log(1/beta)` periods
   (`certificates.earliest_failures_time`; *The geometric risk as a risk measure of the failure time*).
 * **Retrain at a higher price only if the tolerance is missed.** `certificates.price_monotonicity`
   bounds how much the attained risk can rise between two prices, given the optimization errors.

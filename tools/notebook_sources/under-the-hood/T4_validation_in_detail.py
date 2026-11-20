@@ -28,9 +28,9 @@ plt.rcParams.update({"figure.dpi": 110, "axes.spines.top": False, "axes.spines.r
 # ## 1. The direct test and what zero failures certify
 #
 # Draw $N$ fresh, independent episodes of the fixed candidate through action $T$ and count the failures $k$. The
-# one-sided exact binomial upper bound at error $\zeta$ is the $(1-\zeta)$ quantile of $\mathrm{Beta}(k+1,N-k)$.
-# With zero failures it is $1-\zeta^{1/N}$. **No sample certifies a tolerance below this bound**,
-# and failure to certify does not prove a violation.
+# one-sided exact binomial upper bound at error $\zeta$ is the $(1-\zeta)$ quantile of $\mathrm{Beta}(k+1,N-k)$
+# for $k<N$, and one for $k=N$. At this sample size the smallest attainable upper bound is $1-\zeta^{1/N}$,
+# obtained with zero failures. Failure to certify does not prove a violation.
 
 # %%
 N = np.logspace(1, 5, 200)
@@ -84,7 +84,8 @@ geo = evaluate(lambda: make_wear_env(stage, model), rule, 10_000, spec=spec, sta
 fixed_spec = spec.with_(horizon=T + 1)
 fixed = evaluate(lambda: BudgetWrapper(WearCore(model), wear_cost, fixed_spec, stage, geometric_stop=False), rule, 10_000,
                  spec=fixed_spec, stage=stage, seed=1, T=T)
-vg = geo.validate(0.05 * spec.beta ** T, 0.05); vf = fixed.validate(0.05, 0.05)
+vg = geo.validate(0.05 * spec.beta ** T, 0.05, family=2)
+vf = fixed.validate(0.05, 0.05, family=2)
 print(f"geometric clock: q_beta = {geo.q_beta:.4f}; validated q_beta <= {vg.upper:.4f}; implied p_19 <= {vg.upper / spec.beta ** T:.4f}")
 print(f"fixed horizon:   p_19   = {fixed.p_T:.4f}; validated p_19 <= {vf.upper:.4f}  -> {'certifies' if vf.passed else 'does not certify'} p_19 <= 0.05")
 print(f"under the clock, {np.mean(geo.tau[geo.failed] > T):.0%} of the failures happen after action {T}")
@@ -96,8 +97,9 @@ print(f"under the clock, {np.mean(geo.tau[geo.failed] > T):.0%} of the failures 
 # horizon certifies the requirement that the geometric route could not.
 #
 # **When failures occur.** The geometric risk also bounds the failure time. With $\theta=\log(1/\beta)$,
-# $q_\beta=\mathbb E\,e^{-\theta\tau}$, and for every $\varepsilon\in(0,1]$ the earliest $\varepsilon$-fraction of failures
-# occurs on average no earlier than $\log(\varepsilon/q_\beta)/\theta$ periods (the paper's *The geometric risk as a risk
+# $q_\beta=\mathbb E\,e^{-\theta\tau}$. Assign $\tau=\infty$ on paths that never fail. For the earliest
+# $\varepsilon$-fraction of trajectories, the mean failure time is at least $\log(\varepsilon/q_\beta)/\theta$
+# periods (the paper's *The geometric risk as a risk
 # measure of the failure time*). With the validated upper bound on $q_\beta$ the statement is validated too. A bound on
 # $p_T$ at one horizon never says more than $T+1$, since it says nothing about failures after $T$.
 
@@ -118,13 +120,16 @@ for eps in (0.05, 0.1, 0.5):
 
 # %%
 H, Nv = 150, 3000
+prices = (1.0, 10.0)
+error_per_price = 0.05 / len(prices)  # One value confidence bound per price serves all displayed horizons.
 rows = {}
-for m_ in (1.0, 10.0):
+for m_ in prices:
     st = Stage(m=m_)
     hs = spec.with_(horizon=H)
     ev = evaluate(lambda: BudgetWrapper(WearCore(model), wear_cost, hs, st, geometric_stop=False), IncumbentRule(3.0, 0.1, seed=2),
                   Nv, spec=hs, stage=st, seed=5, T=None)
-    rows[m_] = [V.risk_from_validation_value(ev.clipped_returns.mean(), H, Nv, 0.05, m_, 1.0, spec.beta, t).value for t in range(0, 61)]
+    rows[m_] = [V.risk_from_validation_value(ev.clipped_returns.mean(), H, Nv, error_per_price, m_, 1.0, spec.beta, t).value
+                for t in range(61)]
 fig, ax = plt.subplots(figsize=(5.5, 3.3))
 for m_, vals in rows.items():
     ax.plot(range(61), vals, label=f"value certificate, $m={m_:g}$")
@@ -132,7 +137,7 @@ ax.axhline(0.05, color="C3", lw=0.7, ls=":")
 ax.set_xlabel("horizon $T$"); ax.set_ylabel("certified bound on $p_T$"); ax.set_yscale("log"); ax.legend(fontsize=8)
 plt.tight_layout(); plt.show()
 print({m_: round(v[0], 4) for m_, v in rows.items()}, "at T = 0")
-print(V.value_resolution_check(beta=spec.beta, H=H, T=19, N=Nv, zeta=0.05, alpha=0.05))
+print(V.value_resolution_check(beta=spec.beta, H=H, T=19, N=Nv, zeta=error_per_price, alpha=0.05))
 
 # %% [markdown]
 # The value certificate is valid at every $T$ and becomes vacuous within a few multiples of $1/(1-\beta)=20$
@@ -141,7 +146,7 @@ print(V.value_resolution_check(beta=spec.beta, H=H, T=19, N=Nv, zeta=0.05, alpha
 # ## 5. A physical horizon and a lump sanction, with your own evaluator
 #
 # Many tasks end after a fixed number of actions, and many sanctions are charged once. An annual emissions allowance
-# is of this kind: 52 weeks, and a sanction $F$ if the allowance turns negative.
+# is of this kind: 52 weeks, and a sanction $F$ if cumulative emissions exceed the allowance at any week.
 # The toolbox's form is a flat penalty $\nu=F$ at the failing week, `Stage(penalty="multiplier", multiplier=F)`, with
 # the pre-failure reward left unclipped; the value certificate is then $p_T\le(\bar uS_H-V^{(H)})/(F\beta^T)$.
 #
@@ -150,11 +155,12 @@ print(V.value_resolution_check(beta=spec.beta, H=H, T=19, N=Nv, zeta=0.05, alpha
 # Here is a stylized weekly emissions process with a pacing rule as candidate.
 
 # %%
-def simulate_year(n, buffer, seed, F=50.0, b=31.7, c=6.0, H=52):
+def simulate_year(n, buffer, seed, spec, c=6.0):
     """Weekly net emissions with a persistent shock; the rule abates at the constant rate that brings the forecast of
     year-end emissions to the allowance less a buffer. Returns per-year failure flag, failure week, stopped utility (minus
     the abatement cost) and the minimum remaining allowance fraction."""
     r = np.random.default_rng(seed)
+    b, H, beta = spec.budgets[0], spec.horizon, spec.beta
     cum = np.zeros(n); shock = np.zeros(n); U = np.zeros(n); tau = np.full(n, -1); failed = np.zeros(n, bool); minres = np.ones(n)
     for t in range(H):
         weeks_left = H - t
@@ -163,11 +169,12 @@ def simulate_year(n, buffer, seed, F=50.0, b=31.7, c=6.0, H=52):
         shock = 0.9 * shock + 0.05 * r.standard_normal(n)
         e = 0.63 + shock + 0.03 * r.standard_normal(n) - a
         alive = ~failed
-        U[alive] -= 0.5 * c * a[alive] ** 2                                    # abatement cost before failure (beta ~ 1)
-        cum = cum + e
+        cum[alive] += e[alive]
         new_fail = alive & (cum > b)
+        surviving = alive & ~new_fail
+        U[surviving] -= beta ** t * 0.5 * c * a[surviving] ** 2
         failed |= new_fail; tau[new_fail] = t
-        minres = np.minimum(minres, np.maximum(b - cum, 0) / b)
+        minres[alive] = np.minimum(minres[alive], (b - cum[alive]) / b)
     return failed, tau, U, minres
 
 
@@ -175,10 +182,12 @@ lump_spec = BudgetSpec(budgets=[31.7], beta=1 - 1e-6, ubar=0.0, u_minus=0.5 * 6.
 lump_stage = Stage(m=0.0, penalty="multiplier", multiplier=50.0, clip_utility=False)
 lump_req = Requirement(T=51, alpha=0.05, zeta=0.05, family=3)
 for buffer in (0.0, 1.0, 2.0):
-    f, tau, U, mr = simulate_year(20_000, buffer, seed=11)
+    f, tau, U, mr = simulate_year(20_000, buffer, seed=11, spec=lump_spec)
     ev = evaluation_from_episodes(f, tau, U, np.zeros_like(U), spec=lump_spec, stage=lump_stage, T=51, min_reserve=mr)
-    v = ev.validate(lump_req.alpha, lump_req.zeta, lump_req.family)
-    lump = V.lump_sanction_risk(ev.V_m, 52, 50.0, 0.0, lump_spec.beta, 51, N=ev.n, zeta=lump_req.error_per_statement, u_minus=lump_spec.u_minus)
+    statements = 2 * lump_req.family  # One direct and one value bound for each buffer.
+    v = ev.validate(lump_req.alpha, lump_req.zeta, statements)
+    lump = V.lump_sanction_risk(ev.V_m, 52, 50.0, 0.0, lump_spec.beta, 51, N=ev.n,
+                                zeta=lump_req.zeta / statements, u_minus=lump_spec.u_minus)
     print(f"buffer {buffer}: miss probability {ev.p_T:.4f}, cost {-ev.U:.3f}; validated p_51 <= {v.upper:.4f}; lump-sanction value certificate {lump.value:.4f}")
 
 # %% [markdown]
@@ -195,7 +204,7 @@ for buffer in (0.0, 1.0, 2.0):
 #   and model error.
 
 # %%
-f, tau, U, mr = simulate_year(20_000, 1.0, seed=12)
+f, tau, U, mr = simulate_year(20_000, 1.0, seed=12, spec=lump_spec)
 ev = evaluation_from_episodes(f, tau, U, np.zeros_like(U), spec=lump_spec, stage=lump_stage, T=51, min_reserve=mr)
 rep = interpret(lump_spec, lump_req, lump_stage, ev, delta=None, candidate_name="the pacing rule with buffer 1")
 print("certified:", rep.certified)

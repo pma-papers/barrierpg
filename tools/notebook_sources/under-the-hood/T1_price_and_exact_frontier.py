@@ -1,9 +1,9 @@
 # %% [markdown]
-# # T1. The price on a problem with an exact solution
+# # T1. The price on a problem with a grid benchmark
 #
 # This notebook belongs to the toolbox's under-the-hood track. It runs the workflow on the paper's running example, a
-# small problem whose exact solution is known, **without training anything**, so that what the price does can be
-# checked against the exact answer. It needs only `numpy` and `scipy`. You will
+# small problem with a dynamic-programming benchmark, **without training anything**. It needs `numpy`, `scipy`
+# and Matplotlib. You will
 #
 # 1. state a budget problem and a deployment requirement,
 # 2. see what the clipped barrier reward does and check the identity the paper turns on,
@@ -138,7 +138,7 @@ for name, e in evals.items():
     if name != "standing still":
         ax.plot(e.q_beta, e.U, "o", color="C0", ms=5)
         ax.annotate(name.replace("rule, ", ""), (e.q_beta, e.U), textcoords="offset points", xytext=(4, -10), fontsize=7)
-ax.axvline(0.05, color="C3", ls=":", lw=1, label="tolerance 0.05")
+ax.axvline(req.alpha * spec.beta ** req.T, color="C3", ls=":", lw=1, label="sufficient geometric level")
 ax.set_xscale("log"); ax.set_xlabel("breakdown probability $q_\\beta$"); ax.set_ylabel("stopped utility $U$")
 ax.legend(fontsize=8, loc="lower right"); plt.tight_layout(); plt.show()
 
@@ -151,7 +151,7 @@ ax.legend(fontsize=8, loc="lower right"); plt.tight_layout(); plt.show()
 
 # %%
 from barrierpg.frontier import Run, check_runs
-runs = [Run(m=mm, q_beta=q, U=U, label="exact") for mm, (q, U) in EXACT_FRONTIER.items() if mm > 0]
+runs = [Run(m=mm, q_beta=q, U=U, label="grid") for mm, (q, U) in EXACT_FRONTIER.items() if mm > 0]
 chk = check_runs(runs, beta=spec.beta, sup_U=EXACT_FRONTIER[0.0][1], delta=0.0)
 print("plug-in comparison across prices:")
 ms = np.array([r["m"] for r in chk.table]); qs = np.array([r["q_beta"] for r in chk.table]); law = np.array([r["price_risk_bound"] for r in chk.table])
@@ -162,12 +162,13 @@ ax.set_xlabel("price $m$"); ax.set_ylabel("$q_\\beta$"); ax.legend(fontsize=8); 
 print("plug-in estimate / benchmark risk at m = 1, 10:", [round(float(l / q), 1) for l, q, mm in zip(law, qs, ms) if mm in (1.0, 10.0)])
 
 # %% [markdown]
-# The bound has the right dependence on the price, order $1/m$, and is conservative by a factor of about twenty.
+# The plug-in expression decays as $1/m$. The printed ratios describe how far above the grid risk it lies at the two prices.
 #
 # ## Validate the candidate that would be deployed
 #
 # Validation is the deployment decision. Draw fresh episodes of the fixed candidate and compute a one-sided exact
-# binomial upper bound on its failure probability. Zero failures in $N$ episodes certify the bound # $1-\zeta^{1/N}$, never zero. The error $\zeta$ is split over the family of candidates inspected, before any is
+# binomial upper bound on its failure probability. With error $e$ per statement, zero failures in $N$ episodes
+# give the upper bound $1-e^{1/N}$. The total error $\zeta$ is split over the family of candidates inspected, before any is
 # selected. Failure to certify does not prove a violation.
 #
 # Under geometric stopping the episode clock censors the finite-horizon risk $p_T$, so the toolbox validates

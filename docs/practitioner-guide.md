@@ -12,13 +12,16 @@ problems, each with its own notebook:
 | [A legged robot on a battery](../notebooks/03_robot_battery.ipynb) | charge | what the policy must observe (a clock); prices; a reserve against an uncertain battery |
 | [A navigation robot with a damage allowance](../notebooks/04_navigation_allowance.ipynb) | allowance of damage | which requirement the task means; a price that is too high |
 
-The lander of notebook 1 is the fuel-tank form that the paper used up to its revision 76; the paper's lander study now
-uses the landing problem of `barrierpg.problems.landing`, on which the notebook will be rewritten.
+Notebook 1 uses the earlier fuel-tank task and its archived campaign. The current manuscript's landing task
+is available in `barrierpg.problems.landing`. See the [landing example](../README.md#your-own-problem).
 
 Each notebook builds its problem and trains it in view, with notes on what the theory implies at each step;
 [`examples/your_problem.py`](../examples/your_problem.py) is a complete template, from the task to the report, to copy
 for your own problem. The [under-the-hood track](under-the-hood/decisions-and-theory.md) ties each step to the paper's
 results, using test problems with exact solutions.
+
+For PPO with vector observations, the [residual network guide](residual-networks.md) shows how to
+enable skip connections and LayerNorm in the actor and critic and compare learning curves.
 
 ## The method in brief
 
@@ -67,8 +70,9 @@ req = Requirement(T=999, alpha=0.05, zeta=0.05, family=10)
 * `budgets` is the size of the resource; `horizon` is the length of an episode in steps if it has one.
 * `beta` is the discount of the utility. With a horizon, a discount close to one keeps late failures from looking
   cheap.
-* `ubar` and `u_minus` bound the reward per step from above and below. Only the certificates use them; a loose bound
-  makes the certificates weaker, not wrong.
+* Value certificates require demonstrated upper and lower bounds on each step's utility. The numerical scales above
+  illustrate the API. With nominal reward scales, use the direct failure test and set `include_physical_value=False`
+  in `interpret`.
 * `alpha` is the tolerated probability of running out within `T + 1` steps. `zeta` is the probability that the
   validation test certifies a policy that in fact violates the tolerance. They are different quantities.
 * `family` is the number of policies (or horizons, or tests) you will look at before deploying one. The validation
@@ -99,9 +103,11 @@ when a constraint and price can select the same policy.
 ## Step 4. Wrap the environment
 
 ```python
+import gymnasium as gym
 from barrierpg import BudgetWrapper, Stage
 from barrierpg.problems.lander import fuel_cost    # fuel_cost(obs, action, next_obs, reward, info) -> [fuel burned]
-env = BudgetWrapper(gym.make("LunarLanderContinuous-v3"), cost=fuel_cost, spec=spec, stage=Stage(m=0.5, clip_utility=False))
+env = BudgetWrapper(gym.make("LunarLanderContinuous-v3"), cost=fuel_cost, spec=spec,
+                    stage=Stage(m=0.5), observe_time=True)
 ```
 
 * `cost(obs, action, next_obs, reward, info)` returns the resource consumed by one step (one number per budget).

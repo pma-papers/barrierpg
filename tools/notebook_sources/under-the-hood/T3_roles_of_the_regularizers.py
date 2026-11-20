@@ -113,7 +113,8 @@ print(RegularizerMix(kappa1=0.1, kappa2=1.0).explain())
 # %%
 cb = curvature_budget(FeatureConstants(**feature_bounds()), beta=0.9, m=1.0, ubar=1.0, kappa=2037.0, lambda_H=1.0)
 print(cb.explain(), "\n")
-th = np.linspace(-12, 12, 400001); c_prior = float(np.trapezoid(chi(th) * np.exp(-th ** 2 / 2) / np.sqrt(2 * np.pi), th))
+from scipy.integrate import trapezoid
+th = np.linspace(-12, 12, 400001); c_prior = float(trapezoid(chi(th) * np.exp(-th ** 2 / 2) / np.sqrt(2 * np.pi), th))
 prior_value = flow.stats(c_prior)["V_m"]
 for kappa in (0.1, 1.0, 10.0, 2037.0):
     r = simulate_particles(flow, kappa, 0.0, n=2000, seed=3)
@@ -121,9 +122,8 @@ for kappa in (0.1, 1.0, 10.0, 2037.0):
 print(f"prior policy N(0,1): V_m = {prior_value:+.4f}")
 
 # %% [markdown]
-# Every flow converges, far below the threshold too, and the improvement over the prior policy shrinks as $\kappa$
-# grows. At that strength the learner returns essentially the prior. The practical rule follows: set
-# $\kappa$ for conditioning, the smallest strength at which the optimizer behaves, not at the threshold.
+# The runs show how closely the simulated particle laws stay to the prior at the tested strengths.
+# The finite-time endpoints do not establish convergence below the sufficient population threshold.
 #
 # ## Part B. PPO helpers
 #
@@ -191,13 +191,13 @@ for eta in (0.0, 0.1, 1.0):
     action_runs[eta] = assess(ppo, seed=20)
     e, A = action_runs[eta]
     b = action_risk_bound(A, q_ref, spec.beta)
-    print(f"eta = {eta:<4g}: q_beta = {e.q_beta:.4f}, U = {e.U:.3f}, A = {A:9.3f}, kl bound: q in [{b.inputs['lower']:.4f}, {b.value:.4f}]"
+    print(f"eta = {eta:<4g}: q_beta = {e.q_beta:.4f}, U = {e.U:.3f}, A = {A:9.3f}, plug-in interval [{b.inputs['lower']:.4f}, {b.value:.4f}]"
           f" ({'informative' if b.informative else 'uninformative'})")
 
 # %%
 A_grid = np.logspace(-3, 3, 200)
 fig, ax = plt.subplots(figsize=(5.5, 3.3))
-ax.loglog(A_grid, [kl_upper_inverse(q_ref, a) for a in A_grid], color="0.3", label="upper bound from $\\mathrm{kl}(q\\,\\|\\,q_\\rho)\\leq\\mathcal{A}$")
+ax.loglog(A_grid, [kl_upper_inverse(q_ref, a) for a in A_grid], color="0.3", label="plug-in upper endpoint")
 ax.axhline(q_ref, color="0.6", ls=":", label="incumbent's risk")
 for eta, (e, A) in action_runs.items():
     ax.plot(max(A, 1e-3), e.q_beta, "o", ms=7, label=f"$\\eta={eta:g}$")
@@ -205,9 +205,8 @@ ax.set_xlabel("action relative entropy $\\mathcal{A}$ to the incumbent"); ax.set
 plt.tight_layout(); plt.show()
 
 # %% [markdown]
-# The bound holds in every run and is informative only when $\mathcal A$ is small, that is, when the learner stays
-# close to the incumbent and gains little. The anchor protects against a price of failure risk set too low when the reference
-# is trusted; at a correct price it costs utility, and it is not a substitute for the price.
+# The theoretical risk comparison uses the true action entropy and reference risk. The plotted interval plugs
+# in Monte Carlo estimates and does not account for their uncertainty. Use separate failure validation for deployment.
 #
 # ## Part D. The parameter anchor: the prior is a policy
 #
@@ -300,19 +299,18 @@ print("\n" + regularizer_effects(spec, low_price, cand(e), noise_kappa1=0.1, anc
 # ## Joint use
 #
 # With both regularizers the action term pulls the action law toward $\rho$ and the parameter term pulls the unit law
-# toward the prior policy. Here the two targets coincide by construction (the prior is the incumbent with the
-# incumbent's dispersion), which is what the centering construction does in the population setting. Their biases add
-# in every certificate as $\mathcal R=\eta\mathcal A+\kappa\mathcal H$, and the action term adds $\eta C_{\mathcal A}$ to
-# the curvature the parameter term must supply.
+# toward the prior policy. The finite PPO prior approximates the incumbent by fitting its mean and using its
+# dispersion. The population centering construction can make the two reference policies coincide exactly.
+# In the population theorem the two penalties appear as $\mathcal R=\eta\mathcal A+\kappa\mathcal H$.
 
 # %%
 ppo, _ = prior_ppo()
 anchor = ParameterAnchor(ppo, 10.0, decoupled=False).install()
 ppo.learn(STEPS, callback=[ActionAnchor(0.1, log_reference)])
 e, A = assess(ppo, seed=60)
-joint = regularizer_effects(spec, Stage(m=0.03, eta=0.1, kappa=10.0), cand(e), action_entropy=A, reference_risk=q_ref,
-                            prior_policy=prior_c, centered=True, **anchor.effects_inputs())
-print(f"joint: q_beta = {e.q_beta:.4f}, U = {e.U:.3f}, A = {A:.3f}\n"); print(joint.explain())
+joint = regularizer_effects(spec, Stage(m=0.03, eta=0.1, kappa=10.0), cand(e),
+                            prior_policy=prior_c, **anchor.effects_inputs())
+print(f"joint: q_beta = {e.q_beta:.4f}, U = {e.U:.3f}, estimated A = {A:.3f}\n"); print(joint.explain())
 
 # %% [markdown]
 # ## Summary

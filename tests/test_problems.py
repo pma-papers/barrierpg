@@ -40,6 +40,23 @@ def test_retailer_rule_with_noise_is_riskier():
     assert noisy.p_T > exact.p_T
 
 
+def test_retailer_profit_bound_covers_accumulated_unsold_stock():
+    from types import SimpleNamespace
+    from barrierpg.problems.inventory import Retailer, make_inventory_env
+
+    retailer = Retailer(cash=1e9)  # It can pay for a full year of orders.
+    env = make_inventory_env(Stage(m=0.0), retailer)
+    env.reset(seed=0)
+    env.env.np_random = SimpleNamespace(
+        poisson=lambda mean: np.zeros_like(mean),
+        gamma=lambda shape, scale: np.ones_like(shape),
+        standard_normal=lambda: 0.0,
+    )
+    rewards = [env.step(np.ones(retailer.K))[1] for _ in range(retailer.weeks)]
+    assert env.tau is None
+    assert min(rewards) >= -retailer.u_minus
+
+
 def test_observe_time_appends_the_elapsed_fraction():
     from barrierpg import BudgetSpec, BudgetWrapper
     from barrierpg.problems.inventory import InventoryCore, cash_outflow

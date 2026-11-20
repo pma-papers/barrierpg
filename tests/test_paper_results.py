@@ -197,3 +197,4 @@ def test_earliest_failures_time():
     b = C.earliest_failures_time(q_beta=0.01, beta=0.95, eps=0.5)
     assert abs(b.value - math.log(50.0) / math.log(1 / 0.95)) < 1e-12 and "risk measure of the failure time" in b.source
     assert C.earliest_failures_time(0.6, 0.95, 0.5).value == 0.0
+    assert np.isposinf(C.earliest_failures_time(0.0, 0.95, 0.5).value)

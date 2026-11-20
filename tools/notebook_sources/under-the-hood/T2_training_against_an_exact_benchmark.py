@@ -28,15 +28,14 @@ from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 import barrierpg
 from barrierpg import Requirement, Stage, evaluate, interpret, sb3_policy
 from barrierpg.callbacks import BudgetMonitor, DualAscent, dual_step_suggestion
-from barrierpg.convergence import seed_dispersion
-from barrierpg.examples.wear import WearModel, make_wear_env, EXACT_FRONTIER, EXACT_BARRIER
+from barrierpg.examples.wear import WearModel, make_wear_env, EXACT_FRONTIER
 from barrierpg.frontier import Run, interpolate_frontier
 from barrierpg.spec import discounted_total, price_from_multiplier
 
 torch.set_num_threads(1)
 plt.rcParams.update({"figure.dpi": 110, "axes.spines.top": False, "axes.spines.right": False, "font.size": 10})
 model = WearModel(); spec = model.spec(ubar=1.0)
-req = Requirement(T=19, alpha=0.05, zeta=0.05, family=12)       # every learned candidate inspected below shares the error
+req = Requirement(T=19, alpha=0.05, zeta=0.05, family=2)       # two final evaluation routes
 
 # %% [markdown]
 # ## A training helper
@@ -124,7 +123,7 @@ for i, mm in enumerate(prices):
     pts = [e for (k, sd), e in by_price.items() if k == mm]
     ax.plot([e.q_beta for e in pts], [e.U for e in pts], "o", color=f"C{i}", label=f"PPO, m = {mm:g}")
     ax.plot(*EXACT_FRONTIER[mm], "x", color=f"C{i}", ms=8)
-ax.axvline(0.05, color="C3", ls=":", lw=1)
+ax.axvline(req.alpha * spec.beta ** req.T, color="C3", ls=":", lw=1, label="sufficient geometric level")
 ax.set_xscale("log"); ax.set_xlabel("breakdown probability $q_\\beta$"); ax.set_ylabel("stopped utility $U$"); ax.legend(fontsize=8)
 plt.tight_layout(); plt.show()
 
@@ -139,33 +138,37 @@ print({m: [round(benchmark_value(m) - e.V_m, 3) for (price, _), e in by_price.it
 
 # %% [markdown]
 # With three prices and one or two seeds this is a rough reading of one learner at one training budget. The check is
-# most useful on short pilot runs at a few prices before committing to a large price: a shortfall that grows in proportion to the
-# price says that raising the price will not reach a smaller tolerance with this learner.
+# useful on short pilot runs before committing to a large price. A shortfall that grows roughly in proportion
+# to price is reason to investigate the learner's optimization error. A few noisy grid comparisons cannot determine
+# whether that error grows sublinearly along a price sequence.
 #
 # ## A prescribed level: the adaptive multiplier
 #
 # A multiplier method charges a flat penalty $\nu$ at failure and updates it after each rollout,
-# $\nu\leftarrow\max\{0,\nu+c(\hat q-\alpha)\}$. If it converges to $\nu$, it returns the fixed-price optimum at
-# $m=(1-\beta)\nu$ (the paper's section *The fixed price of failure risk*). The step $c$ is sized from the level the
-# multiplier has to reach. The learned policies above attain more risk than the grid policies at the same price, so
-# that level comes from the learned runs, not from the grid benchmark: we interpolate, on a log scale, the price at
-# which they attain the prescribed level. Sized from the grid benchmark, which attains it at about a third of that
-# price, the multiplier is still rising when training ends.
+# $\nu\leftarrow\max\{0,\nu+c(\hat q-\alpha)\}$. At a fixed $\nu$, the failure-only objective in this setting
+# is the fixed-price objective at $m=(1-\beta)\nu$. This identifies the objective even when PPO's optimization
+# error is unknown. We size the step using the fixed-price runs. If they bracket the target with decreasing,
+# positive risks, we interpolate on a log scale. Otherwise we use the tested price whose estimated risk was closest.
 #
 # The step is half the expected level per rollout in which every episode fails. Early in training, when many episodes
 # fail, the multiplier rises within a few rollouts. Near the tolerance, where the failure rate is off by about a
-# percentage point, one rollout moves it by about half a percent of its level, slowly relative to the policy's updates.
+# percentage point, one rollout moves it by about half a percent of that reference level.
 #
-# The prescribed level is set **below** the tolerance: a multiplier that converges at the tolerance itself does not pass
-# validation at that tolerance.
+# Leave room for sampling error when choosing a target for the same event as validation. This pilot targets
+# geometric risk 0.02. The finite-horizon test below uses a stricter sufficient geometric level, $0.05\beta^{19}$.
 
 # %%
 alpha_level = 0.02
 m_runs = sorted(prices)
-q_runs = [np.mean([e.q_beta for (k, sd), e in by_price.items() if k == mm]) for mm in m_runs]   # risk falls with the price
-m_expected = float(np.exp(np.interp(np.log(alpha_level), np.log(q_runs[::-1]), np.log(m_runs[::-1]))))
+q_runs = np.array([np.mean([e.q_beta for (k, sd), e in by_price.items() if k == mm]) for mm in m_runs])
+if np.all(np.diff(q_runs) < 0) and 0 < q_runs[-1] <= alpha_level <= q_runs[0]:
+    m_expected = float(np.exp(np.interp(np.log(alpha_level), np.log(q_runs[::-1]), np.log(m_runs[::-1]))))
+    print(f"Interpolated trial price for geometric risk {alpha_level:g}: {m_expected:.2f}")
+else:
+    m_expected = m_runs[int(np.argmin(np.abs(q_runs - alpha_level)))]
+    print(f"Using the closest tested price, {m_expected:g}, to size the multiplier step.")
 nu_expected = discounted_total(m_expected, spec.beta)
-print(f"the learned runs attain {alpha_level:g} near m = {m_expected:.2f}: expected multiplier nu = {nu_expected:.1f}")
+print(f"Reference multiplier nu = {nu_expected:.1f}")
 dual = DualAscent(alpha=alpha_level, step=dual_step_suggestion(nu_expected, rollouts_to_reach=2))
 adaptive_stage = Stage(m=0.0, penalty="multiplier")
 mon_a = BudgetMonitor(spec.beta, 0.0, penalty="multiplier", dual=dual)
@@ -186,23 +189,16 @@ print(f"adaptive candidate: q_beta = {ev_a.q_beta:.4f}, U = {ev_a.U:.3f}, final 
       f"(price-equivalent m = {price_from_multiplier(dual.multiplier, spec.beta):.3f})")
 
 # %% [markdown]
-# Read the diagnosis printed above. It applies the paper's two criteria for convergence: the multiplier stops moving,
-# and the attained risk lies within the confidence bound of the tolerance. *Stable* means both hold, and the
-# candidate is the fixed-price optimum at the price-equivalent $m=(1-\beta)\nu$, up to its optimization error.
-# The multiplier is the running sum of its updates, so the diagnosis tests whether it still moves on the updates
-# themselves: their mean over the last rollouts is its drift. *Trending* means the multiplier was still moving when
-# training stopped: the candidate is not a fixed-price optimum at any identified price, and longer training or a step
-# sized from the level the multiplier has to reach is needed. A multiplier that keeps rising while the failure rate
-# stays above the tolerance is the sign of a tolerance below the lower bound on the risk of the class, where no multiplier
-# converges. *Increasing* means the multiplier rose while every episode failed, so the flat penalty carried no
-# gradient. *Off-target* means no drift but a failure rate away from the tolerance: the
-# rollouts are too few or too small to resolve it.
+# The diagnosis summarizes two features of the recent training trace: drift in the multiplier updates and
+# proximity of the sampled risk to the target. A stable trace does not bound PPO's optimization error. A growing
+# multiplier warrants checking the step size, training budget and feasibility. Persistent drift alone cannot
+# establish infeasibility. Re-evaluate the final policy on fresh episodes at the deployment horizon.
 #
 # ## Keeping a reserve: the interior barrier when the true allowance is smaller than planned
 #
-# A failure-only price leaves no reserve: its optimal policies run close to exhaustion whenever that pays. If the
-# true allowance is ten percent smaller than the one the policy observes, breakdowns rise sharply. The interior
-# barrier ($\theta>0$) keeps a graded reserve at a utility cost bounded by its interior loss. The wrapper option
+# A failure-only price can favor policies that operate close to exhaustion. Compare both trained policies
+# when the true allowance is ten percent smaller than the one the policy observes. The interior
+# barrier ($\theta>0$) charges for using up the reserve before failure. The wrapper option
 # `true_budget_scale=0.9` judges failure against the reduced allowance while the policy sees the nominal reserve.
 
 # %%
@@ -218,22 +214,27 @@ for r in rows:
     print(f"{r[0]:20s} {r[1]:8.4f} {r[2]:6.3f} {r[3]:6.3f} {r[4]:6.3f} {r[5]:10.4f}")
 
 # %% [markdown]
-# The barrier gives up utility at the nominal allowance and keeps breakdowns low when the true allowance is smaller than planned.
-# If the size of the possible error is known, planning with a correspondingly reduced allowance is the more # economical protection; the barrier keeps a graded reserve for an error of unknown size.
+# These are simulator estimates for the two trained policies. Compare the nominal utility as well as the
+# breakdown probabilities at both allowances. A known reduction can be represented directly in the budget used for training.
 #
 # ## Validate and report
 #
-# We validate the stochastic candidate directly. The benchmark comparison is descriptive. Every learned candidate
-# inspected in this notebook shares the validation error (`family=12`). The requirement $p_{19}\le0.05$ is tested
+# We use new seeds for the final validation of the stochastic policy. The two evaluation routes split the error.
+# The benchmark comparison is descriptive. The requirement $p_{19}\le0.05$ is tested
 # here through $q_\beta\le0.05\,\beta^{19}$, which is conservative under geometric stopping; notebook T4 tests
 # $p_T$ directly.
 
 # %%
-benchmark_U = interpolate_frontier([Run(m=k, q_beta=q, U=U) for k, (q, U) in EXACT_FRONTIER.items()], ev_s.q_beta)
-gap = (benchmark_U - ev_s.U) / benchmark_U
-seeds_q = seed_dispersion([by_price[(1.0, 0)].q_beta, by_price[(1.0, 1)].q_beta])
-rep = interpret(spec, req, stage, ev_s, trends=mon.diagnostics(window=40),
-                seeds={"q_beta at m = 1": seeds_q}, exact_frontier_gap=gap)
+torch.manual_seed(100_000)
+final_geo = evaluate(env, sb3_policy(ppo), 10_000, spec=spec, stage=stage, seed=100_000, T=req.T)
+grid = [Run(m=k, q_beta=q, U=U) for k, (q, U) in EXACT_FRONTIER.items()]
+if min(r.q_beta for r in grid) <= final_geo.q_beta <= max(r.q_beta for r in grid):
+    benchmark_U = interpolate_frontier(grid, final_geo.q_beta)
+    gap = (benchmark_U - final_geo.U) / benchmark_U
+    print(f"Relative utility shortfall against the interpolated grid benchmark: {gap:.2%}")
+else:
+    print("Measured risk lies outside the grid benchmark range.")
+rep = interpret(spec, req, stage, final_geo, trends=mon.diagnostics(window=40))
 print(rep.text())
 
 # %% [markdown]
@@ -246,8 +247,9 @@ print(rep.text())
 from barrierpg import BudgetWrapper
 from barrierpg.examples.wear import WearCore, wear_cost
 fixed_spec = spec.with_(horizon=req.T + 1)
+torch.manual_seed(200_000)
 ev_fixed = evaluate(lambda: BudgetWrapper(WearCore(model), wear_cost, fixed_spec, stage, geometric_stop=False), sb3_policy(ppo),
-                    10_000, spec=fixed_spec, stage=stage, seed=9, T=req.T)
+                    10_000, spec=fixed_spec, stage=stage, seed=200_000, T=req.T)
 rep_fixed = interpret(fixed_spec, req, stage, ev_fixed, delta=None)
 print(f"p_19 = {ev_fixed.p_T:.4f}; certified: {rep_fixed.certified}")
 print("\n".join(rep_fixed.text().split("\n")[:12]))

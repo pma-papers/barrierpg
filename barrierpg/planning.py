@@ -119,25 +119,28 @@ class Plan:
             lines.append(f"When another method is the better choice [{cite('when_to_use')}]:")
             lines += ["  " + c.line() for c in self.conditions]
         if s.penalty == "multiplier":
+            objective = "U - I - nu q_beta" if s.theta else "U - nu q_beta"
             lines.append(f"Stage: flat failure penalty nu = {s.multiplier:g}" + (f", interior barrier theta = {s.theta:g} (clipping at -m, m = {s.m:g})" if s.theta else "")
                          + (f", action relative entropy eta = {s.eta:g}" if s.eta else "") + (f", parameter regularizer kappa = {s.kappa:g}" if s.kappa else "")
-                         + "; the fixed-multiplier objective U - nu q_beta.")
+                         + f". The return before regularization is {objective}.")
         else:
             lines.append(f"Stage: price m = {s.m:g}" + (f", interior barrier theta = {s.theta:g}" if s.theta else ", failure-only price")
                          + (f", action relative entropy eta = {s.eta:g}" if s.eta else "") + (f", parameter regularizer kappa = {s.kappa:g}" if s.kappa else "")
-                         + ("" if s.clip_utility else ", fixed-multiplier form (pre-failure reward unclipped)") + ".")
+                         + (", unclipped interior reward" if s.theta and not s.clip_utility else "") + ".")
         if self.price_bound is not None:
             lines.append(("Penalty: " if s.penalty == "multiplier" else "Price: ") + self.price_bound.statement())
         if s.penalty == "multiplier":
             lines.append(f"Failure charge: the flat penalty nu = {s.multiplier:g}, charged once at the failing action whatever its time "
-                         "(a lump sanction); it is the fixed-price optimum at m = (1-beta) nu only in the absorbing form.")
+                         "(a lump sanction). The absorbing fixed price m = (1-beta) nu gives the same failure charge. "
+                         "Objective equivalence also requires matching pre-failure rewards.")
         elif sp.horizon is not None:
             lines.append(f"Charge at a failure under the physical horizon H = {sp.horizon}: m(1-beta^(H-t))/(1-beta) at a failure at action t, "
                          f"{failure_charge(s.m, sp.beta, 0, sp.horizon):.4g} at t = 0. A flat penalty nu matches it only at one failure time "
                          "(spec.price_from_multiplier_physical).")
         else:
-            lines.append(f"Discounted total of the price charged at a failure: {discounted_total(s.m, sp.beta):.4g} (absorbing). A multiplier method that converges to "
-                         f"nu = {self.multiplier_equivalent:.4g} returns the same optimum.")
+            lines.append(f"Discounted total charged at a failure: {discounted_total(s.m, sp.beta):.4g} (absorbing). "
+                         f"Freezing a multiplier at this value matches the failure charge. Objective equivalence "
+                         "also requires matching pre-failure rewards.")
         if self.dual_step is not None:
             lines.append(f"Dual-ascent step for an adaptive multiplier at tolerance {r.alpha:g}: about {self.dual_step:.4g} per rollout "
                          f"(moves nu by a twentieth of its expected level when every episode fails).")

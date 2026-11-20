@@ -50,18 +50,21 @@ def finite_from_geometric(q_beta: float, beta: float, T: int) -> Bound:
 
 def earliest_failures_time(q_beta: float, beta: float, eps: float) -> Bound:
     """What a geometric risk says about when failures happen: with theta = log(1/beta), q_beta = E exp(-theta tau) is
-    the exponential risk measure of the failure time, and for every eps in (0, 1] the earliest eps-fraction of failures
-    occurs on average no earlier than log(eps / q_beta) / theta periods. A smaller q_beta pushes this bound up without
+    the exponential risk measure of the failure time. For every eps in (0, 1], take the earliest eps-fraction
+    of trajectories, with failure time infinity on trajectories that never fail. Their mean failure time is
+    at least log(eps / q_beta) / theta periods. A smaller q_beta pushes this bound up without
     limit, whereas a bound on p_T at one horizon never says more than T + 1. Pass a validated upper bound on q_beta to
     obtain a valid lower bound on the time."""
     if not 0.0 < eps <= 1.0:
         raise ValueError("eps must lie in (0, 1]")
     theta = math.log(1.0 / beta)
-    t = max(0.0, math.log(eps / max(q_beta, 1e-300)) / theta)
+    if q_beta < 0.0 or q_beta > 1.0 or not math.isfinite(q_beta):
+        raise ValueError("q_beta must lie in [0, 1]")
+    t = math.inf if q_beta == 0.0 else max(0.0, (math.log(eps) - math.log(q_beta)) / theta)
     return Bound("average time of the earliest failures, lower bound", float(t), cite("failure_time"),
                  ["q_beta is the geometric risk of the policy, or a valid upper bound on it"],
                  dict(q_beta=q_beta, beta=beta, eps=eps, theta=theta),
-                 note=f"the earliest {eps:.0%} of failures occur on average no earlier than this many periods")
+                 note=f"mean failure time over the earliest {eps:.0%} of trajectories, assigning infinity to paths that never fail")
 
 
 def risk_lower_bound(p_T_reference: float, L0: float, T: int) -> Bound:

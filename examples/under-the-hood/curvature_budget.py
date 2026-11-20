@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from barrierpg.convergence import (FeatureConstants, KernelConstants, curvature_budget, gaussian_prior_curvature,
+from barrierpg.convergence import (FeatureConstants, curvature_budget, gaussian_prior_curvature,
                              kappa_for_tolerance, risk_slack_from_prior)
 from barrierpg.examples.plateau import feature_bounds
 from barrierpg.roles import RegularizerMix
@@ -21,7 +21,7 @@ for beta in (0.9, 0.95, 0.99):
     print(f"beta = {beta}: C_m = {cb.constants['C_m']:.4g}, C_A = {cb.constants['C_A']:.4g}, certified kappa = {cb.kappa_certified:.4g}")
 print()
 
-# 2. The paper's analytical example: the plateau feature's bounds, computed on a fine grid.
+# 2. The paper's analytical example: the plateau feature's global derivative bounds.
 fc = FeatureConstants(**feature_bounds())
 cb = curvature_budget(fc, beta=0.9, m=1.0, ubar=1.0, kappa=2037.0, lambda_H=1.0)
 print("analytical example:"); print(cb.explain()); print()
@@ -33,10 +33,13 @@ print("softmax kernel bounds of the plateau feature:", fc.kernel()); print()
 print(RegularizerMix(kappa1=0.1, kappa2=10.0).explain()); print()
 
 # 5. 'Improvement over the prior policy': the risk bound of the flow started at the prior, and the kappa that keeps p_T <= alpha.
-R_Gamma = 12.2   # ubar/(1-beta) - V_m(Gamma) in the analytical example
+# Since every reward lies in [-1, 1], 20 bounds R_Gamma = ubar/(1-beta) - V_m(Gamma).
+R_Gamma_upper = (1.0 + 1.0) / (1.0 - 0.9)
+# The prior induces a nonnegative exponential tilt, shifting actions upward relative to uniform.
+# Under uniform actions P(a < 0.2 x) = 0.1, which upper-bounds the prior risk.
+p_prior_upper = 0.1
 for kappa in (0.1, 1.0, 10.0, 100.0):
-    print(f"kappa = {kappa:6g}: risk slack {risk_slack_from_prior(L0=1.0, T=0, c_H=2.0, R_Gamma=R_Gamma, kappa=kappa):.4g} "
-          "(the measured deviation lies orders of magnitude inside it)")
-print(f"kappa keeping p_0 <= 0.12 when the prior policy has p_0 = 0.0895: {kappa_for_tolerance(1.0, 0, 2.0, R_Gamma, 0.12, 0.0895):.4g}")
-print("\nReading: the threshold is sufficient, not necessary; near it the minimizer lies close to the prior; set kappa for conditioning")
-print("and let the certificates, evaluated on the learned policy, detect a bias that is not affordable.")
+    slack = risk_slack_from_prior(L0=1.0, T=0, c_H=2.0, R_Gamma=R_Gamma_upper, kappa=kappa)
+    print(f"kappa = {kappa:6g}: upper bound on the increase in risk {slack:.4g}")
+strength = kappa_for_tolerance(1.0, 0, 2.0, R_Gamma_upper, 0.12, p_prior_upper)
+print(f"Sufficient kappa for p_0 <= 0.12 using p_0(prior) <= {p_prior_upper:g} and R_Gamma <= {R_Gamma_upper:g}: {strength:.4g}")

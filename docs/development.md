@@ -53,9 +53,9 @@ To register the environment as a named Jupyter kernel, usable from any Jupyter f
 ## Tests
 
 ```bash
-python tests/run_all.py          # numpy-only checks
-python tests/run_all.py --rl     # also the Stable-Baselines3 and Gymnasium checks
-python -m pytest tests -q        # the same checks under pytest
+python tests/run_all.py          # core checks without pytest
+python tests/run_all.py --rl     # selected Stable-Baselines3 and Gymnasium checks without pytest
+python -m pytest tests -q        # the full suite with RL and simulator extras installed
 ```
 
 The checks cover the budget mechanics of the four tutorial problems, the validation and certificates, the plain
@@ -80,7 +80,7 @@ rebuild and execute:
 python tools/build_notebooks.py          # all notebooks: the four problems (minutes each) and the under-the-hood track
 python tools/build_notebooks.py 01 T4    # selected notebooks, by the start of their names
 python tools/show_outputs.py notebooks/01_lander_fuel_tank.ipynb   # print the text outputs for review
-python tools/make_readme_figures.py      # the figure on the landing page
+python tools/make_readme_figure.py       # the figure on the landing page
 ```
 
 ## Following a new revision of the paper

@@ -55,7 +55,7 @@ plt.rcParams.update({"figure.dpi": 110, "axes.spines.top": False, "axes.spines.r
 # * The resource: Safety-Gymnasium returns the step's cost separately; its `SafetyGymnasium2Gymnasium` wrapper moves it
 #   into `info["cost"]`, where the cost function reads it.
 # * `budgets`: 25 units of damage; `horizon`: 1000 steps; `beta = 0.999`.
-# * `ubar`, `u_minus`: the reward per step is at most about one (the goal bonus) and rarely negative; 1.1 and 0.1.
+# * `ubar`, `u_minus`: 1.1 and 0.1 are nominal reward scales in the archived configuration.
 # * The price: `Stage(m=0.03, clip_utility=False)`, one of the campaign's prices; only the failure is priced.
 # * `observe_time=True`: the task's observation has no clock, and the allowance has to last for the episode.
 #
@@ -156,29 +156,26 @@ for m in (0.03, 0.1):
 # %% [markdown]
 # ## 4. Validation: the direct test decides
 #
-# A certificate from the value bounds the risk using the largest possible reward per step and the discounted length of
-# the episode; here that bound is far above every return the robot attains, so the certificate is valid and useless.
-# The direct test on fresh episodes does not depend on it. We validate the three policies trained at the price of 0.03,
+# The value certificate needs a demonstrated bound on the shaped step rewards. We use the direct failure test.
+# We validate the three policies trained at the price of 0.03,
 # on the 300 fresh episodes of their records, with the error shared among the fifteen trained policies.
 #
-# **Theory.** The exact binomial test holds for any fixed policy; zero failures certify the bound # $1-\zeta^{1/N}$, never zero, and a failed test does not prove a violation.
+# **Theory.** For a fixed policy, zero failures in $N$ independent episodes give an upper endpoint
+# $1-e^{1/N}$ at error $e$ per statement. Failure to certify does not prove a violation.
 
 # %%
 req = Requirement(T=spec.horizon - 1, alpha=0.2, zeta=0.05, family=15)
 for s in camp.seeds("price-0.03"):
     rep = interpret(spec, req, camp.stage("price-0.03", s), camp.evaluation("price-0.03", s),
-                    candidate_name=f"the policy at price 0.03, seed {s}", training=camp.convergence("price-0.03", s))
+                    candidate_name=f"the policy at price 0.03, seed {s}", training=camp.convergence("price-0.03", s),
+                    include_physical_value=False)
     print("\n".join(rep.summary(resource="the damage allowance", period="steps").split("\n")[:3]))
     print("  " + next(line for line in rep.summary().split("\n") if line.startswith("Training")))
     print(f"  (return per episode {np.mean(camp.record('price-0.03', s)['evaluation']['ret']):.2f})\n")
-value = [b for b in rep.bounds if "Value" in b.source]
-print("The value certificate of the last one:", value[0].statement().split("\n")[0] if value else "not computed")
 
 # %% [markdown]
-# Policies that exhaust the allowance in one episode in twenty-five or in one in eight pass; one that exhausts it in
-# one in seven, close to the tolerance, cannot be shown to meet it with 300 episodes and the error shared among fifteen
-# policies. That is not evidence of a violation: a larger test may certify it. The seeds also differ widely in how much
-# they earn at the same price, so validate the policy you will deploy, not the configuration.
+# Compare the simultaneous upper endpoints above with the 20% requirement. The observed failure rate alone
+# does not decide the verdict. Training seeds also differ in return at the same price.
 #
 # ## 5. Regularizers when nothing is trusted
 #

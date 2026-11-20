@@ -31,11 +31,9 @@ step. The comparisons use the shipped policies of each problem's full campaign, 
 | [3. Robot on a battery](notebooks/03_robot_battery.ipynb) | MuJoCo's HalfCheetah with a battery whose efficiency varies by mission | what the policy must observe (a clock), the price, and a reserve against a battery that holds less than expected |
 | [4. Navigation with a damage allowance](notebooks/04_navigation_allowance.ipynb) | Safety-Gymnasium's PointGoal1 with its cost limit read as an allowance | which requirement a task means; a price that charges more than an episode earns |
 
-Notebook 1 uses the fuel-tank form of the lander, which the paper used up to its revision 76. The paper's lander study
-now uses a landing problem of its own: a revenue of 36 for each landing on the pad, fuel at 1 per unit, a tank of 24
-units, and the loss of the lander as a second failure. It is `barrierpg.problems.landing` (`make_landing_env`,
-`Landing.stage(k)` for the paper's charges), checked step by step against the paper's own environment. The notebook
-will be rewritten on it.
+Notebook 1 uses the earlier fuel-tank task and its archived campaign. The current manuscript uses
+`barrierpg.problems.landing`, which pays revenue for a landing and treats loss of the lander as a second failure.
+The example below shows how to run the current task.
 
 The [practitioner guide](docs/practitioner-guide.md) goes through the same decisions step by step, with what the
 theory behind the method implies for each.
@@ -43,6 +41,8 @@ The [formulation tutorial](docs/formulation-comparison.md) compares fixed-price 
 then varies reserve penalties and convex action and parameter regularizers on runnable examples.
 The [native actor updates](barrierpg/on_policy.py) and [dispatch example](examples/train_risk_constrained.py)
 show where to supply action and parameter penalties in CPO and in trust-region training under a Gaussian CVaR constraint. The [wear benchmark](docs/wear-benchmark.md) compares the methods on the same simulator.
+The [residual network guide](docs/residual-networks.md) shows how to use attention-free MLPs with skip connections
+and LayerNorm for vector observations.
 
 ## Install
 
@@ -50,7 +50,7 @@ show where to supply action and parameter penalties in CPO and in trust-region t
 git clone <this repository> bpg-toolbox && cd bpg-toolbox
 python -m venv ~/.venvs/bpg-toolbox && source ~/.venvs/bpg-toolbox/bin/activate
 pip install -e ".[all]"      # core + Gymnasium (Box2D, MuJoCo), Stable-Baselines3, PyTorch, Jupyter, pytest
-python tests/run_all.py --rl
+python -m pytest -q
 ```
 
 The core needs only numpy and scipy (`pip install -e .`). The navigation problem needs Safety-Gymnasium, which pins
@@ -74,7 +74,7 @@ print(interpret(spec, req, stage, ev, candidate_name="the base-stock rule").summ
 
 ```text
 The base-stock rule was run on 2000 fresh episodes. It ran out of cash within 52 weeks in 6 of them (0.30%).
-With confidence 0.95, its probability of running out within 52 weeks is at most 0.591%.
+With confidence 0.95, its probability of running out within 52 weeks is at most 0.652%.
 Requirement (at most 2.00%): met.
 Utility per episode: 6620 (standard error 73).
 Episodes that came within 5% of running out, or ran out: 0.4%.
@@ -88,31 +88,29 @@ Every bound with its assumptions: report.text().
 
 ## Your own problem
 
-[`examples/your_problem.py`](examples/your_problem.py) is a complete template, from the task to the report, that runs
-as it stands on LunarLander with a fuel tank; change the parts marked YOUR PROBLEM. In outline:
+[`examples/your_problem.py`](examples/your_problem.py) shows how to define step costs and wrap a Gymnasium task.
+For the manuscript's landing task, use the packaged simulator and choose a charge in units of landing revenue.
 
 ```python
-import gymnasium as gym
 from stable_baselines3 import PPO
-from barrierpg import BudgetSpec, Requirement, Stage, BudgetWrapper, evaluate, interpret, plan
-from barrierpg.callbacks import BudgetMonitor
+from barrierpg import Requirement, evaluate, interpret, sb3_policy
+from barrierpg.problems.landing import Landing, make_landing_env
 
-def fuel_used(obs, action, next_obs, reward, info):     # the resource one step consumes (nonnegative)
-    ...
-
-spec = BudgetSpec(budgets=[24.0], beta=0.999, ubar=100.0, u_minus=100.0, horizon=1000)
-req = Requirement(T=999, alpha=0.05, zeta=0.05, family=5)
-stage = Stage(m=0.5, clip_utility=False)               # a price of 0.5 per step from a failure to the end of the episode
-make_env = lambda st: BudgetWrapper(gym.make("LunarLanderContinuous-v3"), fuel_used, spec, st)
-
-print(plan(spec, req, stage=stage).explain())          # another method?, validation size, checks
-model = PPO("MlpPolicy", make_env(stage), gamma=spec.beta, ent_coef=0.0)
-monitor = BudgetMonitor(spec.beta, stage.m, horizon=spec.horizon, check_every=20)   # records every batch
-model.learn(3_000_000, callback=[monitor])
-print(monitor.convergence().explain())                 # has the run stopped changing? monitor.plot() draws the curves
-ev = evaluate(lambda: make_env(stage), lambda o: model.predict(o)[0], 1000, spec=spec, stage=stage, T=req.T)
-print(interpret(spec, req, stage, ev, training=monitor.convergence()).summary())   # the verdict, and what it does not show
+landing = Landing()
+spec = landing.spec()
+req = Requirement(T=spec.horizon - 1, alpha=0.05, zeta=0.05)
+stage = landing.stage(1.0)
+env = make_landing_env(stage, landing)
+model = PPO("MlpPolicy", env, gamma=spec.beta, seed=0)
+model.learn(32_768)  # A short training run to demonstrate the workflow.
+ev = evaluate(lambda: make_landing_env(stage, landing, aid=False), sb3_policy(model), 500,
+              spec=spec, stage=stage, T=req.T, seed=100_000)
+print(interpret(spec, req, stage, ev).text())
+env.close()
 ```
+
+The failure event covers fuel exhaustion and loss of the lander. Use the direct validation verdict to assess
+the trained candidate. The training budget above is intended to demonstrate the workflow.
 
 Regularizers that use a policy you trust (a parameter anchor, an action anchor, a prior fitted to a rule in use) are
 optional; the template and notebooks 1 and 2 show them in code. The wrapper appends the remaining budget to the

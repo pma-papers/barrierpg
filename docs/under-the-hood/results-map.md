@@ -14,7 +14,7 @@ in [`barrierpg/paper.py`](../../barrierpg/paper.py); `barrierpg.paper.results_ta
 | *The represented class* | Bounded scores impose a lower bound on the risk, $p_T(\pi_\mu)\ge e^{-2L_0(T+1)}p_T(\rho)$ | `certificates.risk_lower_bound` |
 | The clipping identity (*Utility at the attained risk level*) | $V_m=U-\mathcal I_m-\frac{m}{1-\beta}q_\beta$ | `certificates.clipped_value_identity`; checked per episode by `evaluate` |
 | *Value and objective certificates* | $q_\beta\le(\bar u-(1-\beta)V_m)/(m+\bar u)$, and $p_T$ with the factor $\beta^{-T}$ | `certificates.risk_from_value`, `risk_from_objective` |
-| *The geometric risk as a risk measure of the failure time* | The earliest $\varepsilon$-fraction of failures occurs on average no earlier than $\log(\varepsilon/q_\beta)/\log(1/\beta)$ periods | `certificates.earliest_failures_time` |
+| *The geometric risk as a risk measure of the failure time* | Mean failure time over the earliest $\varepsilon$-fraction of all trajectories is at least $\log(\varepsilon/q_\beta)/\log(1/\beta)$, assigning infinite failure time to non-failing paths | `certificates.earliest_failures_time` |
 | *Matched-risk performance comparison* | Utility shortfall charged with interior loss, regularization cost, optimization error and the part of the level not used; its signed form | `certificates.matched_risk_utility_gap`, `matched_risk_signed`, `frontier.complementarity_gap` |
 | *Fixed price of failure risk*, optimality at the attained risk | A fixed-price optimum is optimal for $U-\mathcal I_m$ at the risk it attains | `frontier.check_runs` (dominance), `report.interpret` (the fixed-price reading) |
 | *Fixed price of failure risk*, price–risk bound | The attained risk is at most a comparison policy's plus order $1/m$; a second bound with the $(m+\bar u)$ denominator | `certificates.price_risk_bound`, `conservative_price`, `conservative_multiplier` |
@@ -59,7 +59,7 @@ The paper relates the price to other formulations (*Fixed price of failure risk*
 *Clipping the combined reward*, *Chance, time and overshoot penalties*, *The price as a CVaR multiplier*,
 *The conditional value-at-risk of the failure time*). The toolbox
 uses two consequences: a lump sum $F$ charged once at failure corresponds to the price $m=(1-\beta)F$ in the absorbing
-form (`spec.price_from_multiplier`), and a multiplier method that converges returns the fixed-price optimum at its
+form (`spec.price_from_multiplier`). Freezing the multiplier gives the fixed-price objective at its
 price-equivalent.
 
 ## Practice

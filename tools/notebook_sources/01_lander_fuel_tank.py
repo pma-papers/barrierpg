@@ -5,9 +5,8 @@
 # on the pad, punishes a crash, and charges the fuel the engines burn. Now the lander gets a tank of 24 units, and a
 # lander that empties it before touching down has failed. The tank is smaller than the controller needs.
 #
-# This is the fuel-tank form of the lander that the paper used up to its revision 76. The paper's lander study now uses
-# a landing problem of its own, with a revenue for each landing and the loss of the lander as a failure:
-# `barrierpg.problems.landing`. This notebook will be rewritten on it.
+# This tutorial uses the earlier fuel-tank task and its saved campaign. For the current manuscript's landing task,
+# use `barrierpg.problems.landing`. That task pays revenue for a landing and treats loss of the lander as a second failure.
 #
 # This notebook builds the problem and trains it in the open, so that you can do the same with your own task. It goes
 # through the steps of the [practitioner guide](../docs/practitioner-guide.md):
@@ -68,29 +67,26 @@ def fuel_burned(obs, action, next_obs, reward, info):
 # * `horizon`: an episode lasts at most 1000 frames. The price is charged from a failure to the end of the horizon.
 # * `beta`: the discount of the task's reward. With a horizon of 1000 frames, a discount close to one keeps a late
 #   failure from looking cheap.
-# * `ubar`, `u_minus`: bounds on the reward per frame (the landing bonus and the crash penalty, 100 each). Only the
-#   certificates use them.
-# * The requirement: run dry in at most 5% of landings within the 1000 frames, shown at 95% confidence, with the
-#   validation error shared among the ten candidates we will inspect.
+# * The terminal rewards are ±100. These values are retained in the historical campaign spec. The tutorial uses
+#   direct failure validation because the terminal rewards alone do not bound the shaped step rewards.
+# * The requirement is at most 5% fuel exhaustion within 1000 frames, with the validation error split
+#   between the stochastic and mean-action policies on the final evaluation sample.
 #
 # **Theory.** A loose `ubar` makes the certificates weaker but never wrong. The tolerance `alpha` and the validation
 # error `zeta` are different quantities: the first is about the policy, the second about the test.
 
 # %%
 spec = BudgetSpec(budgets=[24.0], beta=0.999, ubar=100.0, u_minus=100.0, horizon=1000)
-req = Requirement(T=spec.horizon - 1, alpha=0.05, zeta=0.05, family=10)
+req = Requirement(T=spec.horizon - 1, alpha=0.05, zeta=0.05, family=2)
 
 # %% [markdown]
 # ### The price
 #
 # A `Stage` sets how a failure is charged. `Stage(m=0.5)` charges a price of 0.5 per frame from the failure to the end
-# of the episode. The task's own reward punishes a crash with -100, below any price we would use, so we set
-# `clip_utility=False`: only the failure is priced, and the task's rewards are left as they are.
+# of the horizon. This stage has no interior barrier, so it preserves the task's rewards before fuel exhaustion.
 #
-# **Theory.** With a fixed price, a policy that is optimal for the priced objective is the best policy among all those
-# that fail no more often than it does; a higher price chooses a safer point on the trade-off between reward and risk.
-# The wrapper's reward is clipped at `-m` from below, which would erase a crash penalty below `-m`; the results need
-# `m >= u_minus` when clipping is on, hence `clip_utility=False` here.
+# **Theory.** The finite-horizon price charges earlier failures more. The resulting objective weights failure time
+# as well as its frequency. The evaluation below measures the probability of any fuel exhaustion within the mission.
 
 # %%
 stage = Stage(m=0.5, clip_utility=False)
@@ -373,17 +369,19 @@ print(camp.convergence_table(regs))
 #
 # ## 6. Validate the policy to deploy, and report
 #
-# Ten candidates were inspected, so the validation error is shared among ten. We take the candidate with the highest
-# landing rate among those that met the tolerance on their first evaluation, and validate it on 2,000 fresh landings,
-# as a stochastic policy and as its mean action, which are different candidates.
+# Use the archived evaluations for candidate selection. Take the highest landing rate among policies whose
+# estimated failure rate is below the tolerance. If none qualify, take the lowest estimated failure rate.
+# Test the selected policy and its mean-action version on 2,000 fresh episodes each.
 #
 # **Theory.** The exact binomial test holds for any fixed policy, however it was trained; it is the deployment
-# decision. Certificates from the value need no validation run, but over 1000 frames they are valid and uninformative.
+# decision. Fresh final data permit selection on any number of earlier runs. The final test splits the error over
+# the two candidate policies evaluated for deployment.
 
 # %%
 cands = [(c, s) for c in prices + regs[1:] for s in camp.seeds(c)]
 ok = [cs for cs in cands if np.mean(camp.record(*cs)["evaluation"]["failed"]) < req.alpha]
-best = max(ok, key=lambda cs: np.mean(camp.record(*cs)["evaluation"]["landed"]))
+best = (max(ok, key=lambda cs: np.mean(camp.record(*cs)["evaluation"]["landed"])) if ok else
+        min(cands, key=lambda cs: np.mean(camp.record(*cs)["evaluation"]["failed"])))
 print("candidate:", best, camp.record(*best)["note"])
 best_stage = camp.stage(*best)
 for det in (False, True):
@@ -391,12 +389,12 @@ for det in (False, True):
                  T=req.T, seed=777)
     name = f"the {'mean action of the' if det else 'stochastic'} policy {best[0]}, seed {best[1]}"
     print()
-    print(interpret(spec, req, best_stage, e, candidate_name=name, training=camp.convergence(*best)).summary(resource="fuel", period="frames"))
+    report = interpret(spec, req, best_stage, e, candidate_name=name, training=camp.convergence(*best),
+                       include_physical_value=False)
+    print(report.summary(resource="fuel", period="frames"))
 
 # %% [markdown]
-# The candidate that learned the tank without a price passes, as a stochastic policy and as its mean action. On this
-# task, imposing the tank and continuing to train did the work and the price had nothing to add; the validation is
-# what shows that the policy meets the requirement.
+# The report gives a separate result for each action rule. Use the result for the rule that will actually be deployed.
 #
 # ## Your own task
 #

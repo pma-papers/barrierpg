@@ -92,6 +92,8 @@ def evaluate_policy(problem, config, policy, n, seed, normalizer=None, **env_kw)
             a = policy(x)
             o, r, te, tr, info = env.step(a)
             infos.append(info)
+            if tr and not te:
+                raise ValueError("campaign evaluation ended before task termination or the specified horizon")
             if te or tr:
                 break
         rec = info["budget_episode"]

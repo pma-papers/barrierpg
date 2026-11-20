@@ -155,20 +155,20 @@ def cash_outflow(obs, action, next_obs, reward, info):
 # ### The budget, the requirement and the cost of failure
 #
 # * `budgets`: the starting cash. `horizon`: 52 weeks. `beta`: a weekly discount of 0.999.
-# * `ubar`, `u_minus`: bounds on a week's profit, computed from the parameters (the largest margin on the largest
-#   demand, and the largest loss on the largest stock).
-# * The lender asks that insolvency within the year have probability at most 2%, shown at 95% confidence. Eight
-#   candidates will be inspected before one is deployed, so the validation error is shared among eight.
+# * `ubar`, `u_minus`: upper and lower bounds on a week's profit. The loss bound allows the initial stock and up
+#   to a full year of orders to accumulate unsold.
+# * The lender asks that insolvency within the year have probability at most 2%. The fresh final evaluation
+#   reports two candidates with a total error allowance of 5%.
 # * The owners put a cost on insolvency: losing the business is worth about 5,000, most of a year's profit. It is
 #   charged once, at the week of insolvency, with a flat penalty: `Stage(penalty="multiplier", multiplier=F)`.
 #
-# **Theory.** With a known cost of failure, the objective is the economic one, profit minus the cost times the
-# probability of insolvency, and no tolerance has to be chosen to train; a flat penalty charged once is the form of a
-# lump sum. The profit includes losses, so the reward is left unclipped (`clip_utility=False`).
+# **Theory.** The objective is expected discounted profit before insolvency less the discounted lump sanction.
+# The timing of insolvency affects the present value of the sanction. The lender's requirement is tested separately
+# by counting insolvencies within the year. A failure-only stage preserves all profit and loss before failure.
 
 # %%
 spec = BudgetSpec(budgets=[retailer.cash], beta=0.999, ubar=retailer.ubar, u_minus=retailer.u_minus, horizon=retailer.weeks)
-req = Requirement(T=retailer.weeks - 1, alpha=0.02, zeta=0.05, family=8)
+req = Requirement(T=retailer.weeks - 1, alpha=0.02, zeta=0.05, family=2)
 F = 5000.0
 stage = Stage(m=0.0, penalty="multiplier", multiplier=F, clip_utility=False)
 
@@ -460,27 +460,30 @@ print(Campaign.show(camp.table(["adaptive-1pct", "adaptive-1pct-warm", "lump-200
 # ## 9. Validate the candidates and report
 #
 # The candidates inspected are the rule in use, its variants, and the learned policies. We validate the rule in use and
-# the most profitable learned candidate that met the tolerance on its first evaluation, each on 5,000 fresh years,
-# with the error shared among the eight candidates.
+# the most profitable learned candidate whose estimated insolvency rate was below the tolerance on its first
+# evaluation, each on 5,000 fresh years. If none qualify on the selection data, test the one with the lowest
+# insolvency rate. The final report allocates error across two candidates and both bounds reported for each.
 #
-# **Theory.** The exact binomial test holds for any fixed policy, however it was found; picking the best-looking
-# candidate does not inflate its error when the error is shared among all the candidates inspected.
+# **Theory.** The exact binomial test applies after selection because these final data are independent of
+# the data used to choose the candidate.
 
 # %%
 learned = [(cfg, s) for cfg in costs + starts for s in camp.seeds(cfg)]
-best = max(learned, key=lambda cs: camp.evaluation(*cs).U if camp.evaluation(*cs).p_T < req.alpha else -np.inf)
-print("most profitable learned candidate under the tolerance:", best)
-final = {"the rule in use": assess(rules["in use (cover 2, reserve 300)"].deterministic, n=5000, seed=31),
-         f"the learned policy {best[0]}, seed {best[1]}": assess(camp.policy(*best), n=5000, seed=31)}
+screened = [(cs, camp.evaluation(*cs)) for cs in learned]
+eligible = [(cs, ev) for cs, ev in screened if ev.p_T < req.alpha]
+best, _ = max(eligible, key=lambda item: item[1].U) if eligible else min(screened, key=lambda item: item[1].p_T)
+print("learned candidate selected for fresh validation:", best)
+torch.manual_seed(70_000)
+final = {"the rule in use": assess(rules["in use (cover 2, reserve 300)"].deterministic, n=5000, seed=70_000),
+         f"the learned policy {best[0]}, seed {best[1]}": assess(camp.policy(*best), n=5000, seed=70_000)}
 for name, e in final.items():
     print()
     training = camp.convergence(*best) if name.startswith("the learned") else None
     print(interpret(spec, req, stage, e, candidate_name=name, training=training).summary(resource="cash", period="weeks"))
 
 # %% [markdown]
-# Both pass the lender's tolerance; the report states what the test shows and what it does not. Which to deploy is the
-# firm's choice between profit and risk, and the evidence for either is the same kind. `report.text()` lists every
-# bound with its assumptions.
+# Compare the final verdicts and estimated profits before choosing a policy. `report.text()` lists the bounds and
+# their assumptions.
 #
 # ## Your own simulator
 #

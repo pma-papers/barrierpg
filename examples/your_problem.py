@@ -34,17 +34,17 @@ def resource_used(obs, action, next_obs, reward, info):
 
 spec = BudgetSpec(budgets=[24.0],        # the size of each budget
                   beta=0.999,            # the discount of the task's reward; the learner must use the same
-                  ubar=100.0,            # upper bound on the reward per step (used by the certificates only)
-                  u_minus=100.0,         # magnitude of a lower bound on the reward per step
+                  ubar=100.0,            # nominal reward scale here; establish a true bound before using value certificates
+                  u_minus=100.0,         # nominal magnitude of a loss
                   horizon=1000)          # the episode length if it is fixed, else None
 req = Requirement(T=spec.horizon - 1,    # run out within T + 1 steps ...
                   alpha=0.05,            # ... with probability at most alpha ...
                   zeta=0.05,             # ... shown at confidence 1 - zeta ...
-                  family=5)              # ... with the error shared among the candidates you will inspect
+                  family=2)              # ... with the error shared between the two final action rules
 stage = Stage(m=0.5,                     # the price of failure risk, per step from the failure to the end of the horizon;
               clip_utility=False)        # or Stage(m=0, penalty="multiplier", multiplier=F, clip_utility=False) for a
                                          # known lump-sum cost F; clip_utility=False when the reward has large penalties
-OBSERVE_TIME = False                     # True when the horizon is fixed and the task does not observe the time
+OBSERVE_TIME = True                      # Include elapsed time for the fixed-horizon task.
 
 
 def make_env(stage, **options):
@@ -52,7 +52,7 @@ def make_env(stage, **options):
 
 # --- YOUR PROBLEM, optional: regularizers. Use one only when you have a reference policy you trust. ------------------
 # START_FROM: a policy in use to continue training from (a saved stable_baselines3 PPO model with the same
-#   observation, including the budget gauge). Start from it when retraining from scratch would not find good behavior.
+#   observation, including the budget gauge and clock). Start from it when retraining from scratch would not find good behavior.
 # ANCHOR: a parameter anchor of strength kappa_p, weight decay toward START_FROM's weights. The learner inherits that
 #   policy's risk, so anchor only if its behavior is acceptable under the new budget (notebook 1: a controller that
 #   violated the new limit kept violating it when anchored, with the coupled form of the anchor; here the default
@@ -69,12 +69,14 @@ ACTION_ANCHOR = None     # e.g. 0.05
 
 env = make_env(stage)
 obs, _ = env.reset(seed=0)
+env.action_space.seed(0)
 for t in range(spec.horizon or 10_000):
     obs, reward, terminated, truncated, info = env.step(env.action_space.sample())
     if terminated or truncated:
         break
 print(f"one episode of random actions: ended at step {info['t']}, failure = {info['failure']}, "
       f"budget left {info['reserve']}, last reward {reward:.1f}")
+env.close()
 
 # --- 2. plan: another method?, validation size, a check of the price against what an episode earns ---------------------
 
@@ -111,4 +113,7 @@ for deterministic in (False, True):          # the stochastic policy and its mea
                   stage=stage, T=req.T, seed=1000)
     name = "the mean action" if deterministic else "the stochastic policy"
     print()
-    print(interpret(spec, req, stage, ev, candidate_name=name, training=training).summary(resource="the budget", period="steps"))
+    # Use the direct failure test. The +/-100 terminal rewards alone do not bound the shaped rewards.
+    report = interpret(spec, req, stage, ev, candidate_name=name, training=training, include_physical_value=False)
+    print(report.summary(resource="fuel", period="steps"))
+venv.close()

@@ -1,4 +1,4 @@
-"""Train PPO on the wear-allowance problem through the wrapper and callbacks, then certify.
+"""Train PPO on the wear-allowance problem and validate the resulting policy.
 
 Runtime: a Python with gymnasium, stable-baselines3 and torch (pip install -e ".[rl]").
 Configurations: fixed price m (optionally with the interior barrier), adaptive multiplier at a tolerance,
@@ -23,7 +23,6 @@ from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 
 from barrierpg import Requirement, Stage, evaluate, interpret, sb3_policy
 from barrierpg.callbacks import BudgetMonitor, DualAscent, ParameterAnchor, ParameterNoise, dual_step_suggestion
-from barrierpg.convergence import seed_dispersion
 from barrierpg.examples.wear import EXACT_FRONTIER, WearModel, make_wear_env
 from barrierpg.frontier import Run, interpolate_frontier
 from barrierpg.regularizers import regularizer_effects
@@ -59,7 +58,7 @@ if args.config == "adaptive":
     step = args.dual_step if args.dual_step is not None else dual_step_suggestion(discounted_total(args.m, spec.beta), rollouts_to_reach=2)
     dual = DualAscent(alpha=args.alpha, step=step); callbacks.append(dual)
     callbacks.insert(0, BudgetMonitor(spec.beta, stage.m, penalty="multiplier", dual=dual))
-    print(f"dual step {step:.4g} (a twentieth of the price-equivalent multiplier {discounted_total(args.m, spec.beta):.4g} per rollout)")
+    print(f"dual step {step:.4g}; reference price-equivalent multiplier {discounted_total(args.m, spec.beta):.4g}")
 else:
     callbacks.append(BudgetMonitor(spec.beta, stage.m))
 anchor = noise = None
@@ -89,9 +88,13 @@ print("mean-action:  " + mean.summary().replace("\n", "\n              "))
 reduced = evaluate(lambda: make_wear_env(final_stage, model, true_budget_scale=0.9), sb3_policy(ppo, False), args.eval, spec=spec, stage=final_stage, seed=30_000 + args.seed, T=19)
 print(f"stochastic policy under a true allowance of 0.9 b: q_beta = {reduced.q_beta:.4g} (frequency of a reserve below 5% at the nominal allowance: {stoch.near[0.05]:.3g})")
 
-exact = [Run(m=m, q_beta=q, U=U) for m, (q, U) in EXACT_FRONTIER.items()]
-gap = (interpolate_frontier(exact, stoch.q_beta) - stoch.U) / interpolate_frontier(exact, stoch.q_beta)
-print(f"relative shortfall from the exact frontier at the attained risk: {gap:.2%} (the measured optimization error)")
+grid = [Run(m=m, q_beta=q, U=U) for m, (q, U) in EXACT_FRONTIER.items()]
+if min(r.q_beta for r in grid) <= stoch.q_beta <= max(r.q_beta for r in grid):
+    grid_utility = interpolate_frontier(grid, stoch.q_beta)
+    gap = (grid_utility - stoch.U) / grid_utility
+    print(f"relative utility shortfall against the interpolated failure-only grid benchmark: {gap:.2%}")
+else:
+    print("Measured breakdown risk lies outside the grid benchmark range.")
 
 effects = None
 if anchor is not None:
@@ -99,6 +102,6 @@ if anchor is not None:
                                   prior_policy=dict(q_beta=prior_eval.q_beta, U=prior_eval.U, q_se=prior_eval.q_se, U_se=prior_eval.U_se),
                                   noise_kappa1=(args.kappa1 if noise is not None else None), anchor_kappa2=args.kappa_p,
                                   spread=(anchor.spread() if noise is not None else None), **anchor.effects_inputs())
-print("\n" + interpret(spec, req, final_stage, stoch, sup_U=EXACT_FRONTIER[0.0][1], delta=max(gap, 0.0) * stoch.U, effects=effects,
+print("\n" + interpret(spec, req, final_stage, stoch, effects=effects,
                        multiplier=(dual.diagnose(spec.beta) if args.config == "adaptive" else None),
-                       trends=mon.diagnostics(window=min(20, len(mon.trace))), exact_frontier_gap=gap).text())
+                       trends=mon.diagnostics(window=min(20, len(mon.trace)))).text())

@@ -95,14 +95,16 @@ class Retailer:
     def ubar(self) -> float:
         """Largest weekly profit: every capped demand met at full margin, no holding cost, the overhead paid."""
         margin = np.asarray(self.price) - np.asarray(self.cost)
-        return float(margin @ self.demand_cap - self.overhead)
+        return float(np.maximum(margin, 0) @ self.demand_cap - self.overhead)
 
     @property
     def u_minus(self) -> float:
-        """Largest weekly loss: the overhead, holding on the largest stock, and the markdown loss on it."""
+        """Upper bound on weekly losses, including all orders that could accumulate unsold by year-end."""
         c, h = np.asarray(self.cost), np.asarray(self.holding)
-        stock = self.max_order * (np.asarray(self.lead) + 1)
-        return float(self.overhead + h @ stock + ((1.0 - np.asarray(self.salvage)) * c) @ stock)
+        stock = 2 * self.seasonal_mean(0) + self.weeks * self.max_order
+        sales_loss = np.maximum(c - np.asarray(self.price), 0) @ self.demand_cap
+        markdown_loss = ((1.0 - np.asarray(self.salvage)) * c) @ stock
+        return float(self.overhead + h @ stock + markdown_loss + sales_loss)
 
     def spec(self) -> BudgetSpec:
         return BudgetSpec(budgets=(self.cash,), beta=self.beta, ubar=self.ubar, gammas=(1.0,), u_minus=self.u_minus,

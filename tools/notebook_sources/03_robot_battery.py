@@ -79,15 +79,14 @@ def energy_used(obs, action, next_obs, reward, info):
 #
 # * `budgets`: a battery of 2,500 units. A gait trained without a battery uses about 3,100 per mission (section 3).
 # * `horizon`: the mission, 1000 steps; `beta = 0.999`, so that a late stranding is not cheap.
-# * `ubar`, `u_minus`: bounds on the task's reward per step (forward speed minus a small control charge), taken as 20
-#   and 21; only the certificates use them.
-# * The requirement: stranded in at most 5% of missions, shown at 95% confidence, the error shared among ten candidates.
-# * The price: `Stage(m=3, clip_utility=False)`. The task's reward is negative when the robot runs backwards, and
-#   clipping it at `-m` would change the task; only the failure is priced.
+# * The historical campaign uses 20 and 21 as nominal reward scales. The task's velocity reward has no
+#   demonstrated bound at those values, so the tutorial uses direct failure validation.
+# * The requirement is stranding in at most 5% of missions. Split the final validation error between two candidates.
+# * The price: `Stage(m=3, clip_utility=False)` prices only failure and preserves rewards before stranding.
 
 # %%
 spec = BudgetSpec(budgets=[2500.0], beta=0.999, ubar=20.0, u_minus=21.0, horizon=1000)
-req = Requirement(T=spec.horizon - 1, alpha=0.05, zeta=0.05, family=10)
+req = Requirement(T=spec.horizon - 1, alpha=0.05, zeta=0.05, family=2)
 stage = Stage(m=3.0, clip_utility=False)
 
 # %% [markdown]
@@ -221,8 +220,8 @@ for cfg in ["no-price", "price-1", "price-3", "price-10", "barrier"]:
 # ## 6. Validate and report
 #
 # We validate the candidate with the least stranding on its first evaluation, on 500 fresh missions, as a stochastic
-# policy and as its mean action; `camp.policy` applies the observation statistics saved with it. Ten candidates were
-# inspected, so the error is shared among ten.
+# policy and as its mean action. `camp.policy` applies the observation statistics saved with it.
+# The final episodes are fresh, so the earlier selection leaves two candidates in the validation family.
 
 # %%
 cands = [(c, s) for c in prices + ["barrier"] for s in camp.seeds(c)]
@@ -234,11 +233,11 @@ for det in (False, True):
                  T=req.T, seed=555)
     name = f"the {'mean action of the' if det else 'stochastic'} policy {best[0]}, seed {best[1]}"
     print()
-    print(interpret(spec, req, best_stage, e, candidate_name=name).summary(resource="charge", period="steps"))
+    report = interpret(spec, req, best_stage, e, candidate_name=name, include_physical_value=False)
+    print(report.summary(resource="charge", period="steps"))
 
 # %% [markdown]
-# Both pass. The mean action covers more distance with no more stranding: it spends no effort on the noise that the
-# stochastic policy adds to its actions. If you deploy the mean action, it is the candidate whose validation counts.
+# The reported verdicts apply to the two tested action rules. If you deploy the mean action, its own validation counts.
 #
 # ## Regularizers
 #

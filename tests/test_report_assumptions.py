@@ -51,3 +51,11 @@ def test_physical_return_only_uses_the_physical_certificate_and_shares_error():
     value_bound, = (b for b in report.bounds if "physical-horizon value" in b.source)
     assert value_bound.inputs["zeta"] == .005 and value_bound.inputs["u_minus"] == 4.
     assert len(report.bounds) == 2
+
+
+def test_report_can_use_direct_validation_without_reward_bounds():
+    spec = BudgetSpec(budgets=[1.], beta=.9, ubar=1., horizon=3)
+    report = interpret(spec, Requirement(T=0, alpha=.1, zeta=.05, family=5), Stage(m=1.),
+                       candidate(), include_physical_value=False)
+    assert report.validation.err == .01
+    assert len(report.bounds) == 1

@@ -103,6 +103,62 @@ def _small_ppo(stage, seed=0, n_envs=2, log_std_init=-1.0):
                policy_kwargs=dict(net_arch=[8, 8], log_std_init=log_std_init))
 
 
+def test_residual_mlp_skip_and_normalization_switches():
+    import torch
+    from barrierpg.networks import ResidualMLP
+
+    observations = torch.randn(5, 3)
+    residual = ResidualMLP(3, width=8, depth=2, hidden_width=12)
+    plain = ResidualMLP(3, width=8, depth=2, hidden_width=12, residual=False)
+    unnormalized = ResidualMLP(3, width=8, depth=2, layer_norm=False)
+    for block in residual.blocks:
+        assert isinstance(block.branch[0], torch.nn.LayerNorm)
+        torch.nn.init.zeros_(block.branch[-1].weight)
+        torch.nn.init.zeros_(block.branch[-1].bias)
+    assert not any(isinstance(module, torch.nn.LayerNorm) for module in unnormalized.modules())
+    plain.load_state_dict(residual.state_dict())
+    torch.testing.assert_close(residual(observations), residual.input_projection(observations))
+    torch.testing.assert_close(plain(observations), torch.zeros(5, 8))
+
+
+def test_residual_ppo_trains_and_round_trips():
+    from io import BytesIO
+    import torch
+    from stable_baselines3 import PPO
+    from barrierpg import Stage
+    from barrierpg.callbacks import ParameterAnchor
+    from barrierpg.examples.wear import make_wear_env
+    from barrierpg.sb3_policies import ResidualActorCriticPolicy
+
+    env = make_wear_env(Stage(m=0.3))
+    model = PPO(ResidualActorCriticPolicy, env, n_steps=32, batch_size=16, n_epochs=2,
+                seed=0, gamma=1.0, device="cpu", policy_kwargs=dict(width=8, depth=3, hidden_width=12))
+    policy = model.policy
+    anchor = ParameterAnchor(model, kappa_p=1.0).install()
+    actor_norm = policy.mlp_extractor.policy_net.blocks[0].branch[0].weight
+    critic_parameters = list(policy.mlp_extractor.value_net.parameters())
+    assert any(param is actor_norm for param in anchor.params)
+    assert {id(param) for param in anchor.params}.isdisjoint(id(param) for param in critic_parameters)
+    original = actor_norm.detach().clone()
+    model.learn(64)
+    assert torch.isfinite(actor_norm).all() and not torch.equal(actor_norm, original)
+
+    obs, _ = env.reset(seed=123)
+    obs_tensor, _ = policy.obs_to_tensor(obs)
+    with torch.no_grad():
+        expected = policy.get_distribution(obs_tensor).distribution.mean
+    for item, loader in ((model, PPO.load), (policy, ResidualActorCriticPolicy.load)):
+        archive = BytesIO()
+        item.save(archive)
+        archive.seek(0)
+        restored = loader(archive, device="cpu")
+        restored_policy = restored.policy if isinstance(restored, PPO) else restored
+        with torch.no_grad():
+            actual = restored_policy.get_distribution(obs_tensor).distribution.mean
+        torch.testing.assert_close(actual, expected, rtol=0, atol=0)
+    env.close()
+
+
 def test_parameter_noise_variance_and_composition():
     import torch
     from barrierpg import Stage

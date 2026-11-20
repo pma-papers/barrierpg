@@ -58,6 +58,35 @@ def test_gaussian_cvar_native_actor_uses_both_surrogates():
     assert out.risk_after <= 1.3
 
 
+def test_residual_backbone_works_with_native_actor_updates():
+    from copy import deepcopy
+    from barrierpg.networks import ResidualMLP
+
+    class ResidualActor(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.backbone = ResidualMLP(1, width=2, depth=1)
+            self.head = torch.nn.Linear(2, 2)
+            torch.nn.init.zeros_(self.head.weight)
+            torch.nn.init.zeros_(self.head.bias)
+
+        def forward(self, observations):
+            return torch.distributions.Categorical(logits=self.head(self.backbone(observations)))
+
+    data, variance = batch()
+    with torch.random.fork_rng(devices=[]):
+        torch.manual_seed(0)
+        mean_actor = ResidualActor().double()
+    tail_actor = deepcopy(mean_actor)
+    expected_cost = cpo_policy_update(mean_actor, data, cost_limit=0.55, kl_limit=0.03)
+    tail_cost = cvar_policy_update(tail_actor, data, variance,
+                                  cost_limit=1.3, tail_mass=0.5, kl_limit=0.03)
+    for result, cap in ((expected_cost, 0.55), (tail_cost, 1.3)):
+        assert result.update.status == "accepted"
+        assert result.utility_gain > 0
+        assert result.risk_after <= cap
+
+
 def test_regularizers_change_native_update_and_rejection_keeps_actor():
     b, variance = batch()
     mean = Actor()

@@ -141,7 +141,8 @@ def interpret(spec: BudgetSpec, requirement: Requirement, stage: Stage, evaluati
               lower_barrier: Optional[float] = None, multiplier: Optional[MultiplierDiagnosis] = None,
               trends: Optional[dict] = None, seeds: Optional[dict] = None, exact_frontier_gap: Optional[float] = None,
               candidate_name: str = "the final stochastic policy", effects: Optional[RegularizerEffects] = None,
-              training: Optional[TrainingConvergence] = None, value_lower: Optional[float] = None) -> Report:
+              training: Optional[TrainingConvergence] = None, value_lower: Optional[float] = None,
+              include_physical_value: bool = True) -> Report:
     """Compose the report for one candidate.
 
     delta          justified upper bound on the optimization gap in the candidate's own objective;
@@ -153,6 +154,8 @@ def interpret(spec: BudgetSpec, requirement: Requirement, stage: Stage, evaluati
     lower_barrier  underline B(eps) at a chosen reserve threshold (certificate for a small reserve).
     value_lower    valid lower bound on the continuing clipped value, with any confidence allocation
                    accounted for by the caller.
+    include_physical_value  compute the empirical value certificate for a physical horizon. Set False
+                   when the one-step utility bounds in the spec have not been established.
     multiplier     diagnosis of a dual-ascent trace (adaptive configurations).
     trends         BudgetMonitor.diagnostics() of the training run.
     training       BudgetMonitor.convergence() of the training run: whether it had stopped changing (stated in the summary).
@@ -167,7 +170,7 @@ def interpret(spec: BudgetSpec, requirement: Requirement, stage: Stage, evaluati
     failure_only = stage.failure_only if evaluation.failure_only is None else evaluation.failure_only
     physical_price = stage.penalty == "price" and m > 0 and (failure_only or stage.clip_utility)
     physical_lump = stage.penalty == "multiplier" and failure_only and stage.multiplier > 0
-    physical_value = (requirement.kind == "finite" and spec.horizon is not None and T < spec.horizon
+    physical_value = (include_physical_value and requirement.kind == "finite" and spec.horizon is not None and T < spec.horizon
                       and not evaluation.geometric_stop and (physical_price or physical_lump))
     direct_finite = requirement.kind == "finite" and evaluation.event == "p_T" and evaluation.T == T
     test_family = requirement.family * (2 if direct_finite and physical_value else 1)
