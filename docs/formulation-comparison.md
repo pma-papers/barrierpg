@@ -1,6 +1,6 @@
 # Choose a budget formulation and a regularizer
 
-Start with the quantity the deployment must control. Budget formulations determine what counts as a good solution. Action and parameter regularizers change which policies the learner prefers within that formulation. The choices can be varied independently.
+Start with the quantity the deployed policy must control. The formulation specifies the reward objective and any constraint. A learning algorithm searches for a policy. Examples include proximal policy optimization (PPO), constrained policy optimization (CPO), and trust-region CVaR (TRC). The resulting policy acts as the controller. Conditional value-at-risk (CVaR) is a risk measure that can enter a formulation as a constraint. Action and parameter regularizers change the objective and can be varied separately from the algorithm.
 
 Run the comparison from the toolbox repository after installing the core package.
 
@@ -10,14 +10,14 @@ python examples/compare_formulations.py
 
 ## When can the solutions agree?
 
-| Requirement | Tool | What to measure |
-|---|---|---|
-| Running out ends the task and has a known cost | Failure-only price in `BudgetWrapper` | Stopped utility and failure frequency at the deployment horizon |
-| Running with low reserve has a cost or the budget may be smaller than planned | Add a reserve penalty | Minimum reserve and performance under the budget shift |
-| Mean cumulative cost must meet a cap | CPO or an adaptive multiplier with the same cost | Mean cost and update-time violations |
-| A crossing must be uncommon | Chance constraint, or an expected-cost solver with a cost equal to the crossing indicator | First-crossing probability by the specified horizon |
-| Large losses in the worst outcomes matter | Upper-tail CVaR of total consumption, overshoot, or another specified loss | Held-out tail loss and its uncertainty |
-| Every trajectory must satisfy an enforceable limit | A model-based feasible policy class or a safety layer | The model assumptions and the resulting pathwise guarantee |
+| Requirement | Formulation | Example algorithm or implementation | What to measure |
+|---|---|---|---|
+| Running out ends the task and has a known cost | Failure-only price | PPO on a reward wrapped with `BudgetWrapper` | Stopped utility and failure frequency at the deployment horizon |
+| Operating with low reserve has a cost | Deduct a reserve penalty from utility | PPO with the modified reward or CPO with an additional expected-cost constraint | Minimum reserve and performance under a budget shift |
+| Mean cumulative cost must meet a cap | Expected-cost constraint | CPO or a policy-gradient algorithm using an adaptive multiplier | Mean cost and update-time violations |
+| A crossing must be uncommon | Chance constraint encoded as the expectation of the first-crossing indicator | CPO with the specified event cost | First-crossing probability by the specified horizon |
+| Large losses in the worst outcomes must be limited | CVaR constraint on total consumption, overshoot or another specified loss | TRC or exact selection from finite-scenario candidates | Held-out tail loss and its uncertainty |
+| Every trajectory must meet the limit | Pathwise feasibility | A model-based feasible policy class or a safety layer | The model assumptions and the resulting pathwise guarantee |
 
 The same utility, stopping rule, policy class, and cost are needed for a direct price-versus-constraint comparison. If a maximizer of `utility - price * cost` satisfies the cap, and its price times its slack is zero, it also solves the constrained problem. Finding such a price depends on the attainable utility–cost pairs. Discrete or restricted policy classes can leave constrained optima unsupported by a fixed price.
 
@@ -25,7 +25,7 @@ A one-stage deterministic example uses utility 1.0 at consumption 1 and utility 
 
 For a single fixed terminal time and undiscounted consumption, a linear penalty proportional to used reserve is the fixed-price counterpart of a mean consumption cap. A running penalty on remaining reserve charges early consumption over more periods, so it must be matched to the corresponding time-weighted cost. For failure-only pricing, use the same failure indicator and discount as the price. The continuing convention can be encoded by a cost of one in every failed absorbing period. A physical-horizon crossing probability can be encoded by a single undiscounted indicator of first crossing before the horizon.
 
-### CPO
+### CPO for an expected-cost constraint
 
 `cpo_step` solves the local single-cost quadratic subproblem with a dense positive-definite Fisher matrix. `cpo_update` applies the local proposal to a caller-supplied line search that measures utility change, cost and KL. An accepted recovery step can still exceed the cap. A fixed-price step in the same trust region can coincide with an active CPO step if its price matches the local cost multiplier and the same proposal passes both line searches. That multiplier depends on the current slack, policy gradients and trust region. [Achiam et al., Section 6.1](https://proceedings.mlr.press/v70/achiam17a.html)
 
@@ -41,7 +41,7 @@ agent.learn()
 
 In OmniSafe 0.5.0, the slack uses the logged sum of costs per episode, while the cost advantage has a configurable `cost_gamma`. Match both the cost signal and its horizon and discount to your intended comparison. For an undiscounted first-crossing cap, deliver the indicator once and use `cost_gamma=1.0`. Verify the measured crossing rate independently. The adapter takes upstream configuration through `custom_cfgs`. [OmniSafe CPO](https://omnisafe.readthedocs.io/en/latest/saferl/cpo.html) · [OmniSafe CMDP interface](https://omnisafe.readthedocs.io/en/latest/start/env.html)
 
-### CVaR
+### CVaR constraints and algorithms that use them
 
 `upper_cvar(costs, tail_mass, probabilities)` averages the worst `tail_mass` of the cost distribution, splitting a probability atom at the boundary when needed. For example, `tail_mass=0.05` means the worst 5% and corresponds to a CVaR level of 0.95. `select_scenario_policy` picks the highest-utility feasible candidate from a fixed list and reports each candidate's measured risk. Use actual end-of-trajectory costs for the comparison. For a sequence of candidate checkpoints, estimate tail risk during selection and use a separate scenario set or fresh rollouts for final evaluation. The finite-scenario routine is checked against the CVaR linear program in SciPy HiGHS. For a learned continuous controller, the authors' TRC implementation provides a policy-search baseline with its own cost-distribution approximation. [CVaR formulation](https://web.stanford.edu/~boyd/papers/pdf/cvar_qp.pdf) · [SciPy HiGHS](https://docs.scipy.org/doc/scipy/reference/optimize.linprog-highs.html) · [TRC implementation](https://github.com/rllab-snu/Trust-Region-CVaR)
 
@@ -100,15 +100,15 @@ anchor = ParameterAnchor(
 model.learn(10_000, callback=movement)
 ```
 
-With a custom CPO or CVaR trainer, use `regularized_utility` to form the same objective from expected utility and the two penalties. In CPO, differentiate it for the utility-gradient input and evaluate its change during backtracking. Keep the original cost gradient, cost limit and old-to-new KL trust region. The anchor to an incumbent and the KL trust region have different reference policies and different purposes. When a differentiable action divergence is evaluated on a fixed batch of states, it gives a local surrogate. To target a policy's full stopped action penalty, account for how the policy changes visited states. The upstream OmniSafe adapter exposes native CPO. It can take fixed action costs through the registered environment's reward. The reference update accepts a custom objective gradient, including a parameter penalty, without changing the cost gradient.
+With CPO or an algorithm for a CVaR constraint, use `regularized_utility` to form the same objective from expected utility and the two penalties. In CPO, differentiate it for the utility-gradient input and evaluate its change during backtracking. Keep the original cost gradient, cost limit and old-to-new KL trust region. The anchor to an incumbent and the KL trust region have different reference policies and different purposes. When a differentiable action divergence is evaluated on a fixed batch of states, it gives a local surrogate. To target a policy's full stopped action penalty, account for how the policy changes visited states. The upstream OmniSafe adapter exposes native CPO. It can take fixed action costs through the registered environment's reward. The reference update accepts a custom objective gradient, including a parameter penalty, without changing the cost gradient.
 
-In the finite-scenario CVaR solver, pass regularized utilities as the candidate scores and keep the same CVaR constraint. In the runnable example, both policies satisfy a CVaR cap of 2. Adding action and parameter penalties switches the selected policy while leaving the two candidates' CVaRs unchanged. The example also shows a CPO step changing direction under a quadratic anchor of the same strength as a pseudo-Huber anchor. These comparisons isolate the effect of the objective. The paper's generalized convex regularization theorem concerns its specified population gradient flow. Using the same penalties in another optimizer calls for a separate analysis of its updates and validation of the returned policies.
+For finite-scenario policy selection under a CVaR constraint, pass regularized utilities as the candidate scores and keep the same CVaR constraint. In the runnable example, both policies satisfy a CVaR cap of 2. Adding action and parameter penalties switches the selected policy while leaving the two candidates' CVaRs unchanged. The example also shows a CPO step changing direction under a quadratic anchor of the same strength as a pseudo-Huber anchor. These comparisons isolate the effect of the objective. The paper's generalized convex regularization theorem concerns its specified population gradient flow. Using the same penalties in another optimizer calls for a separate analysis of its updates and validation of the returned policies.
 
 The one-state Gaussian example runs the reference CPO updates repeatedly with exact reward and cost expectations. With the same cost cap of 1.822, the unregularized run reaches cost 1.822. Adding the action KL and a quadratic potential yields cost 1.657. Keeping the same action KL and using a pseudo-Huber potential yields 1.696 and higher raw utility than the quadratic run. These are endpoints of the specified updates. The strength, reference, and optimizer affect what happens in a learned controller.
 
 ## Train a small policy with the native actor updates
 
-The runnable [dispatch example](../examples/train_risk_constrained.py) collects a fresh batch of episodes before each CPO or Gaussian CVaR update. It uses PyTorch and the toolbox's own code for the policy update.
+The runnable [dispatch example](../examples/train_risk_constrained.py) collects a fresh batch of episodes before each CPO update or trust-region update under the Gaussian CVaR constraint. It uses PyTorch and the toolbox's own code for the policy update.
 
 ```bash
 python examples/train_risk_constrained.py
