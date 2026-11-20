@@ -5,29 +5,29 @@
 #
 # We define the simulator, transform signed net cash use into first-crossing costs, and evaluate a fixed base-stock rule. We then compare PPO policies trained with fixed insolvency losses and with an adaptive failure multiplier. A network fitted to the incumbent rule can also be used as an initialization or a parameter reference. The fixed rule, fitted actor and trained actors are distinct validation candidates.
 #
-# The live PPO run illustrates the workflow. The comparison uses the saved runs of ten million steps per seed and three seeds per configuration. The final comparison uses fresh simulated years and the stated insolvency tolerance. [Practitioner guide](../docs/practitioner-guide.md)
+# The illustrations use the saved runs of about ten million interactions per seed and three seeds per configuration. The training function is included for local reruns. The final comparison uses fresh simulated years and the stated insolvency tolerance. [Practitioner guide](../docs/practitioner-guide.md)
 #
 # ### Cash dynamics and the optimization problem
 #
-# Let $x_t$ collect stock and outstanding orders at the start of week $t$. The actor observes these quantities, recent demand, seasonal phase, time and current cash $B_t$. Its action specifies the vector of orders $a_t$, bounded by the maximum order in each product line. If $S_t$ denotes realized sales, $M_t$ units marked down, $p$ sales prices, $c$ unit purchase costs, $h$ holding costs and $v$ salvage values per unit, the cash balance follows
+# Let $x_t$ collect stock and outstanding orders at the start of week $t$. The actor observes these quantities, recent demand, seasonal phase, time and current cash $s_t^{\rm cash}$. Its action specifies the vector of orders $a_t$, bounded by the maximum order in each product line. Let $S_t$ be the vector of realized sales and $M_t$ the vector of quantities marked down. Write $p_{\rm sell}$, $p_{\rm buy}$ and $p_{\rm salvage}$ for the corresponding unit prices, $h$ for unit holding costs and $f$ for weekly overhead. The cash balance follows
 #
 # $$
-# B_{t+1}=B_t+p^\top S_t+v^\top M_t-c^\top a_t-h^\top x^{\rm stock}_{t+1,\mathrm{pre}}-f,\qquad B_0=2500 .
+# s_{t+1}^{\rm cash}=s_t^{\rm cash}+p_{\rm sell}^\top S_t+p_{\rm salvage}^\top M_t-p_{\rm buy}^\top a_t-h^\top x_t^{\rm hold}-f,\qquad s_0^{\rm cash}=2500 .
 # $$
 #
-# Here $x^{\rm stock}_{t+1,\mathrm{pre}}$ is stock after regular sales and before markdowns, and $f$ is weekly overhead. The weekly profit $u_t$ uses gross margins on sales, holding costs, overhead and the markdown loss. This distinguishes profit recognition from the purchase cash outflow. The market factor varies by week and is latent. The actor uses the supplied observations.
+# Here $x_t^{\rm hold}$ is stock after regular sales and before markdowns. The weekly profit $u_t$ uses gross margins on sales, holding costs, overhead and the markdown loss. This distinguishes profit recognition from the purchase cash outflow. The market factor varies by week and is latent. The actor uses the supplied observations.
 #
-# Let $\tau=\inf\{t:B_{t+1}<0\}$ and $U_{52}(\pi)=\mathbb E_\pi[\sum_{0\le t<52,\ t<\tau}0.999^t u_t]$. Let $\Pi$ be the class of candidate actors. With a known loss $F$ at insolvency, the priced problem is
+# Let $\tau=\inf\{t:s_{t+1}^{\rm cash}<0\}$ and $U_{52}(\pi)=\mathbb E_\pi[\sum_{0\le t<52,\ t<\tau}0.999^t u_t]$. Let $\Pi$ be the class of candidate actors. With a known loss $F$ at insolvency, the priced problem is
 #
 # $$
-# \underset{\pi\in\Pi}{\operatorname{maximize}}\quad U_{52}(\pi)-\mathbb E_\pi[0.999^\tau F\,\mathbf1_{\{\tau<52\}}].
+# \underset{\pi\in\Pi}{\mathrm{maximize}}\quad U_{52}(\pi)-\mathbb E_\pi[0.999^\tau F\,\mathbf1_{\{\tau<52\}}].
 # $$
 #
 # The deployment problem under an annual risk limit is
 #
 # $$
 # \begin{aligned}
-# \underset{\pi\in\Pi}{\operatorname{maximize}}\quad & U_{52}(\pi)\\
+# \underset{\pi\in\Pi}{\mathrm{maximize}}\quad & U_{52}(\pi)\\
 # \text{subject to}\quad & \Pr_\pi(\tau\le51)\le0.02.
 # \end{aligned}
 # $$
@@ -261,7 +261,7 @@ for name, e in rule_ev.items():
 #
 # A rollout contains actions sampled from the current actor $\pi_{w_0}$ and the rewards of the stated training objective. The critic $v(o_t)$ predicts remaining return from observation $o_t$. At a nonterminal step, the prediction residual is $e_t=r_t+\gamma_{\rm alg}v(o_{t+1})-v(o_t)$. At a true terminal step continuation is zero. Generalized advantage estimation sums these residuals using weights $(\gamma_{\rm alg}\lambda_{\rm GAE})^j$. The resulting estimate $\widehat A_t$ measures how favorable the sampled action was relative to the critic's prediction.
 #
-# For a trial actor $\pi_w$, compute $L_t=\pi_w(a_t\mid o_t)/\pi_{w_0}(a_t\mid o_t)$. The actor increases the minibatch average of $\min\{L_t\widehat A_t,\operatorname{clip}(L_t,1-\epsilon,1+\epsilon)\widehat A_t\}$. The critic is fitted to the estimated returns. PPO takes several minibatch updates on the rollout and then collects a fresh one. The clipping level $\epsilon$ limits the incentive for large ratio changes. The independent evaluation cells test the candidate's risk.
+# For a trial actor $\pi_w$, compute $\ell_t=\pi_w(a_t\mid o_t)/\pi_{w_0}(a_t\mid o_t)$. The actor increases the minibatch average of $\min\{\ell_t\widehat A_t,\mathrm{clip}(\ell_t,1-\epsilon,1+\epsilon)\widehat A_t\}$. The critic is fitted to the estimated returns. PPO takes several minibatch updates on the rollout and then collects a fresh one. The clipping level $\epsilon$ limits the incentive for large ratio changes. The independent evaluation cells test the candidate's risk.
 #
 # The simulator has a physical horizon, so the algorithm uses $\gamma_{\rm alg}=\beta=0.999$.
 #
@@ -295,21 +295,14 @@ def train(stage, steps, seed=1, prior=None, anchor=None, dual=None):
     model.learn(steps, callback=([dual] if dual else []) + [monitor])   # dual: an adaptive multiplier (section 8)
     return model, monitor, anchor
 
-
-model, monitor, _ = train(stage, 1_000_000)
-monitor.plot(keys=("failure_rate", "U"), title="from scratch, 1 million steps"); plt.show()
-print(monitor.convergence().explain())
-short = assess(lambda o: model.predict(o)[0], n=1000, seed=13)
-print(f"\nafter 1 million steps: insolvency {short.p_T:.2%}, profit {short.U:.0f}")
-
 # %% [markdown]
-# After a million steps (about 19,000 simulated years) the learner stays solvent in most years, and the convergence
-# check says the run has not converged: a short run gives the policy at the end of the run, not a trained one. The campaign ran the same function for 10 million steps. Its learning curves were still rising after
-# three and six million steps; compared at that point, the learners looked worse than the rule in use.
+# The curves use the recorded PPO runs, each with about ten million interactions. The run at a lump loss of 5,000
+# corresponds to the stage above. Run `python campaigns/run.py retailer lump-5000 --seed 1` from the repository
+# root to reproduce one seed. Compare the ending traces with the final evaluation before choosing a candidate.
 
 # %%
 fig, ax = plt.subplots(1, 2, figsize=(9, 3))
-for cfg, col in (("no-price", "0.6"), ("lump-20000", "C0")):
+for cfg, col in (("no-price", "0.6"), ("lump-5000", "C0"), ("lump-20000", "C1")):
     for r in camp.records(cfg):
         st = np.array([t["steps"] for t in r["monitor"]]) / 1e6
         ax[0].plot(st, [t["U"] for t in r["monitor"]], color=col, lw=0.6, label=r["note"] if r["seed"] == 1 else None)
@@ -319,7 +312,7 @@ for x in ax: x.set_xlabel("million steps")
 ax[0].legend(fontsize=7); plt.tight_layout(); plt.show()
 
 print("Convergence at the end of training (the toolbox's check on each run's record):")
-print(camp.convergence_table(["no-price", "lump-20000"]))
+print(camp.convergence_table(["no-price", "lump-5000", "lump-20000"]))
 
 # %% [markdown]
 # Some failure-rate traces were still decreasing at the last recorded update. The comparisons below use the policies at the stated training budget. The traces describe the stability of the run over its final windows.
@@ -411,18 +404,9 @@ print(f"the prior policy: insolvency {prior_ev.p_T:.2%}, profit {prior_ev.U:.0f}
 # With `train(stage, steps, prior=prior)` the learner starts from this network, and `anchor=1.0` adds a parameter anchor
 # that pulls the weights back toward it, in the coupled form of the campaign's records (the drift added to the gradient
 # before Adam's step, the paper's form; the toolbox's default is the decoupled anchor applied to the weights after the
-# step, under which the strength keeps its meaning, see notebook 1). Here is one short run of each.
-
-# %%
-for name, options in {"from the prior, no anchor": dict(prior=prior), "from the prior, anchor 1": dict(prior=prior, anchor=1.0)}.items():
-    m_, mon, anchor = train(stage, 1_000_000, **options)
-    e = assess(lambda o: m_.predict(o)[0], n=1000, seed=19)
-    moved = f"; weights moved {anchor.distance():.3f} from the prior" if anchor else ""
-    print(f"{name:28s} insolvency {e.p_T:6.2%}, profit {e.U:6.0f}{moved}; training {mon.convergence().status}")
-
-# %% [markdown]
-# These short runs show how to start from a rule and anchor to it; they say little about what full training does. The
-# campaign ran both for 10 million steps:
+# step, as described in notebook 1). The recorded runs below use the same training budget for the fitted prior,
+# the associated anchors and the from-scratch comparison. Each policy was trained for about ten million
+# interactions and evaluated on 2,000 fresh years.
 
 # %%
 starts = ["prior-only", "anchor-1", "anchor-10"]

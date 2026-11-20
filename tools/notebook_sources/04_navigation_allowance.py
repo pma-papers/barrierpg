@@ -5,17 +5,17 @@
 #
 # In this notebook, PPO is trained on a fixed-price reward for the crossing event. We compare several prices using the saved training runs. The final binomial calculation tests the crossing probability at the stated horizon. The recorded mean damage is measured under termination at the first crossing, so it concerns that stopped process.
 #
-# Training and fresh simulation require a separate environment with Python 3.10, Safety-Gymnasium 1.0, Gymnasium 0.28 and MuJoCo 2.3. The saved evaluations can be examined without that simulator. [Practitioner guide](../docs/practitioner-guide.md) · [Formulations](../docs/formulation-comparison.md)
+# Training and fresh simulation require a separate environment with Python 3.10, Safety-Gymnasium 1.0, Gymnasium 0.28 and MuJoCo 2.3. The published comparisons use about two million interactions for each of three training seeds per configuration. The saved evaluations can be examined without that simulator. [Practitioner guide](../docs/practitioner-guide.md) · [Formulations](../docs/formulation-comparison.md)
 #
 # ### Mean damage, crossing risk and the trained objective
 #
-# Let $c_t$ be the hazard cost reported by the simulator and $D_t=\sum_{j=0}^{t}c_j$ the accumulated damage. The navigation policy controls motion to earn progress rewards and goal bonuses. Let $J_H(\pi)$ be expected discounted utility through the original task's horizon $H=1000$. For the mean-cost formulation, $D_{999}$ is measured over the original episode, with subsequent costs zero after a genuine terminal state.
+# Let $c_t$ be the hazard cost reported by the simulator and $D_t=\sum_{j=0}^{t}c_j$ the accumulated damage. The navigation policy controls motion to earn progress rewards and goal bonuses. Let $V^{(H)}(\pi)$ be expected discounted utility through the original task's horizon $H=1000$. For the mean-cost formulation, $D_{999}$ is measured over the original episode, with subsequent costs zero after a genuine terminal state.
 #
 # The probability formulation uses budget $b=25$, reserve $z_{t+1}=25-D_t$, and failure time $\tau=\inf\{t:D_t>25\}$. Write $U_H(\pi)$ for expected discounted utility earned before failure. With $\Pi$ the actor class, the mean-cost problem on the original task is
 #
 # $$
 # \begin{aligned}
-# \underset{\pi\in\Pi}{\operatorname{maximize}}\quad & J_H(\pi)\\
+# \underset{\pi\in\Pi}{\mathrm{maximize}}\quad & V^{(H)}(\pi)\\
 # \text{subject to}\quad & \mathbb E_\pi[D_{999}]\le25.
 # \end{aligned}
 # $$
@@ -24,7 +24,7 @@
 #
 # $$
 # \begin{aligned}
-# \underset{\pi\in\Pi}{\operatorname{maximize}}\quad & U_H(\pi)\\
+# \underset{\pi\in\Pi}{\mathrm{maximize}}\quad & U_H(\pi)\\
 # \text{subject to}\quad & \Pr_\pi(\tau\le999)\le0.20.
 # \end{aligned}
 # $$
@@ -32,7 +32,7 @@
 # One can encode the second constraint in a mean-cost algorithm by using cost one on the first crossing and zero otherwise. Here a failure at $t$ costs $F_t=m\sum_{j=0}^{H-1-t}\beta^j$, with $\beta=0.999$. PPO trains on
 #
 # $$
-# \underset{\pi\in\Pi}{\operatorname{maximize}}\quad U_H(\pi)-\mathbb E_\pi[\beta^\tau F_\tau\mathbf1_{\{\tau<H\}}].
+# \underset{\pi\in\Pi}{\mathrm{maximize}}\quad U_H(\pi)-\mathbb E_\pi[\beta^\tau F_\tau\mathbf1_{\{\tau<H\}}].
 # $$
 #
 # The recorded mean damage uses episodes stopped at first crossing. It concerns the stopped simulator, whereas the expected-cost problem above concerns the original episodic process.
@@ -75,7 +75,7 @@ plt.rcParams.update({"figure.dpi": 110, "axes.spines.top": False, "axes.spines.r
 #
 # A rollout contains actions sampled from the current actor $\pi_{w_0}$ and the rewards of the stated training objective. The critic $v(o_t)$ predicts remaining return from observation $o_t$. At a nonterminal step, the prediction residual is $e_t=r_t+\gamma_{\rm alg}v(o_{t+1})-v(o_t)$. At a true terminal step continuation is zero. Generalized advantage estimation sums these residuals using weights $(\gamma_{\rm alg}\lambda_{\rm GAE})^j$. The resulting estimate $\widehat A_t$ measures how favorable the sampled action was relative to the critic's prediction.
 #
-# For a trial actor $\pi_w$, compute $L_t=\pi_w(a_t\mid o_t)/\pi_{w_0}(a_t\mid o_t)$. The actor increases the minibatch average of $\min\{L_t\widehat A_t,\operatorname{clip}(L_t,1-\epsilon,1+\epsilon)\widehat A_t\}$. The critic is fitted to the estimated returns. PPO takes several minibatch updates on the rollout and then collects a fresh one. The clipping level $\epsilon$ limits the incentive for large ratio changes. The independent evaluation cells test the candidate's risk.
+# For a trial actor $\pi_w$, compute $\ell_t=\pi_w(a_t\mid o_t)/\pi_{w_0}(a_t\mid o_t)$. The actor increases the minibatch average of $\min\{\ell_t\widehat A_t,\mathrm{clip}(\ell_t,1-\epsilon,1+\epsilon)\widehat A_t\}$. The critic is fitted to the estimated returns. PPO takes several minibatch updates on the rollout and then collects a fresh one. The clipping level $\epsilon$ limits the incentive for large ratio changes. The independent evaluation cells test the candidate's risk.
 #
 # The simulator has a physical horizon, so the algorithm uses $\gamma_{\rm alg}=\beta=0.999$.
 #
@@ -130,17 +130,19 @@ if HAVE_SAFETY_GYMNASIUM:
         if terminated or truncated:
             break
     print(f"episode ended at step {info['t']}: failure = {info['failure']}, allowance left {info['reserve'][0]:.0f}")
-    model, venv, monitor = train(stage, 100_000)             # a short run; the campaign trained for 2 million steps
-    print(monitor.convergence().explain())                   # a run this short has not converged
 else:
     print("Safety-Gymnasium is not installed in this environment: the code above is what the campaign ran with it.\n"
           "The rest of the notebook reads the campaign's records.")
+
+print(camp.convergence_table(["price-0.03"]))
 
 # %% [markdown]
 # ## 3. The full campaign: prices
 #
 # The campaign trained the robot from scratch (2 million steps, three seeds) at prices of 0, 0.003, 0.01, 0.03 and 0.1
-# per step from the exhaustion to the end of the episode, and evaluated each policy on 300 fresh episodes.
+# per failed period through the physical horizon, and evaluated each fixed policy on 300 fresh episodes.
+# The local training function can be run in the Safety-Gymnasium environment at the same budget,
+# for example with `train(stage, 2_000_000, seed=1)`.
 
 # %%
 configs = ["no-price", "price-0.003", "price-0.01", "price-0.03", "price-0.1"]

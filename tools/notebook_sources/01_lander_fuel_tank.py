@@ -5,7 +5,7 @@
 #
 # We first evaluate the existing controller with the new tank. We then continue training at several failure prices and compare references in action and parameter space. The validation step measures fuel failure through the specified horizon. Landing and crash frequencies are reported separately because the training price applies to fuel failure in this task.
 #
-# The short live runs illustrate the procedure. The comparison uses the archived runs with three million frames per fine-tuning run and three seeds. The paper's current landing task pays revenue for a successful landing and includes loss of the lander in its failure event. [Current landing example](../README.md#train-on-a-budget-constrained-task) · [Practitioner guide](../docs/practitioner-guide.md)
+# The illustrations use the archived policies. Fine-tuning used about three million frames per run and three training seeds per configuration. The training function is included for local reruns. The paper's current landing task pays revenue for a successful landing and includes loss of the lander in its failure event. [Current landing example](../README.md#train-on-a-budget-constrained-task) · [Practitioner guide](../docs/practitioner-guide.md)
 #
 # The notebook requires Stable-Baselines3 and Gymnasium with Box2D.
 #
@@ -17,7 +17,7 @@
 #
 # $$
 # \begin{aligned}
-# \underset{\pi\in\Pi}{\operatorname{maximize}}\quad & U_H(\pi)\\
+# \underset{\pi\in\Pi}{\mathrm{maximize}}\quad & U_H(\pi)\\
 # \text{subject to}\quad & \Pr_\pi(\tau\le999)\le0.05.
 # \end{aligned}
 # $$
@@ -25,7 +25,7 @@
 # In training, a failure at time $t$ is charged $F_t=0.5\sum_{j=0}^{H-1-t}\beta^j$. PPO searches for a solution to the priced objective.
 #
 # $$
-# \underset{\pi\in\Pi}{\operatorname{maximize}}\quad U_H(\pi)-\mathbb E_\pi[\beta^\tau F_\tau\mathbf1_{\{\tau<H\}}].
+# \underset{\pi\in\Pi}{\mathrm{maximize}}\quad U_H(\pi)-\mathbb E_\pi[\beta^\tau F_\tau\mathbf1_{\{\tau<H\}}].
 # $$
 #
 # The price assigns a greater charge to early fuel failure. The deployment constraint counts every crossing within the mission once. The validation cell tests that event and records crashes and landings separately.
@@ -163,7 +163,7 @@ print(p.explain())
 #
 # A rollout contains actions sampled from the current actor $\pi_{w_0}$ and the rewards of the stated training objective. The critic $v(o_t)$ predicts remaining return from observation $o_t$. At a nonterminal step, the prediction residual is $e_t=r_t+\gamma_{\rm alg}v(o_{t+1})-v(o_t)$. At a true terminal step continuation is zero. Generalized advantage estimation sums these residuals using weights $(\gamma_{\rm alg}\lambda_{\rm GAE})^j$. The resulting estimate $\widehat A_t$ measures how favorable the sampled action was relative to the critic's prediction.
 #
-# For a trial actor $\pi_w$, compute $L_t=\pi_w(a_t\mid o_t)/\pi_{w_0}(a_t\mid o_t)$. The actor increases the minibatch average of $\min\{L_t\widehat A_t,\operatorname{clip}(L_t,1-\epsilon,1+\epsilon)\widehat A_t\}$. The critic is fitted to the estimated returns. PPO takes several minibatch updates on the rollout and then collects a fresh one. The clipping level $\epsilon$ limits the incentive for large ratio changes. The independent evaluation cells test the candidate's risk.
+# For a trial actor $\pi_w$, compute $\ell_t=\pi_w(a_t\mid o_t)/\pi_{w_0}(a_t\mid o_t)$. The actor increases the minibatch average of $\min\{\ell_t\widehat A_t,\mathrm{clip}(\ell_t,1-\epsilon,1+\epsilon)\widehat A_t\}$. The critic is fitted to the estimated returns. PPO takes several minibatch updates on the rollout and then collects a fresh one. The clipping level $\epsilon$ limits the incentive for large ratio changes. The independent evaluation cells test the candidate's risk.
 #
 # The simulator has a physical horizon, so the algorithm uses $\gamma_{\rm alg}=\beta=0.999$.
 #
@@ -223,9 +223,8 @@ print(f"random actions burn {per_frame:.3f} per frame: the tank is empty after a
 # %% [markdown]
 # ### Continue training with the tank
 #
-# The training function builds the wrapped environments, starts PPO from the controller's weights, and records the
-# failure rate and the reward of every batch with `BudgetMonitor`. Here it runs for 300,000 frames; the campaign ran
-# the same function for 3 million.
+# The training function builds the wrapped environments, initializes PPO with the existing controller's weights,
+# and records failure and reward statistics for each rollout with `BudgetMonitor`.
 
 # %%
 def train(stage, steps, start, seed=1, anchor=None, action_anchor=None):
@@ -245,38 +244,17 @@ def train(stage, steps, start, seed=1, anchor=None, action_anchor=None):
     return model, monitor, regularizers
 
 
-def landings(model, stage, n=200, seed=5):
-    """Ran dry, landed and crashed, over n fresh episodes of the stochastic policy."""
-    env, counts = make_env(stage), dict(ran_dry=0, landed=0, crashed=0)
-    for i in range(n):
-        obs, _ = env.reset(seed=seed + i)
-        while True:
-            obs, _, terminated, truncated, info = env.step(model.predict(obs)[0])
-            if terminated or truncated:
-                break
-        counts["ran_dry"] += info["failure"]; counts["landed"] += info.get("landed", False); counts["crashed"] += info.get("crashed", False)
-    return {k: v / n for k, v in counts.items()}
-
-
-tank_alone = Stage(m=0.0, clip_utility=False)
-model, monitor, _ = train(tank_alone, 300_000, controller)
-monitor.plot(title="the tank alone, 300,000 frames"); plt.show()
-print(monitor.convergence().explain())
-print("fresh landings:", {k: f"{v:.1%}" for k, v in landings(model, tank_alone).items()})
-
 # %% [markdown]
-# This run is short, and the convergence check says so: the lander still runs dry about as often as the controller
-# did. `BudgetMonitor.convergence()` compares the last tenth of the training batches with the tenth
-# before; `BudgetMonitor(check_every=k, stop_when_converged=True)` checks during training and stops once the run has
-# converged. The campaign continued every controller for 3 million frames. Its learning curves, recorded by the same
-# monitor, show when the lander learns to save fuel.
+# The curves below use the full fine-tuning runs. The archived configurations begin with the corresponding
+# five-million-frame controller and continue for about three million frames. After training the starting controller,
+# run `python campaigns/run.py lander tank-no-price --seed 1` from the repository root to reproduce one seed.
 
 # %%
 fig, ax = plt.subplots(figsize=(6.4, 2.8))
 for r in camp.records("tank-no-price"):
     ax.plot([t["steps"] / 1e6 for t in r["monitor"]], [t["failure_rate"] for t in r["monitor"]], lw=0.7, label=f"seed {r['seed']}")
 ax.axhline(req.alpha, color="C3", ls=":", lw=1)
-ax.set_xlabel("million frames"); ax.set_ylabel("ran dry (per batch)"); ax.set_title("the tank alone, the full campaign", fontsize=9)
+ax.set_xlabel("million frames"); ax.set_ylabel("ran dry (per batch)"); ax.set_title("Fuel budget without a failure charge, about 3 million frames per seed", fontsize=9)
 ax.legend(fontsize=7); plt.tight_layout(); plt.show()
 
 # %% [markdown]
@@ -327,29 +305,9 @@ print(camp.convergence_table(prices))
 # and the learner inherits that policy's risk. An action anchor keeps the policy's failure risk close to the
 # reference's, by an amount set by how far the two action distributions are apart.
 #
-# Here are the three, trained live for 300,000 frames each at the price 0.5. `ParameterAnchor.distance()` measures how
-# far the weights moved from the controller's, and `ActionAnchor.mean_log_ratio` how far the actions moved.
-
-# %%
-priced = Stage(m=0.5, clip_utility=False)
-for name, options in {"no regularizer": {}, "parameter anchor, kappa_p = 1": dict(anchor=1.0),
-                      "action anchor, eta = 0.05": dict(action_anchor=0.05)}.items():
-    m_, mon, regs_ = train(priced, 300_000, controller, **options)
-    moved = ""
-    if "anchor" in regs_:
-        moved = f"; weights moved {regs_['anchor'].distance():.3f}"
-    if "action anchor" in regs_:
-        moved = f"; mean log ratio of actions {regs_['action anchor'].mean_log_ratio:.3f}"
-    outcome = landings(m_, priced)
-    print(f"{name:30s} ran dry {outcome['ran_dry']:6.1%}, landed {outcome['landed']:6.1%}, crashed {outcome['crashed']:5.1%}"
-          f"{moved}; training {mon.convergence().status}")
-
-# %% [markdown]
-# These are short runs, too short for the convergence check to judge, so the numbers show how to use the regularizers
-# rather than what they do after full training. Two limits of the check matter here as everywhere. A run can stop
-# changing in a bad place, and a learning rate that decays to zero makes any run stop changing at its end. Converged
-# means that the run stopped changing, not that its policy is good; the validation decides that. The full campaign
-# trained each for 3 million frames:
+# The comparison uses archived runs at price 0.5. Each configuration has three training seeds and 1,000
+# evaluation episodes per fitted policy. Compare the spread across seeds and the recorded distance from the
+# reference actor. A stable training trace can result from a decayed learning rate.
 
 # %%
 regs = ["price-0.5", "anchor-0.01", "anchor-0.1", "anchor-1", "anchor-10", "action-anchor"]
@@ -362,7 +320,7 @@ print(camp.convergence_table(regs))
 # %% [markdown]
 # The initial controller often fails the tighter fuel requirement. At each tested coupled-anchor strength, the fitted policies continued to show high fuel-failure frequencies. The comparison uses the controller induced by the reference weights as a separate candidate.
 #
-# These runs, and the short ones above, use the coupled form of the anchor (`decoupled=False`): the drift is added to
+# The recorded runs use the coupled form of the anchor (`decoupled=False`): the drift is added to
 # the policy gradient before Adam's step, the form of the paper's runs. Adam divides every gradient coordinate by its
 # running root-mean-square, so the drift's step is about the learning rate whatever the distance to the anchor and
 # whatever the strength, and the strength does not read as a curvature. The toolbox's default is the decoupled form,
@@ -374,8 +332,8 @@ print(camp.convergence_table(regs))
 # The action anchor holds the behavior near the controller and gives way where the tank demands a change. With it the
 # lander learned to save fuel as well as without it; its effect on crashes was mixed across seeds.
 #
-# When the policy in use violates the new limit: start from it, and if you regularize toward it, regularize its
-# behavior, not its weights.
+# When fine-tuning a controller that violates the new limit, treat the action and parameter references as
+# separate design choices. Use fresh evaluation to check which candidate meets the constraint.
 #
 # ## 6. Validate the policy to deploy, and report
 #

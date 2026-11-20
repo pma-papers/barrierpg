@@ -5,7 +5,7 @@
 #
 # The observations include charge and, in the clock configurations, elapsed mission time. We compare fixed failure prices and an interior barrier using distance, stranding probability and the minimum reserve. To measure sensitivity to available energy, we also evaluate the fixed policies with 90% of the nominal allowance while retaining their nominal reserve observations.
 #
-# The live PPO run illustrates training. The comparisons use saved runs of two million steps per seed and three seeds per configuration. The notebook requires Stable-Baselines3 and Gymnasium with MuJoCo. [Practitioner guide](../docs/practitioner-guide.md)
+# The illustrations use saved runs of about two million interactions per seed and three seeds per configuration. The training function is included for local reruns. The notebook requires Stable-Baselines3 and Gymnasium with MuJoCo. [Practitioner guide](../docs/practitioner-guide.md)
 #
 # ### Locomotion with an energy constraint
 #
@@ -15,7 +15,7 @@
 #
 # $$
 # \begin{aligned}
-# \underset{\pi\in\Pi}{\operatorname{maximize}}\quad & U_{1000}(\pi)\\
+# \underset{\pi\in\Pi}{\mathrm{maximize}}\quad & U_{1000}(\pi)\\
 # \text{subject to}\quad & \Pr_\pi(\tau\le999)\le0.05.
 # \end{aligned}
 # $$
@@ -23,7 +23,7 @@
 # In the fixed-price problem, $F_t=m\sum_{j=0}^{999-t}0.999^j$ is the charge if failure occurs at $t$. PPO searches for a policy with high value under this charge.
 #
 # $$
-# \underset{\pi\in\Pi}{\operatorname{maximize}}\quad U_{1000}(\pi)-\mathbb E_\pi[0.999^\tau F_\tau\mathbf1_{\{\tau<1000\}}].
+# \underset{\pi\in\Pi}{\mathrm{maximize}}\quad U_{1000}(\pi)-\mathbb E_\pi[0.999^\tau F_\tau\mathbf1_{\{\tau<1000\}}].
 # $$
 #
 # The reserve-penalty run further deducts the log penalty on the positive post-action reserve. Evaluating with 90% of the initial battery changes the crossing event while retaining the actor's nominal reserve observation.
@@ -125,7 +125,7 @@ print(Campaign.show(camp.table(["no-price-no-clock", "no-price", "price-3-no-clo
 #
 # A rollout contains actions sampled from the current actor $\pi_{w_0}$ and the rewards of the stated training objective. The critic $v(o_t)$ predicts remaining return from observation $o_t$. At a nonterminal step, the prediction residual is $e_t=r_t+\gamma_{\rm alg}v(o_{t+1})-v(o_t)$. At a true terminal step continuation is zero. Generalized advantage estimation sums these residuals using weights $(\gamma_{\rm alg}\lambda_{\rm GAE})^j$. The resulting estimate $\widehat A_t$ measures how favorable the sampled action was relative to the critic's prediction.
 #
-# For a trial actor $\pi_w$, compute $L_t=\pi_w(a_t\mid o_t)/\pi_{w_0}(a_t\mid o_t)$. The actor increases the minibatch average of $\min\{L_t\widehat A_t,\operatorname{clip}(L_t,1-\epsilon,1+\epsilon)\widehat A_t\}$. The critic is fitted to the estimated returns. PPO takes several minibatch updates on the rollout and then collects a fresh one. The clipping level $\epsilon$ limits the incentive for large ratio changes. The independent evaluation cells test the candidate's risk.
+# For a trial actor $\pi_w$, compute $\ell_t=\pi_w(a_t\mid o_t)/\pi_{w_0}(a_t\mid o_t)$. The actor increases the minibatch average of $\min\{\ell_t\widehat A_t,\mathrm{clip}(\ell_t,1-\epsilon,1+\epsilon)\widehat A_t\}$. The critic is fitted to the estimated returns. PPO takes several minibatch updates on the rollout and then collects a fresh one. The clipping level $\epsilon$ limits the incentive for large ratio changes. The independent evaluation cells test the candidate's risk.
 #
 # The simulator has a physical horizon, so the algorithm uses $\gamma_{\rm alg}=\beta=0.999$.
 #
@@ -166,20 +166,26 @@ def train(stage, steps, seed=1, **env_options):
     model.learn(steps, callback=[monitor])
     return model, venv, monitor
 
+# %% [markdown]
+# This figure uses all three archived runs at price 3, about two million interactions per seed. The trace
+# measures outcomes during training. The evaluation table uses the final fixed policies. Run
+# `python campaigns/run.py robot price-3 --seed 1` from the repository root to repeat one seed.
 
-model, venv, monitor = train(stage, 300_000)
-monitor.plot(title="price 3, 300,000 steps"); plt.show()
-print(monitor.convergence().explain())
-last = monitor.trace[-5:]
-print(f"\nlast five batches: stranded {np.mean([t['failure_rate'] for t in last]):.1%}, "
-      f"discounted reward {np.mean([t['U'] for t in last]):.0f}")
+# %%
+fig, axes = plt.subplots(1, 2, figsize=(8, 3))
+for rec in camp.records("price-3"):
+    steps = [row["steps"] / 1e6 for row in rec["monitor"]]
+    for ax, key in zip(axes, ("U", "failure_rate")):
+        ax.plot(steps, [row[key] for row in rec["monitor"]], lw=0.8, label=f"seed {rec['seed']}")
+for ax, ylabel in zip(axes, ("stopped utility per rollout", "stranding frequency per rollout")):
+    ax.set(xlabel="million training interactions", ylabel=ylabel)
+axes[0].legend()
+plt.tight_layout(); plt.show()
+print(camp.convergence_table(["price-3"]))
 
 # %% [markdown]
-# A short run, and the convergence check says so: after three hundred thousand steps the robot has barely learned to
-# move forward. Its reward is a small fraction of the campaign's policies' (about 2,400 after 2 million
-# steps), and it is already stranded in some missions. The campaign ran the same function for 2
-# million steps, at prices of 0, 1, 3 and 10 per step from the stranding to the end of the mission, and also trained a
-# gait without a battery (a battery that never runs flat). That gait uses more energy than the battery holds:
+# The reference gait was trained without an effective battery limit. Its energy use in the simulator provides
+# a scale for the allowance.
 
 # %%
 fig, ax = plt.subplots(figsize=(6.4, 3.0))
