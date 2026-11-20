@@ -9,16 +9,16 @@
 #
 # ## The deployment problem tested here
 #
-# Let $\pi$ be a candidate policy, $\tau$ its first failure index, $U_H(\pi)$ its expected discounted utility before failure, and $T$ the last action covered by a deployment test. Let $\Pi$ be the set of candidate policies. The policy selection problem is
+# Let $\pi$ be a candidate policy, $\tau$ its first failure index, $U_H(\pi)$ its expected discounted utility before failure, $H$ the number of actions in the task, $T$ the last action covered by the test and $\alpha$ the tolerance. Let $\Pi$ be the set of candidate policies. The policy selection problem is
 #
 # $$
 # \begin{aligned}
-# \underset{\pi\in\Pi}{\operatorname{maximize}}\quad & U_H(\pi)\\
+# \underset{\pi\in\Pi}{\mathrm{maximize}}\quad & U_H(\pi)\\
 # \text{subject to}\quad & p_T(\pi)=\Pr_\pi(\tau\le T)\le\alpha.
 # \end{aligned}
 # $$
 #
-# The notebook treats the policy as fixed during final evaluation. It estimates the constraint statistic $\Pr_\pi(\tau\le T)$ and computes a one-sided upper confidence limit. The per-statement error $e$ controls the interval procedure. For $K<N$ failures in $N$ independent episodes, the upper endpoint $p^+$ solves $\Pr_{Y\sim{\rm Binomial}(N,p^+)}(Y\le K)=e$. The validation rule accepts when $p^+\le\alpha$. Zero failures give $p^+=1-e^{1/N}$. Here $e$ is a probability, so the power denotes $e$ raised to $1/N$.
+# The notebook treats the policy as fixed during final evaluation. It estimates the constraint statistic $\Pr_\pi(\tau\le T)$ and computes a one-sided upper confidence limit. Let $\zeta_0$ be the statistical error allocated to a single statement. For $K<N$ failures in $N$ independent episodes, the upper endpoint $p^+$ solves $\Pr_{Y\sim{\rm Binomial}(N,p^+)}(Y\le K)=\zeta_0$. The validation rule accepts when $p^+\le\alpha$. Zero failures give $p^+=1-\zeta_0^{1/N}$.
 #
 # If the evaluator instead stops independently with geometric survival $\beta$, its breakdown indicators have mean $q_\beta$. The appropriate confidence statement is on $q_\beta$. Converting it at time $T$ gives upper endpoint $\min\{1,\beta^{-T}q^+\}$. A physical-horizon evaluator can count $p_T$ directly.
 
@@ -102,9 +102,9 @@ print(f"under the clock, {np.mean(geo.tau[geo.failed] > T):.0%} of the failures 
 # failures are late. The bound $p_T\le\beta^{-T}q_\beta$ is valid but loose here, and the direct test over the fixed
 # horizon certifies the requirement that the geometric route could not.
 #
-# **When failures occur.** The geometric risk also bounds the failure time. With $\theta=\log(1/\beta)$,
-# $q_\beta=\mathbb E\,e^{-\theta\tau}$. Assign $\tau=\infty$ on paths that never fail. For the earliest
-# $\varepsilon$-fraction of trajectories, the mean failure time is at least $\log(\varepsilon/q_\beta)/\theta$
+# **When failures occur.** The geometric risk also bounds the failure time. With decay rate $\log(1/\beta)$,
+# $q_\beta=\mathbb E_\pi[\exp(-\tau\log(1/\beta))]$. Assign $\tau=\infty$ on paths that never fail. For the earliest
+# $\varepsilon$-fraction of trajectories, the mean failure time is at least $\log(\varepsilon/q_\beta)/\log(1/\beta)$ for $q_\beta>0$
 # periods (the paper's *The geometric risk as a risk
 # measure of the failure time*). With the validated upper bound on $q_\beta$ the statement is validated too. A bound on
 # $p_T$ at one horizon never says more than $T+1$, since it says nothing about failures after $T$.
@@ -119,9 +119,9 @@ for eps in (0.05, 0.1, 0.5):
 #
 # The value certificate (the paper's *Value and objective certificates*) bounds the risk by the clipped value:
 # $p_T\le(\bar u-(1-\beta)V_m)/((m+\bar u)\beta^T)$. With validation
-# data, $V_m$ is replaced by a Hoeffding lower bound from returns truncated after $H$ actions. The factor $\beta^{-T}$
-# makes the bound grow with the horizon: it is informative only when $T$ is not large against $1/(1-\beta)$, and $H$
-# must exceed $T$ by enough that the truncation error $\beta^{H-T}$ lies below the tolerance. Increasing the price helps
+# data, $V_m$ is replaced by a Hoeffding lower bound from returns truncated after $L$ observed actions (the variable `H` in the code). The factor $\beta^{-T}$
+# makes the bound grow with the horizon: it is informative only when $T$ is not large against $1/(1-\beta)$, and $L$
+# must exceed $T$ by enough that the truncation error $\beta^{L-T}$ lies below the tolerance. Increasing the price helps
 # the numerator but cannot repair a failed resolution check.
 
 # %%
@@ -158,7 +158,7 @@ print(V.value_resolution_check(beta=spec.beta, H=H, T=19, N=Nv, zeta=error_per_p
 # Many tasks end after a fixed number of actions, and many sanctions are charged once. An annual emissions allowance
 # is of this kind: 52 weeks, and a sanction $F$ if cumulative emissions exceed the allowance at any week.
 # The toolbox's form is a flat penalty $\nu=F$ at the failing week, `Stage(penalty="multiplier", multiplier=F)`, with
-# the pre-failure reward left unclipped; the value certificate is then $p_T\le(\bar uS_H-V^{(H)})/(F\beta^T)$.
+# the pre-failure reward left unclipped; write $V_F^{(H)}(\pi)$ for the expected discounted return including the lump charge, and $S_H=\sum_{t=0}^{H-1}\beta^t$. For $T<H$ and a valid upper bound $\bar u$ on step utility, the value certificate is $p_T(\pi)\le(\bar u S_H-V_F^{(H)}(\pi))/(F\beta^T)$. The empirical version substitutes a lower confidence bound for $V_F^{(H)}$.
 #
 # Evaluation through the wrapper runs one episode at a time. For many candidates on common random numbers a
 # vectorized simulator is faster; `evaluation_from_episodes` builds the same `Evaluation` from its per-episode arrays.

@@ -20,52 +20,64 @@ $$
 z_{0,k}=b_k,\qquad z_{t+1,k}=\frac{z_{t,k}-c_{t,k}}{\gamma_k}.
 $$
 
-Failure is the first action index $\tau$ for which some $z_{t+1,k}<0$. Set $\tau=\infty$ if no crossing occurs. Let $T$ be the last action covered by the requirement, and $p_T(\pi)=\Pr_\pi(\tau\le T)$. Define the discounted task utility $J(\pi)=\mathbb E_\pi[\sum_{t=0}^{H-1}\beta^t u_t]$. If the crossing ends the task before the failing action earns utility, use stopped utility
-
-$$
-U_H(\pi)=\mathbb E_\pi\!\left[\sum_{t=0}^{H-1}\beta^t u_t\mathbf 1_{\{t<\tau\}}\right].
-$$
-
-Choose $W(\pi)$ to be the utility specified by the model. For example, use $J$ to evaluate the original navigation task through its horizon, or $U_H$ when insolvency terminates the retailer's operations. Next choose the cost or event to constrain. Let $Z$ denote a trajectory loss, such as total consumption, maximum cumulative use, or the size of an overshoot.
-
-For a fixed utility $W$ and loss definition $Z$, select the constraint that matches the decision:
+Failure is the first action index $\tau$ for which some $z_{t+1,k}<0$. Set $\tau=\infty$ if no crossing occurs. Let $T\le H-1$ be the last action covered by the requirement and $p_T(\pi)=\Pr_\pi(\tau\le T)$. With utility discount $\beta$, the original-task utility through $H$ actions and the stopped utility are
 
 $$
 \begin{aligned}
-\underset{\pi\in\Pi}{\operatorname{maximize}}\quad & W(\pi)\\
-\text{subject to}\quad & R(\pi)\le d .
+V^{(H)}(\pi)&=\mathbb E_\pi\!\left[\sum_{t=0}^{H-1}\beta^t u_t\right],\\
+U_H(\pi)&=\mathbb E_\pi\!\left[\sum_{t=0}^{H-1}\beta^t u_t\mathbf 1_{\{t<\tau\}}\right].
 \end{aligned}
 $$
 
-The statistic $R$ and numerical limit $d$ define the following four problems.
+In the original task, crossing the budget can leave subsequent utility. Use $V^{(H)}$ to evaluate that task, as in the mean-damage formulation for navigation. Use $U_H$ when failure ends operations before the failing action earns utility, as in the retailer example. The symbols $V$ and $U$ denote the corresponding continuing-horizon quantities.
+
+Let $Z$ be the loss on a trajectory drawn under $\pi$, for example total consumption or overshoot. The mean-cost problem on the original task is
+
+$$
+\begin{aligned}
+\underset{\pi\in\Pi}{\mathrm{maximize}}\quad & V^{(H)}(\pi)\\
+\text{subject to}\quad & \mathbb E_\pi[Z]\le d.
+\end{aligned}
+$$
+
+Here $d$ is the cap in units of $Z$. The chance-constrained problem on a task that stops at failure is
+
+$$
+\begin{aligned}
+\underset{\pi\in\Pi}{\mathrm{maximize}}\quad & U_H(\pi)\\
+\text{subject to}\quad & p_T(\pi)\le\alpha .
+\end{aligned}
+$$
+
+Here $\alpha$ is a probability tolerance. The same choice of utility applies when the following constraints are used.
 
 | Formulation | Constraint | Meaning |
 |---|---|---|
 | Expected cost | $\mathbb E_\pi[Z]\le d$ | The average loss must be at most $d$. |
-| Chance constraint | $\Pr_\pi(\tau\le T)\le\alpha$ | At most a fraction $\alpha$ of episodes may cross by action $T$. |
-| Conditional value-at-risk (CVaR) | $\operatorname{CVaR}_\varepsilon(Z)\le d$ | The mean of the worst $\varepsilon$ fraction of losses is bounded by $d$. |
-| Pathwise feasibility | $\Pr_\pi(\tau\le H-1)=0$ | Every positive-probability outcome of a finite model must respect the budget throughout the episode. |
+| Chance constraint | $p_T(\pi)\le\alpha$ | Failure by action $T$ may occur with probability at most $\alpha$. |
+| Conditional value-at-risk (CVaR) | $\mathrm{CVaR}_\varepsilon(Z)\le d$ | The mean of the worst $\varepsilon$ fraction of losses is bounded by $d$. |
+| Pathwise feasibility | $p_{H-1}(\pi)=0$ | Every positive-probability trajectory of a finite model must respect the budget throughout the episode. |
 
-A chance constraint can be supplied to an expected-cost method using $Z=\mathbf 1_{\{\tau\le T\}}$. Its expectation is $p_T$. For cumulative nonnegative use, terminal consumption determines whether the budget was crossed. If cash or another resource can be replenished, use the maximum cumulative net use through $T$ or record the first crossing directly.
+An expected-cost method can impose the chance constraint by using $Z=\mathbf 1_{\{\tau\le T\}}$ and setting the cost limit to $\alpha$. For nonnegative consumption, iteration of the reserve recursion gives $\gamma_k^{T+1}z_{T+1,k}=b_k-\sum_{t=0}^T\gamma_k^t c_{t,k}$. Each discounted cumulative sum is nondecreasing, so crossing by action $T$ occurs if any of these sums exceeds $b_k$. For undiscounted net use that can decrease after replenishment, use its maximum through $T$ or record the first crossing directly.
 
 For CVaR, let $(x)_+=\max(x,0)$. The formula below holds for integrable $Z$ with $0<\varepsilon<1$.
 
 $$
-\operatorname{CVaR}_\varepsilon(Z)=
-\min_{v\in\mathbb R}\left[v+\frac1\varepsilon\mathbb E_\pi[(Z-v)_+]\right].
+\mathrm{CVaR}_\varepsilon(Z)=
+\min_{\xi\in\mathbb R}\left[\xi+\frac1\varepsilon\mathbb E_\pi[(Z-\xi)_+]\right].
 $$
 
-The variable $v$ is a threshold in the units of the loss. At the minimum it is an upper-tail quantile, with the appropriate fraction of any mass at that threshold included in the tail. A CVaR constraint on overshoot differs from a CVaR constraint on total consumption. Set the loss definition before choosing its cap. `upper_cvar` calculates the exact tail average for a finite discrete loss distribution.
+The variable $\xi$ is a threshold in the units of the loss. At the minimum it is an upper-tail quantile, with the appropriate fraction of any mass at that threshold included in the tail. A CVaR constraint on overshoot differs from a CVaR constraint on total consumption. Set the loss definition before choosing its cap. `upper_cvar` calculates the exact tail average for a finite discrete loss distribution.
 
 ## Write the priced training objective
 
-For a continuing task, let $q_\beta(\pi)=\mathbb E_\pi[\beta^\tau\mathbf 1_{\{\tau<\infty\}}]$. This is the probability of failure before an independent geometric stop with survival probability $\beta$ after each surviving action. Let $U(\pi)$ be discounted stopped utility and let $I_m(\pi)$ be the expected discounted deduction from the pre-failure reward. For a clipped interior barrier $B(z_{t+1})$ that deduction on a nonfailing action is $u_t-\max\{-m,u_t-B(z_{t+1})\}$. With failure-only pricing, $I_m=0$. The continuing training problem is
+For a continuing task, let $q_\beta(\pi)=\mathbb E_\pi[\beta^\tau\mathbf 1_{\{\tau<\infty\}}]$. This is the probability of failure before an independent geometric stop with survival probability $\beta$ after each surviving action. Let $U(\pi)$ be discounted stopped utility and let $\mathcal I_m(\pi)$ be the expected discounted deduction from the pre-failure reward. On a nonfailing action the floor is applied after subtracting the barrier at the updated reserve. The change in utility is $u_t-\max\{-m,u_t-B(z_{t+1})\}$. It is nonnegative when $u_t\ge-m$. If the raw utility is below the floor, clipping can raise the reward. With failure-only pricing, $\mathcal I_m=0$. The continuing training problem is
 
 $$
-\underset{\pi\in\Pi}{\operatorname{maximize}}\quad U(\pi)-I_m(\pi)-\frac{m}{1-\beta}q_\beta(\pi).
+\underset{\pi\in\Pi}{\mathrm{maximize}}\quad U(\pi)-\mathcal I_m(\pi)-\frac{m}{1-\beta}q_\beta(\pi).
 $$
 
-The charge $m/(1-\beta)$ at the failing step represents a discounted sequence of rewards $-m$ from failure onward. Under a physical horizon $H$, the charge at a failure at $t$ is $F_t=m\sum_{j=0}^{H-1-t}\beta^j$. Training then maximizes $U_H(\pi)-I_{m,H}(\pi)-\mathbb E_\pi[\beta^\tau F_\tau\mathbf 1_{\{\tau<H\}}]$, where $I_{m,H}$ is the interior deduction through the physical horizon. A lump charge sets $F_t=F$ at all failure times. Validation uses the stated deployment event $p_T$. Its confidence level is a separate statistical input.
+The charge $m/(1-\beta)$ at the failing step represents a discounted sequence of rewards $-m$ from failure onward. Under a physical horizon $H$, the charge at a failure at $t$ is $F_t=m\sum_{j=0}^{H-1-t}\beta^j$. Training then maximizes $U_H(\pi)-\mathcal I_{m,H}(\pi)-\mathbb E_\pi[\beta^\tau F_\tau\mathbf 1_{\{\tau<H\}}]$, where $\mathcal I_{m,H}$ is the interior deduction through the physical horizon. A lump charge sets $F_t=F$ at all failure times. Validation uses the stated deployment event $p_T$. Its confidence level is a separate statistical input.
 
 ## Choose a numerical method
 
@@ -83,7 +95,13 @@ For a known finite model, backward induction computes the priced optimum or an o
 | Large losses in the worst outcomes must be limited | CVaR constraint on total consumption, overshoot or another specified loss | TRC or exact selection from finite-scenario candidates | Held-out tail loss and its uncertainty |
 | Every trajectory must meet the limit | Pathwise feasibility | A model-based feasible policy class or a safety layer | The model assumptions and the resulting pathwise guarantee |
 
-Let $C(\pi)$ denote the constraint statistic and $d$ the cap. Suppose $\pi^\star$ maximizes $W(\pi)-\nu(C(\pi)-d)$ for a fixed $\nu\ge0$. If $C(\pi^\star)\le d$ and $\nu(C(\pi^\star)-d)=0$, then $\pi^\star$ solves the constrained problem. Indeed, for any feasible $\pi$, $W(\pi)\le W(\pi)-\nu(C(\pi)-d)\le W(\pi^\star)$. This argument uses the same utility, cost, stopping rule and policy class throughout. Some constrained optima in a discrete or restricted class cannot be obtained by any fixed multiplier.
+For example, compare two formulations on the same stopped task with loss $Z$ and cap $d$. Let $J_c(\pi)=\mathbb E_\pi[Z]$. Suppose $\pi^\star$ maximizes $U_H(\pi)-\nu[J_c(\pi)-d]$ for a fixed $\nu\ge0$. It also maximizes $U_H$ subject to $J_c\le d$ if
+
+$$
+J_c(\pi^\star)\le d,\qquad \nu[J_c(\pi^\star)-d]=0 .
+$$
+
+Indeed, for any feasible $\pi$, $U_H(\pi)\le U_H(\pi)-\nu[J_c(\pi)-d]\le U_H(\pi^\star)$, where the last inequality uses priced optimality and complementary slackness. This argument compares the same utility, cost, stopping rule and policy class. Some constrained optima in a discrete or restricted class cannot be obtained by any fixed multiplier.
 
 A one-stage deterministic example uses utility 1.0 at consumption 1 and utility 1.1 at consumption 2. A consumption cap of 1 and a linear price of 0.2 both select the first policy. In the stochastic example, the second policy consumes either 0 or 2 with equal probability. Both policies now have mean consumption 1, so a mean-cost cap or linear price selects the higher-utility policy. The variable policy exceeds budget 1 with probability 0.5 and has upper-half CVaR 2. The steady policy has crossing probability 0 and upper-half CVaR 1. A deterministic simulator can still produce this distinction if the initial condition or policy is randomized.
 
@@ -129,18 +147,18 @@ Let `r = z/b` be the fraction of a single budget remaining after a decision. The
 
 Log and inverse diverge at zero, where the wrapper uses the clipped reward floor. Finite hinges also permit an explicit charge at zero without treating zero as a failure. With clipping, changes in a penalty beyond `u + m` have no effect on that step's reward. With no clipping, near-zero reserve may produce very large charges under singular shapes. All shapes retain the strict crossing event. A finite hinge is a soft reserve penalty with a different boundary behavior from the paper's singular barrier.
 
-In the one-stage example, $a$ is chosen on a grid. Consumption is $C=a+X$, where $X$ equals $0.18$ with probability $0.1$ and zero otherwise. With budget one and the penalty shape $B$, the script maximizes
+In the one-stage example, $a$ is chosen on a grid. Consumption is $c=a+X$, where $X$ equals $0.18$ with probability $0.1$ and zero otherwise. With budget one and the penalty shape $B$, the script maximizes
 
 $$
-\underset{a\in\{0.01,0.02,\ldots,0.99\}}{\operatorname{maximize}}\quad\mathbb E[r(a,C)],\qquad
-r(a,C)=
+\underset{a\in\{0.01,0.02,\ldots,0.99\}}{\mathrm{maximize}}\quad\mathbb E[r(a,c)],\qquad
+r(a,c)=
 \begin{cases}
-\max\{-1,2a-B(1-C)\}, & C\le1,\\
--1, & C>1.
+\max\{-1,2a-B(1-c)\}, & c\le1,\\
+-1, & c>1.
 \end{cases}
 $$
 
-In this equation the reward takes the value $-1$ at a crossing. The barrier is evaluated only when $C\le1$. Each action is scored using the probabilities of the two outcomes. In the failure-only case the nonfailing reward is $2a$. The example matches all positive penalties at 20% reserve and activates the hinges below 40%. After selecting the action, evaluate it at the original budget and with a 20% reduction.
+In this equation the reward takes the value $-1$ at a crossing. The barrier is evaluated only when $c\le1$. Each action is scored using the probabilities of the two outcomes. In the failure-only case the nonfailing reward is $2a$. The example matches all positive penalties at 20% reserve and activates the hinges below 40%. After selecting the action, evaluate it at the original budget and with a 20% reduction.
 
 | Training reward | Action | Nominal stopped utility | Nominal failure | Failure with smaller budget | Smallest nominal reserve |
 |---|---:|---:|---:|---:|---:|
@@ -185,7 +203,7 @@ With CPO or an algorithm for a CVaR constraint, use `regularized_utility` to for
 
 For finite-scenario policy selection under a CVaR constraint, pass regularized utilities as the candidate scores and keep the same CVaR constraint. In the runnable example, both policies satisfy a CVaR cap of 2. Adding action and parameter penalties switches the selected policy while leaving the two candidates' CVaRs unchanged. The example also shows a CPO step changing direction under a quadratic anchor of the same strength as a pseudo-Huber anchor. These comparisons isolate the effect of the objective. The paper's generalized convex regularization theorem concerns its specified population gradient flow. Using the same penalties in another optimizer calls for a separate analysis of its updates and validation of the returned policies.
 
-The one-state Gaussian example uses $a\sim N(w,I)$. Up to a constant, utility is $W(w)=-\|w-(1,1.5)\|^2/2$ and expected cost is $\mathbb E[\exp(a_1-1/2)]=\exp(w_1)$. Thus the barrier-free problem maximizes $W(w)$ subject to $\exp(w_1)\le \exp(0.6)$. The regularized variants subtract action KL to a fixed Gaussian reference and a parameter potential from $W$. Each update uses the same cap and the same KL radius. With the cost cap of 1.822, the unregularized run reaches cost 1.822. Adding the action KL and a quadratic potential yields cost 1.657. Keeping the same action KL and using a pseudo-Huber potential yields 1.696 and higher raw utility than the quadratic run. These are endpoints of the specified updates. The strength, reference, and optimizer affect what happens in a learned controller.
+The one-state Gaussian example uses $a\sim N(w,I)$. Up to a constant, expected utility is $J_u(w)=-\|w-(1,1.5)\|^2/2$ and expected cost is $\mathbb E[\exp(a_1-1/2)]=\exp(w_1)$. Thus the barrier-free problem maximizes $J_u(w)$ subject to $\exp(w_1)\le \exp(0.6)$. The regularized variants subtract action KL to a fixed Gaussian reference and a parameter potential from $J_u$. Each update uses the same cap and the same KL radius. With the cost cap of 1.822, the unregularized run reaches cost 1.822. Adding the action KL and a quadratic potential yields cost 1.657. Keeping the same action KL and using a pseudo-Huber potential yields 1.696 and higher raw utility than the quadratic run. These are endpoints of the specified updates. The strength, reference, and optimizer affect what happens in a learned controller.
 
 ## CPO and CVaR training without an interior barrier
 

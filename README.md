@@ -28,18 +28,18 @@ The [algorithm guide](docs/learning-algorithms.md) explains how values, advantag
 
 ## First-crossing risk and the priced objective
 
-For a task that ends at failure, let $U(\pi)$ be the expected discounted utility earned before failure and $\Pi$ the permitted policy class. Let $\tau$ be the first failure index, $T$ the last action covered by the requirement, and $\alpha$ the tolerated probability of failure. The deployment problem is
+For a task that ends at failure, let $U(\pi)$ be the expected discounted utility earned before failure and $\Pi$ the permitted policy class. For a task that continues after crossing, the original-task objective is $V(\pi)$, which also includes any utility earned from the crossing onward. Let $\tau$ be the first failure index, $T$ the last action covered by the requirement, and $\alpha$ the tolerated probability of failure. The deployment problem is
 
 $$
 \begin{aligned}
-\underset{\pi\in\Pi}{\operatorname{maximize}}\quad & U(\pi)\\
+\underset{\pi\in\Pi}{\mathrm{maximize}}\quad & U(\pi)\\
 \text{subject to}\quad & p_T(\pi)=\Pr_\pi(\tau\le T)\le\alpha.
 \end{aligned}
 $$
 
-The confidence level for validation is $1-\zeta$. For example, a policy can be required to keep its annual insolvency probability at or below 2%, with 95% confidence from simulated years.
+Let $\zeta$ be the statistical error allocated to validation. The corresponding confidence level is $1-\zeta$. For example, a policy can be required to keep its annual insolvency probability at or below 2%, with 95% confidence from simulated years.
 
-One way to train a candidate is to use a fixed failure price. In the continuing formulation, the clipped value equals stopped utility less the interior loss and a charge of $m/(1-\beta)$ per unit of geometric failure risk. Stopped utility is the discounted utility earned before failure. Geometric risk weights a failure at action $t$ by $\beta^t$, where $\beta$ is the utility discount. An optional interior barrier deducts utility as the reserve approaches zero. With a physical horizon, the per-period charge ends at the last action of the task. A known one-off loss can be charged at failure through a fixed lump penalty.
+One way to train a candidate is to use a fixed failure price. In the continuing formulation, let $\beta$ be the utility discount and $m$ the charge per failed period. The clipped value is $V_m(\pi)=U(\pi)-\mathcal I_m(\pi)-m q_\beta(\pi)/(1-\beta)$. The expected discounted interior deduction is $\mathcal I_m$. The geometric risk $q_\beta$ weights a failure at action $t$ by $\beta^t$. An optional interior barrier deducts utility as the reserve approaches zero. With a physical horizon, the per-period charge ends at the last action of the task. A known one-off loss can be charged at failure through a fixed lump penalty.
 
 The attained risk depends on the policy class and the policy returned by training. A price therefore provides a training incentive, and independent validation establishes whether a fixed candidate meets the deployment tolerance. When several candidates or horizons are assessed on the same validation data, the statistical error is allocated across those assessments.
 
@@ -108,17 +108,17 @@ In this run the rule failed in 6 of 2,000 episodes. The observed frequency was 0
 
 To use an existing Gymnasium task, provide a function that returns one nonnegative consumption per resource after each action. In `BudgetSpec`, specify the budgets, utility discount, and physical horizon where applicable. `BudgetWrapper` adds reserve information to the observation and accounts for the failure charge at termination. For a task with a fixed horizon, include time in the observation when the remaining time affects decisions.
 
-The example uses the paper's landing model. Utility on an action is $36$ for completing a landing on the pad, less fuel spent at a unit cost of one. Before touchdown, fuel use counts against a 24-unit tank. Loss of the lander triggers a second budget crossing. Let $\tau$ be the first failure of either kind and $U_{1000}(\pi)$ the expected discounted utility before failure. PPO trains on
+The example uses the paper's landing model. Utility on an action is $36$ for completing a landing on the pad, less fuel spent at a unit cost of one. Before touchdown, fuel use counts against a 24-unit tank. Loss of the lander triggers a second budget crossing. Let $\tau$ be the first failure of either kind, $U_{1000}(\pi)$ the expected discounted utility before failure and $\Pi$ the actor class. The discount is $\beta=0.999$. PPO trains on
 
 $$
 \begin{aligned}
-\underset{\pi\in\Pi}{\operatorname{maximize}}\quad &
+\underset{\pi\in\Pi}{\mathrm{maximize}}\quad &
  U_{1000}(\pi)-\mathbb E_\pi\!\left[\beta^\tau F_\tau\mathbf1_{\{\tau<1000\}}\right],\\
  & F_t=m\sum_{j=0}^{999-t}\beta^j.
 \end{aligned}
 $$
 
-Here $\beta=0.999$ and $\Pi$ is the class represented by the PPO actor. `landing.stage(1.0)` sets $F_{100}=36$. A potential-based shaping term is used during training and is disabled during evaluation. The validation step tests $\Pr_\pi(\tau\le999)\le0.05$ on the fitted actor's fresh episodes. The training budget is chosen for a short demonstration. [How PPO computes an update](docs/learning-algorithms.md#ppo-with-a-scalar-reward)
+`landing.stage(1.0)` sets $F_{100}=36$. A potential-based shaping term is used during training and is disabled during evaluation. The validation step tests $\Pr_\pi(\tau\le999)\le0.05$ on the fitted actor's fresh episodes. The training budget is chosen for a short demonstration. [How PPO computes an update](docs/learning-algorithms.md#ppo-with-a-scalar-reward)
 
 ```python
 from stable_baselines3 import PPO
@@ -160,7 +160,7 @@ The practitioner guide covers price selection, reserve penalties, action and par
 | [Robot with a battery](notebooks/03_robot_battery.ipynb) | Including remaining time in the observation and assessing reserve under a 10% reduction in available energy. |
 | [Navigation with a damage allowance](notebooks/04_navigation_allowance.ipynb) | Distinguishing a mean damage limit from a probability of exceeding the allowance and validating the latter at a fixed horizon. |
 
-The notebooks pair short runnable examples with results from longer training runs. The run configuration, training traces, trained policies and episode-level measurements are available in the repository. [Training runs and reproduction commands](campaigns/README.md)
+The applied notebooks display results from the recorded full training runs across three seeds per configuration. The training code and settings support local reruns. The run configuration, training traces, trained policies and episode-level measurements are available in the repository. [Training runs and reproduction commands](campaigns/README.md)
 
 - For the choice among a fixed failure price, an expected-cost limit, a chance constraint, a conditional value-at-risk (CVaR) limit, and pathwise feasibility, see the [formulation tutorial](docs/formulation-comparison.md). Its [dispatch example](examples/train_risk_constrained.py) runs barrier-free CPO and Gaussian CVaR updates on the same utility and separate cost outcomes.
 - For empirical comparisons on the wear-allowance task, see the [paired benchmark](docs/wear-benchmark.md) and the [guide to residual policies](docs/residual-networks.md).

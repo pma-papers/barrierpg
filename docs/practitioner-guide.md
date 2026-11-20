@@ -16,16 +16,16 @@ Choose a stage for training, then assess the candidate that will be deployed. Th
 
 ## Write the objective and constraint
 
-Let $\Pi$ be the candidate policies, $u_t$ the utility on action $t$, $H$ the physical horizon and $\tau$ the first failing action. In the stopped task, the utility to maximize is $U_H(\pi)=\mathbb E_\pi[\sum_{t=0}^{H-1}\beta^t u_t\mathbf 1_{\{t<\tau\}}]$. Utilities after the task has genuinely terminated are zero. If the requirement is a failure-probability limit at action $T$, write
+Let $\Pi$ be the candidate policies, $u_t$ the utility on action $t$, $H$ the number of actions in the physical horizon, $\beta$ the utility discount and $\tau$ the first failing action. Take $\tau=\infty$ if no failure occurs. In the stopped task, the utility to maximize is $U_H(\pi)=\mathbb E_\pi[\sum_{t=0}^{H-1}\beta^t u_t\mathbf 1_{\{t<\tau\}}]$. Utilities after the task has genuinely terminated are zero. If the requirement is a probability tolerance $\alpha$ through action $T\le H-1$, write
 
 $$
 \begin{aligned}
-\underset{\pi\in\Pi}{\operatorname{maximize}}\quad & U_H(\pi)\\
+\underset{\pi\in\Pi}{\mathrm{maximize}}\quad & U_H(\pi)\\
 \text{subject to}\quad & \Pr_\pi(\tau\le T)\le\alpha.
 \end{aligned}
 $$
 
-The wrapped PPO training problem uses the same utility with a failure charge. With no interior penalty it maximizes $U_H(\pi)-\mathbb E_\pi[\beta^\tau F_\tau\mathbf1_{\{\tau<H\}}]$. Here $F_t$ is the lump sum charged at a failure at $t$. Training with a reserve penalty also deducts the expected loss incurred on nonfailing steps. A mean-cost or CVaR specification uses its own cost constraint and can keep the original utility reward. [Write a mean, chance, tail or pathwise constraint](formulation-comparison.md#specify-the-optimization-problem)
+The wrapped PPO training problem uses the same utility with a failure charge. With no interior penalty it maximizes $U_H(\pi)-\mathbb E_\pi[\beta^\tau F_\tau\mathbf1_{\{\tau<H\}}]$. Here $F_t$ is the lump sum charged at a failure at $t$. Training with a reserve penalty also deducts $\mathcal I_{m,H}(\pi)$, the expected discounted interior loss over nonfailing steps. A mean-cost or CVaR specification uses its own cost constraint and can keep the original utility reward. [Write a mean, chance, tail or pathwise constraint](formulation-comparison.md#specify-the-optimization-problem)
 
 To apply these equations, specify the observation available at decision time, the allowed actions, the source of transition uncertainty, the utility and the cost for each action. Write the physical and deployment horizons separately. This identifies the data required by the optimizer and the event or loss to measure afterward. [How PPO and constrained actor updates use the data](learning-algorithms.md)
 

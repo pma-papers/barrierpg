@@ -18,7 +18,7 @@ failure, $\bar u-r_m=\bar u+m$. Either way the discounted sum of costs is at lea
 $\beta^T\min\{m+\bar u,\underline B(\varepsilon)\}$ on the event, and Markov's inequality gives the bound. $\square$
 
 The certificate requires a uniformly positive penalty in the specified small-reserve region. A failure-only price gives $\underline B=0$.
-For the log barrier $B(z)=\theta\sum_k\log(1+b_k/z_k)$, $\underline B(\varepsilon)=\theta\min_k\log(1+b_k/\varepsilon_k)$
+For the log barrier $B(z)=\theta_B\sum_k\log(1+b_k/z_k)$, $\underline B(\varepsilon)=\theta_B\min_k\log(1+b_k/\varepsilon_k)$
 (`LogBarrier.lower_level`). The bound is informative only for values $V_m$ close to $\bar u/(1-\beta)$; direct
 measurement of the frequency of a small reserve on validation episodes (`Evaluation.near`) is usually sharper.
 

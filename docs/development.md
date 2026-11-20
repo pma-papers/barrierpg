@@ -79,6 +79,13 @@ python tools/show_outputs.py notebooks/01_lander_fuel_tank.ipynb   # print the t
 python tools/make_readme_figure.py       # regenerate the overview figure in docs/images/
 ```
 
+## Check mathematics in GitHub Preview
+
+Typeset the policy objective, constraints and symbols together in a display. Use standard TeX commands, with
+`\mathrm{maximize}` and `\mathrm{CVaR}` for upright labels. GitHub's Markdown renderer can reject
+`\operatorname` and leave the whole formula as source text. Check the repository's rendered Preview after changes
+to equations. Use the notebook preview as well when updating notebook sources.
+
 ## Following a new revision of the paper
 
 The toolbox cites results by the titles the paper gives them and never by statement, section, table or equation

@@ -14,8 +14,8 @@ This guide follows *The Price of Failure Risk: Clipped Barrier Policy Gradients 
 | `q_beta = E[beta^tau 1{tau < inf}]` | geometric risk: failure before an independent geometric time | `Evaluation.q_beta` |
 | `m` | per-period price of failure risk, with a continuing charge at failure of `m/(1-beta)` in discounted total | `Stage.m` |
 | `max{-m, u - B(z')}` | the clipped barrier, the one-step reward clipped at `-m` | `BudgetWrapper` |
-| `V_m`, `U`, `I_m` | clipped value, stopped utility and interior loss in the continuing model, `V_m = U - I_m - m q_beta/(1-beta)` | `Evaluation` |
-| `theta` | scale of the interior barrier `B(z) = theta sum_k log(1 + b_k/z_k)`; `theta = 0` is the failure-only price | `Stage.theta` |
+| $V$, $U$, $V_m$, $\mathcal I_m$ | original-task utility, stopped utility, clipped value and interior loss | `Evaluation.U`, `Evaluation.V_m`, `Evaluation.I_m` |
+| $\theta_B$ | scale of the log barrier $B(z)=\theta_B\sum_k\log(1+b_k/z_k)$ on positive reserves | `Stage.theta` |
 | `nu` | flat failure penalty (fixed multiplier, or adaptive multiplier under dual ascent) | `Stage(penalty="multiplier")`, `DualAscent` |
 | `rho`, `eta`, `A` | action reference, weight and value of the action relative entropy | `ActionAnchor` |
 | `Gamma`, `pi_Gamma`, `kappa` | prior law of the network's units, the prior policy it induces, strength of the parameter regularizer | `ParameterAnchor` |
@@ -70,10 +70,10 @@ CPO uses a local constraint on estimated cost during an update. The final policy
 
 ## 3. Fix the price, then certify
 
-At a continuing failure price $m$, the clipped value is $V_m=U-I_m-mq_\beta/(1-\beta)$. Here $U$ is stopped utility and $I_m$ is the expected discounted loss from the interior penalty before failure. An exact maximizer of this objective maximizes $U-I_m$ among policies in the same class with no greater geometric risk. For an approximate maximizer, the corresponding comparison incurs its optimization error.
+At a continuing failure price $m$, the clipped value is $V_m=U-\mathcal I_m-mq_\beta/(1-\beta)$. Here $U$ is stopped utility and $\mathcal I_m$ is the expected discounted loss from the interior penalty before failure. An exact maximizer of this objective maximizes $U-\mathcal I_m$ among policies in the same class with no greater geometric risk. For an approximate maximizer, the corresponding comparison incurs its optimization error.
 
-A sufficient starting price can be computed from a comparison policy, an upper bound on stopped utility and a justified optimization gap. With comparison quantities $U_0$, $I_0$ and $q_0$ and an upper bound $\delta$ on the gap, the price–risk bound is
-$q_\beta\le q_0+(1-\beta)(\sup U-U_0+I_0+\delta)/m$. Use `plan(..., sup_U=..., comparator=...)` or `certificates.conservative_price` with the hypotheses of the bound. Use `certificates.learned_law_risk` for the corresponding comparison with a regularization cost.
+A sufficient starting price can be computed from a comparison policy, an upper bound on stopped utility and a justified optimization gap. With comparison quantities $U_0$, $\mathcal I_{m,0}$ and $q_0$ and an upper bound $\delta$ on the gap, the price–risk bound is
+$q_\beta\le q_0+(1-\beta)(\sup U-U_0+\mathcal I_{m,0}+\delta)/m$. Use `plan(..., sup_U=..., comparator=...)` or `certificates.conservative_price` with the hypotheses of the bound. Use `certificates.learned_law_risk` for the corresponding comparison with a regularization cost.
 
 Under exact failure-only optimization, geometric risk is nonincreasing in $m$. With an interior barrier or approximate training, the monotonicity bound accounts for changes in interior loss and the optimization errors. A sequence of increasing prices is sufficient only under the relevant conditions, which include a feasible comparison with slack and charged terms that grow sublinearly in the price. At any one price, subtracting the candidate's value from the best known feasible benchmark value gives a lower bound on the exact gap when both values are known. Simulator estimates of those values give a descriptive shortfall subject to sampling error. `frontier.price_sequence_check` summarizes observed shortfalls across prices.
 

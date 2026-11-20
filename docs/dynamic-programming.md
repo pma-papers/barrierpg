@@ -6,7 +6,7 @@ Use backward induction when transition probabilities, utility and consumption ar
 
 List the outcomes of each state-action pair as `Transition(probability, next_state, utility, consumption)`. Probabilities for a state-action pair sum to one. Use `next_state=None` for an outcome that terminates the task. Consumption is a nonnegative integer. A transition that reduces the reserve to zero still earns its utility. A strict crossing terminates the task at that action and excludes its utility.
 
-The reachable state is the triple of action time, model state and reserve. The transition law is time homogeneous. The optimal decision may depend on time and reserve. The `beta` argument discounts utility. Resource consumption is undiscounted.
+The state used in the recursion is the triple of action time, model state and reserve. The transition law is time homogeneous. The optimal decision may depend on time and reserve. The `beta` argument discounts utility. Resource consumption is undiscounted.
 
 ```python
 from barrierpg import Stage, Transition, solve_budget_dp
@@ -34,27 +34,27 @@ There is one state and two actions. Idle uses no wear and earns zero. Operating 
 
 ## Choose the Bellman objective
 
-Let $(t,s,z)$ denote the current time, state and integer reserve, and let $A(s)$ be the list of actions. For each $a\in A(s)$, the model lists outcomes $j$ with probability $p_j$, next state $s_j$, utility $u_j$ and consumption $c_j$. The next reserve is $z_j=z-c_j$. Let $F_t$ be the charge at failure. For a physical horizon, $F_t=m\sum_{\ell=0}^{H-1-t}\beta^\ell$ under per-period pricing. In lump-penalty mode, $F_t=F$. Define $r(u_j,z_j)$ on surviving outcomes to be $u_j$ under failure-only pricing or the specified barrier-adjusted reward.
+Let $H$ be the number of actions and $\beta$ the utility discount. At an entry $(t,s,z)$ let $t$ be the action index, $s$ the model state and $z$ the integer reserve, with $A(s)$ be the list of actions. For each $a\in A(s)$, the model lists outcomes $j$ with probability $p_j$, next state $s_j$, utility $u_j$ and consumption $c_j$. The next reserve is $z_j=z-c_j$. Let $F_t$ be the charge at failure. For a physical horizon, $F_t=m\sum_{\ell=0}^{H-1-t}\beta^\ell$ under per-period pricing. In lump-penalty mode, $F_t=F$. Define $r(u_j,z_j)$ on surviving outcomes to be $u_j$ under failure-only pricing or the specified barrier-adjusted reward.
 
-Let $\Pi$ be the set of feedback policies on the tabular state $(t,s,z)$. Write $J(\pi)$ for the expected discounted reward up to task termination under the stated reward and failure charge. In priced mode the optimization is $\operatorname{maximize}_{\pi\in\Pi}J(\pi)$. With a pathwise requirement it is
+Let $\Pi$ be the set of feedback policies on the tabular state $(t,s,z)$. Let $\tau$ be the first negative reserve update, with $\tau=\infty$ when there is no crossing. In priced mode, maximize the expected discounted reward from the stated reward and failure charge. For the pathwise example without an interior penalty, let $U_H$ be expected discounted utility before failure. Its optimization problem is
 
 $$
 \begin{aligned}
-\underset{\pi\in\Pi}{\operatorname{maximize}}\quad & J(\pi)\\
+\underset{\pi\in\Pi}{\mathrm{maximize}}\quad & U_H(\pi)\\
 \text{subject to}\quad & \Pr_\pi(\tau\le H-1)=0.
 \end{aligned}
 $$
 
-Here $\tau$ is the first negative reserve update. With no reserve penalty, $J$ in the pathwise problem is expected discounted utility along feasible trajectories.
+If an interior penalty is supplied in pathwise mode, its expected discounted deduction is subtracted from $U_H$ while the pathwise constraint remains in force.
 
-Starting with $V_H(s,z)=0$, compute the Bellman recursion backward:
+Use $V_t^\star(s,z)$ for the optimal continuation value at an entry and $Q_t^\star(s,z,a)$ for the value of taking $a$ and then following an optimal continuation. Starting with $V_H^\star(s,z)=0$, compute the Bellman recursion backward:
 
 $$
 \begin{aligned}
-Q_t(s,z,a)
+Q_t^\star(s,z,a)
 &=\sum_{j:z_j<0}p_j(-F_t)
-  +\sum_{j:z_j\ge0}p_j\big[r(u_j,z_j)+\beta V_{t+1}(s_j,z_j)\big],\\
-V_t(s,z)&=\max_{a\in A(s)}Q_t(s,z,a).
+  +\sum_{j:z_j\ge0}p_j\big[r(u_j,z_j)+\beta V_{t+1}^\star(s_j,z_j)\big],\\
+V_t^\star(s,z)&=\max_{a\in A(s)}Q_t^\star(s,z,a).
 \end{aligned}
 $$
 

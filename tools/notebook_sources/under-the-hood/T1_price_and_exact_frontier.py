@@ -11,17 +11,17 @@
 #
 # The state is the price index $s_t\in[-1,1]$ and the remaining wear allowance $z_t$. The actor selects operating rate $a_t\in[0,1]$. Utility is $u_t=(1+0.5s_t)a_t/1.5$. The next index is $0.8s_t+0.2W_t$, with $W_t$ uniform on $[-1,1]$. Consumption is $0.1a_t X_t$ with a gamma wear shock $X_t$ of shape $0.5$ and scale $2$. Take $z_0=1$ and $\beta=0.95$. Let $\tau$ be the first action with $z_{t+1}=z_t-0.1a_tX_t<0$. Set $\tau=\infty$ if no such action occurs.
 #
-# Let $U$ denote expected discounted utility before failure and $I_m$ the expected discounted interior deduction. Let $\Pi$ denote the policy class and $q_\beta=\mathbb E_\pi[\beta^\tau\mathbf1_{\{\tau<\infty\}}]$. The continuing priced problem is
+# Let $U$ denote expected discounted utility before failure and $\mathcal I_m$ the expected discounted interior deduction. Let $\Pi$ denote the policy class and $q_\beta=\mathbb E_\pi[\beta^\tau\mathbf1_{\{\tau<\infty\}}]$. The continuing priced problem is
 #
 # $$
-# \underset{\pi\in\Pi}{\operatorname{maximize}}\quad U(\pi)-I_m(\pi)-\frac{m}{1-\beta}q_\beta(\pi).
+# \underset{\pi\in\Pi}{\mathrm{maximize}}\quad U(\pi)-\mathcal I_m(\pi)-\frac{m}{1-\beta}q_\beta(\pi).
 # $$
 #
 # The corresponding deployment problem at a fixed horizon is
 #
 # $$
 # \begin{aligned}
-# \underset{\pi\in\Pi}{\operatorname{maximize}}\quad & U(\pi)\\
+# \underset{\pi\in\Pi}{\mathrm{maximize}}\quad & U(\pi)\\
 # \text{subject to}\quad & \Pr_\pi(\tau\le19)\le0.05.
 # \end{aligned}
 # $$
@@ -60,11 +60,11 @@ print(spec)
 # ## Reward with an interior barrier
 #
 # The wrapper carries the remaining reserve $z$ in the state and replaces the reward by
-# $$r_m=\max\{-m,\;u-B(z')\},\qquad B(z')=\theta\log(1+b/z'),$$
+# $$r_m=\max\{-m,\;u-B(z')\},\qquad B(z')=\theta_B\log(1+b/z'),$$
 # with $z'$ the reserve after the action. An unclipped singular barrier can give infinite expected loss;
 # clipping at $-m$ keeps returns finite. From failure onward every reward is $-m$, so $m$ is a **price of failure
 # risk**: one unit of geometric risk costs $m/(1-\beta)$. Before failure, the barrier subtracts an **interior loss**
-# that keeps a reserve; a failure-only price ($\theta=0$) charges nothing before failure.
+# that keeps a reserve; a failure-only price ($\theta_B=0$) charges nothing before failure. The plotted label $\theta$ and the API argument `Stage.theta` both denote the barrier scale $\theta_B$.
 
 # %%
 u, m, theta = 0.6, 1.0, 0.15
@@ -181,8 +181,8 @@ print("plug-in estimate / benchmark risk at m = 1, 10:", [round(float(l / q), 1)
 # ## Validate the candidate that would be deployed
 #
 # Validation is the deployment decision. Draw fresh episodes of the fixed candidate and compute a one-sided exact
-# binomial upper bound on its failure probability. With error $e$ per statement, zero failures in $N$ episodes
-# give the upper bound $1-e^{1/N}$. The total error $\zeta$ is split over the family of candidates inspected, before any is
+# binomial upper bound on its failure probability. With error $\zeta_0$ per statement, zero failures in $N$ episodes
+# give the upper bound $1-\zeta_0^{1/N}$. The total error $\zeta$ is split over the family of candidates inspected, before any is
 # selected. Failure to certify does not prove a violation.
 #
 # Under geometric stopping the episode clock censors the finite-horizon risk $p_T$, so the toolbox validates
