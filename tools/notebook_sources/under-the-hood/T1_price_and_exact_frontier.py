@@ -209,7 +209,7 @@ print(rep.text())
 # %% [markdown]
 # ## Summary
 #
-# * The price sets the risk attained; it does not prescribe a level. The price–risk bound gives a safe starting price.
+# * At a fixed price, the attained risk depends on the policy class and the optimizer. The price–risk bound can guide the starting price when its comparison policy and optimization assumptions hold.
 # * The identity $V_m=U-\mathcal I_m-\tfrac{m}{1-\beta}q_\beta$ is exact; every certificate rests on it.
 # * Validation of the deployed candidate, with the error shared across the candidates inspected, is the deployment decision.
 #

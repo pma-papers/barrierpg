@@ -85,7 +85,7 @@ def test_report_summary_is_plain():
                   stage=stage, T=r.weeks - 1, seed=7)
     text = interpret(r.spec(), req, stage, ev, candidate_name="the rule").summary(resource="cash", period="weeks")
     assert text.startswith("The rule was run on 300 fresh episodes") and "within 52 weeks" in text
-    assert "shared among 4 candidates" in text and "What this test does not show" in text
+    assert "shared among 8 statements" in text and "What this test does not show" in text
     for word in ("q_beta", "beta^", "Proposition", "theorem", "population gradient flow"):
         assert word not in text
 

@@ -227,28 +227,33 @@ for cfg in ["no-price", "price-1", "price-3", "price-10", "barrier"]:
     print(f"{cfg:10s} stranded: nominal battery {np.mean(nominal):6.1%}, battery 10% weaker {np.mean(weak):6.1%};  distance {np.mean(dist):6.0f}")
 
 # %% [markdown]
-# With a battery that holds 10% less, every policy is stranded more often. A policy that meets the tolerance with room
-# to spare (the price of 10) keeps a reserve under the weaker battery as well. The interior barrier at a lower price (3)
-# lowered stranding in two of three seeds, under both batteries, but its results varied widely across seeds; on this
-# problem a higher price was the more reliable way to a reserve.
+# Every configuration had a higher mean stranding rate under the smaller battery. At price 3, adding the
+# interior barrier reduced the mean from 10.4% to 7.1% at the nominal battery and from 30.7% to 20.2% at the
+# smaller battery. Mean nominal distance also fell from 197 to 168. Price 10 had the lowest observed failure
+# rates in both scenarios, with a mean nominal distance of 164. The 5% requirement below applies to the nominal
+# battery, and a deployment requirement under the smaller battery needs its own validation.
 #
 # ## 6. Validate and report
 #
-# We validate the candidate with the least stranding on its first evaluation, on 500 fresh missions, as a stochastic
-# policy and as its mean action. `camp.policy` applies the observation statistics saved with it.
-# The final episodes are fresh, so the earlier selection leaves two candidates in the validation family.
+# From the screening data, select the highest estimated stopped utility among policies with an estimated
+# stranding probability of at most 5%. If none qualify, select the smallest estimated probability for further
+# evaluation. Test the selected actor and its mean-action version on 500 fresh missions per action rule.
+# `camp.policy` applies the observation statistics saved during training.
 
 # %%
 cands = [(c, s) for c in prices + ["barrier"] for s in camp.seeds(c)]
-best = min(cands, key=lambda cs: np.mean(camp.record(*cs)["evaluation"]["failed"]))
-print("candidate:", best, camp.record(*best)["note"])
+screened = [(cs, camp.evaluation(*cs)) for cs in cands]
+eligible = [(cs, ev) for cs, ev in screened if ev.p_T <= req.alpha]
+best, first_eval = max(eligible, key=lambda item: item[1].U) if eligible else min(screened, key=lambda item: item[1].p_T)
+print(f"Selected {best[0]}, seed {best[1]}: initial stranding {first_eval.p_T:.2%}, stopped utility {first_eval.U:.1f}.")
 best_stage = camp.stage(*best)
 for det in (False, True):
     e = evaluate(lambda: make_env(best_stage), camp.policy(*best, deterministic=det), 500, spec=spec, stage=best_stage,
                  T=req.T, seed=555)
     name = f"the {'mean action of the' if det else 'stochastic'} policy {best[0]}, seed {best[1]}"
     print()
-    report = interpret(spec, req, best_stage, e, candidate_name=name, include_physical_value=False)
+    report = interpret(spec, req, best_stage, e, candidate_name=name, training=camp.convergence(*best),
+                       include_physical_value=False)
     print(report.summary(resource="charge", period="steps"))
 
 # %% [markdown]

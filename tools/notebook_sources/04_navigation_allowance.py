@@ -169,9 +169,10 @@ ax.set_xlabel("mean cost per episode, counted up to exhaustion"); ax.set_ylabel(
 plt.tight_layout(); plt.show()
 
 # %% [markdown]
-# Exhaustion falls sharply between the prices 0.01 and 0.03, and the return falls with it: avoiding hazards means
-# taking longer ways to the goals. At 0.1 the robot almost stops reaching goals. A failure at the start of an episode is
-# then charged about four times what an episode earns, and the learner gives up earning in order not to fail.
+# Mean crossing frequency fell from 50.7% at price 0.01 to 10.0% at price 0.03, while mean discounted stopped
+# utility fell from 8.24 to 3.15. At price 0.1 the mean utility was slightly negative and crossings averaged
+# 1.6%. These values describe a trade-off in the fitted policies. They do not identify how a particular policy
+# changes its route or how often it reaches a goal.
 #
 # Changing the price alters the training reward. The fitted candidate's attained risk also depends on optimization and the policy class. Use `plan` to compare the failure charge at the start of the episode with the scale of episode earnings.
 
@@ -199,10 +200,13 @@ for s in camp.seeds("price-0.03"):
                     include_physical_value=False)
     print("\n".join(rep.summary(resource="the damage allowance", period="steps").split("\n")[:3]))
     print("  " + next(line for line in rep.summary().split("\n") if line.startswith("Training")))
-    print(f"  (return per episode {np.mean(camp.record('price-0.03', s)['evaluation']['ret']):.2f})\n")
+    print(f"  (discounted stopped utility {rep.evaluation.U:.2f})\n")
 
 # %% [markdown]
-# Compare the simultaneous upper endpoints above with the 20% requirement. The requirement is established when the one-sided upper confidence endpoint is at most 20%. Training seeds also differ in return at the same price.
+# Seed 2 had the highest estimated stopped utility at price 0.03, but its upper confidence endpoint was
+# 20.61%. Seed 3 had the highest estimated utility among the three displayed policies that passed validation.
+# Values in the campaign's `ret` column are undiscounted simulator returns and can include the final action's
+# simulator reward. The objective and the comparison here use the discounted stopped utility `U`.
 #
 # ## 5. Training without a reference policy
 #

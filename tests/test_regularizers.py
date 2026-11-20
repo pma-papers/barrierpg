@@ -34,6 +34,7 @@ def test_effects_readings():
                             A_bar=0.5, H_bar=0.01, centered=False)
     assert e.action["informative"] is False and any("uninformative" in f for f in e.flags)
     assert e.inheritance["at_prior"] and e.parameter["dispersion_escape"] is False
+    assert "both differences are within two estimated standard errors" in e.explain()
     assert e.bias["R"] == 0.1 * 0.5 + 100.0 * 0.01 and e.joint is not None and len(e.path) == 3
     # anchor on the mean network only: dispersion escape
     e2 = regularizer_effects(spec, Stage(m=0.03, kappa=100.0), dict(q_beta=0.34, U=4.0), parameter_distance=0.002,

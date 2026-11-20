@@ -56,7 +56,8 @@ for alpha in (0.1, 0.05, 0.01, 0.001):
         print(f"{alpha:6g}  {rate:13g}   {V.episodes_for_tolerance(alpha, 0.05, rate):8d}")
 
 # %% [markdown]
-# A candidate that fails at half the tolerance needs several times more episodes than a failure-free one.
+# The nonzero-rate planning counts use the upper bound at the expected number of failures. They do not give
+# the probability of passing the test. The zero-failure counts are the exact minima for that outcome.
 #
 # ## 2. Allocate the error before selecting
 #
@@ -224,7 +225,9 @@ print(rep.text())
 # %% [markdown]
 # ## Two supplementary certificates
 #
-# Both are proved in `docs/under-the-hood/supplementary-results.md` of the toolbox; neither is stated in the paper.
+# The [supplementary results](../../docs/under-the-hood/supplementary-results.md) give both proofs.
+# The inputs in the final cell are illustrative values. An empirical application needs a valid lower bound on
+# clipped value or valid upper bounds on the two event probabilities, as appropriate.
 #
 # * **A small reserve.** An interior barrier charges small reserves, so the clipped value also bounds the probability of
 #   coming within $\varepsilon$ of exhaustion: `certificates.small_reserve_bound` with `LogBarrier.lower_level`.
@@ -236,10 +239,11 @@ print(rep.text())
 from barrierpg import LogBarrier
 from barrierpg.certificates import small_reserve_bound, unresolved_threshold, ever_failing_bound
 B = LogBarrier(0.1, [1.0])
-for V in (4.0, 19.9):
-    print(small_reserve_bound(V_m=V, m=1.0, ubar=1.0, beta=0.95, T=0, lower_barrier=B.lower_level([0.05])).statement())
+for value in (4.0, 19.9):
+    print(f"Illustrative clipped value {value:g}:")
+    print(small_reserve_bound(V_m=value, m=1.0, ubar=1.0, beta=0.95, T=0, lower_barrier=B.lower_level([0.05])).statement())
 print("(informative only for values close to the maximum ubar/(1-beta) = 20, because the barrier level at 5% of b is small)")
-print("reserve that can never fail again with gbar = 0.1, gamma = 0.9:", unresolved_threshold(0.1, 0.9))
+print(f"Reserve threshold with gbar = 0.1 and gamma = 0.9: {unresolved_threshold(0.1, 0.9):.6g}")
 print(ever_failing_bound(p_T=0.004, P_unresolved=0.002).statement())
 
 # %% [markdown]

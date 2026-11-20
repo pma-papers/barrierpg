@@ -24,7 +24,7 @@ The budget wrapper and risk certificates follow *The Price of Failure Risk: Clip
 | A separate limit on mean cost, crossing probability or tail loss | Define the trajectory loss and use a suitable constrained actor update or compare policies on finite scenarios. [Optimization formulations](docs/formulation-comparison.md#specify-the-optimization-problem) |
 | A trained rule or policy and a deployment tolerance | Evaluate the fixed candidate on independent episodes and compute a one-sided upper bound. [Validation notebook](notebooks/under-the-hood/T4_validation_in_detail.ipynb) |
 
-The [algorithm guide](docs/learning-algorithms.md) explains how values, advantages, PPO clipping, CPO trust regions and the Gaussian CVaR surrogate enter the actual update. The applied notebooks state their objectives and walk through the corresponding implementation.
+The algorithm guide explains how values, advantages, PPO clipping, CPO trust regions and the Gaussian CVaR surrogate enter the update. The manuscript notebooks show the objectives, implementation and recorded results for three worked examples. [Algorithm guide](docs/learning-algorithms.md) · [Manuscript worked examples](notebooks/manuscript/)
 
 ## First-crossing risk and the priced objective
 
@@ -118,54 +118,49 @@ $$
 \end{aligned}
 $$
 
-`landing.stage(1.0)` sets $F_{100}=36$. A potential-based shaping term is used during training and is disabled during evaluation. The validation step tests $\Pr_\pi(\tau\le999)\le0.05$ on the fitted actor's fresh episodes. The training budget is chosen for a short demonstration. [How PPO computes an update](docs/learning-algorithms.md#ppo-with-a-scalar-reward)
+`landing.stage(1.0)` sets $F_{100}=36$. The notebook shows how to train from the unpriced controller with potential-based shaping, evaluate the frozen actor with the original utility, and validate the first-crossing probability through action 999. It includes the manuscript's descent, performance and training-trace figures. [Paid-landings notebook](notebooks/manuscript/M2_paid_landing.ipynb)
 
 ```python
-from stable_baselines3 import PPO
-
-from barrierpg import Requirement, evaluate, interpret, sb3_policy
+from barrierpg import Requirement
 from barrierpg.problems.landing import Landing, make_landing_env
 
 landing = Landing()
 spec = landing.spec()
-requirement = Requirement(T=spec.horizon - 1, alpha=0.05, zeta=0.05)
+requirement = Requirement(T=spec.horizon - 1, alpha=0.02, zeta=0.05)
 stage = landing.stage(1.0)
-env = make_landing_env(stage, landing)
-try:
-    model = PPO("MlpPolicy", env, gamma=spec.beta, seed=0)
-    model.learn(32_768)
-finally:
-    env.close()
-
-episodes = evaluate(
-    lambda: make_landing_env(stage, landing, aid=False),
-    sb3_policy(model),
-    500,
-    spec=spec,
-    stage=stage,
-    T=requirement.T,
-    seed=100_000,
-)
-print(interpret(spec, requirement, stage, episodes).text())
+training_env = make_landing_env(stage, landing, aid=True)
+evaluation_env = make_landing_env(stage, landing, aid=False)
 ```
 
 The practitioner guide covers price selection, reserve penalties, action and parameter regularization, and validation design. The template defines a cost function and wraps an existing simulator. [Practitioner guide](docs/practitioner-guide.md) · [Custom task template](examples/your_problem.py)
 
 ## Tutorials and examples
 
-| Applied notebook | What it examines |
+### Worked examples from the manuscript
+
+The notebooks below use the reported campaigns and the original manuscript figures. They state each optimization problem and connect the model, training objective and validation calculations to toolbox code. [Study data and figure sources](notebooks/manuscript/)
+
+| Manuscript notebook | What it examines |
+|---|---|
+| [An asset operated under a wear allowance](notebooks/manuscript/M1_wear_allowance.ipynb) | Fixed prices, adaptive multipliers, a grid benchmark and independent breakdown validation. Eight training seeds per configuration. |
+| [A learned lander paid for each landing](notebooks/manuscript/M2_paid_landing.ipynb) | Revenue, fuel and loss in a fixed-horizon task, with descent paths, training traces and ten seeds per charge. |
+| [Regularization in the analytical gradient-flow example](notebooks/manuscript/M3_analytical_gradient_flow.ipynb) | The prior, curvature, and fixed or scheduled strength in computed population flows and particle runs. |
+
+### Additional workflow examples
+
+| Notebook | What it examines |
 |---|---|
 | [Lander with a fuel tank](notebooks/01_lander_fuel_tank.ipynb) | Fine-tuning an existing controller under a fuel budget and comparing action and parameter references. This notebook uses the earlier fuel-tank task and its archived runs. |
 | [Retailer with a cash balance](notebooks/02_retailer_cash.ipynb) | Modeling replenished cash, charging an insolvency loss once, and comparing learned policies with an incumbent ordering rule. |
 | [Robot with a battery](notebooks/03_robot_battery.ipynb) | Including remaining time in the observation and assessing reserve under a 10% reduction in available energy. |
 | [Navigation with a damage allowance](notebooks/04_navigation_allowance.ipynb) | Distinguishing a mean damage limit from a probability of exceeding the allowance and validating the latter at a fixed horizon. |
 
-The applied notebooks display results from the recorded full training runs across three seeds per configuration. The training code and settings support local reruns. The run configuration, training traces, trained policies and episode-level measurements are available in the repository. [Training runs and reproduction commands](campaigns/README.md)
+These workflow examples use their own recorded campaigns, with three training seeds per configuration. Their training code and settings support local reruns. [Training runs and reproduction commands](campaigns/README.md)
 
 - For the choice among a fixed failure price, an expected-cost limit, a chance constraint, a conditional value-at-risk (CVaR) limit, and pathwise feasibility, see the [formulation tutorial](docs/formulation-comparison.md). Its [dispatch example](examples/train_risk_constrained.py) runs barrier-free CPO and Gaussian CVaR updates on the same utility and separate cost outcomes.
 - For empirical comparisons on the wear-allowance task, see the [paired benchmark](docs/wear-benchmark.md) and the [guide to residual policies](docs/residual-networks.md).
-- For the clipped-value identity, the wear benchmark, the roles of regularization, and validation at geometric and fixed horizons, see the [technical notebooks](notebooks/under-the-hood/), the [theory guide](docs/under-the-hood/decisions-and-theory.md) and the [map from results to functions](docs/under-the-hood/results-map.md). The paper's experiments can be reproduced through the [replication repository](https://github.com/pma-papers/bpg-replication).
+- For executable demonstrations of the clipped-value identity, PPO, regularization and validation, see the [technical notebooks](notebooks/under-the-hood/), the [theory guide](docs/under-the-hood/decisions-and-theory.md) and the [map from results to functions](docs/under-the-hood/results-map.md).
 
 ## Citation and license
 
-The toolbox is distributed under the [MIT license](LICENSE). Citation metadata and archive information are in [`CITATION.cff`](CITATION.cff) and the [Zenodo archive](https://doi.org/10.5281/zenodo.23597362).
+The toolbox code is distributed under the MIT license. The manuscript study figures and data use CC BY 4.0. [Code license](LICENSE) · [Study materials](notebooks/manuscript/README.md#data-and-figures) · [Citation metadata](CITATION.cff) · [Zenodo archive](https://doi.org/10.5281/zenodo.23597362)

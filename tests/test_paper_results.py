@@ -164,6 +164,8 @@ def test_effects_noise_and_inheritance():
                             noise_kappa1=0.101, anchor_kappa2=10.0, spread=0.13, dispersion_final=0.10)
     assert abs(e.noise["nominal_gradient_spread"] - math.sqrt(0.101 / 10.0)) < 1e-12 and any("comparable to the action dispersion" in f for f in e.flags)
     assert any("clipped value is below the prior" in f for f in e.flags)
+    assert "at least one difference exceeds two estimated standard errors" in e.explain()
+    assert "toward the unregularized optimum" not in e.explain()
     e2 = regularizer_effects(spec, st, dict(q_beta=0.506, U=5.24), noise_kappa1=0.101, spread=1.5)
     assert any("abandons the prior" in f for f in e2.flags)
     a = advise_regularizers(spec, st, stalls_where_gradient_vanishes=True)

@@ -251,9 +251,10 @@ for name, e in rule_ev.items():
     print(f"{name:32s} insolvency {e.p_T:6.2%}   profit {e.U:7.0f}")
 
 # %% [markdown]
-# Cash falls through the first half of the year and rises with the season; a weak year deepens the trough. The cash
-# reserve lowers the risk and does not cost profit, because an insolvent year forfeits the rest of its profit. More
-# seasonal stock raises the risk faster than the profit.
+# In this simulation, removing the cash reserve raised observed insolvency from 0.30% to 2.20% and reduced
+# expected stopped profit. An insolvent year ends early, which can offset any benefit from the extra orders.
+# Moderately increasing seasonal stock raised estimated profit and insolvency. The largest order profile
+# tested had lower profit and a much higher insolvency rate.
 #
 # ## 5. Train PPO
 #
@@ -453,7 +454,9 @@ print(Campaign.show(camp.table(["adaptive-1pct", "adaptive-1pct-warm", "lump-200
 # %% [markdown]
 # From scratch, the multiplier ended near a million and the policies became overly cautious: they almost never go
 # insolvent and give up much of their profit. Started warm, the multiplier stayed near its level and the policies
-# match those of the comparison run. For a tolerance, train at a few fixed costs or prices first and pick the one whose runs
+# had similar average utility and insolvency to the comparison run. Each of those arms continued the same
+# ten-million-interaction starting policy for three million additional interactions per seed. The warm multiplier
+# and its smaller step were changed together. For a tolerance, train at a few fixed costs or prices first and pick the one whose runs
 # meet it; a multiplier, if used, should start from there. `DualAscent.diagnose` reports whether it converged.
 #
 # ## 9. Validate the candidates and report
@@ -461,7 +464,8 @@ print(Campaign.show(camp.table(["adaptive-1pct", "adaptive-1pct-warm", "lump-200
 # The candidates inspected are the rule in use, its variants, and the learned policies. We validate the rule in use and
 # the most profitable learned candidate whose estimated insolvency rate was below the tolerance on its first
 # evaluation, each on 5,000 fresh years. If none qualify on the selection data, test the one with the lowest
-# insolvency rate. The final report allocates error across two candidates and both bounds reported for each.
+# insolvency rate. The rule has no training charge. The learned rule is evaluated with its recorded training
+# charge. We allocate the validation error across the two direct binomial tests.
 #
 # **Theory.** The exact binomial test applies after selection because these final data are independent of
 # the data used to choose the candidate.
@@ -469,16 +473,22 @@ print(Campaign.show(camp.table(["adaptive-1pct", "adaptive-1pct-warm", "lump-200
 # %%
 learned = [(cfg, s) for cfg in costs + starts for s in camp.seeds(cfg)]
 screened = [(cs, camp.evaluation(*cs)) for cs in learned]
-eligible = [(cs, ev) for cs, ev in screened if ev.p_T < req.alpha]
+eligible = [(cs, ev) for cs, ev in screened if ev.p_T <= req.alpha]
 best, _ = max(eligible, key=lambda item: item[1].U) if eligible else min(screened, key=lambda item: item[1].p_T)
 print("learned candidate selected for fresh validation:", best)
 torch.manual_seed(70_000)
-final = {"the rule in use": assess(rules["in use (cover 2, reserve 300)"].deterministic, n=5000, seed=70_000),
-         f"the learned policy {best[0]}, seed {best[1]}": assess(camp.policy(*best), n=5000, seed=70_000)}
-for name, e in final.items():
+rule_stage = Stage(m=0.0, clip_utility=False)
+learned_stage = camp.stage(*best)
+final = [
+    ("the rule in use", rules["in use (cover 2, reserve 300)"].deterministic, rule_stage, None),
+    (f"the learned policy {best[0]}, seed {best[1]}", camp.policy(*best), learned_stage, camp.convergence(*best)),
+]
+for name, policy, evaluation_stage, training in final:
+    e = assess(policy, n=5000, seed=70_000, st=evaluation_stage)
     print()
-    training = camp.convergence(*best) if name.startswith("the learned") else None
-    print(interpret(spec, req, stage, e, candidate_name=name, training=training).summary(resource="cash", period="weeks"))
+    report = interpret(spec, req, evaluation_stage, e, candidate_name=name, training=training,
+                       include_physical_value=False)
+    print(report.summary(resource="cash", period="weeks"))
 
 # %% [markdown]
 # Compare the final verdicts and estimated profits before choosing a policy. `report.text()` lists the bounds and

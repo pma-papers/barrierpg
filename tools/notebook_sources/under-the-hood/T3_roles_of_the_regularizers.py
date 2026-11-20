@@ -5,7 +5,7 @@
 #
 # Parameter regularization acts on the law of the network's units in the population model. Relative entropy induces noise and drift, while a quadratic potential adds drift with no noise term. A faster-growing divergence integrand penalizes concentration relative to the prior. At fixed strength, the theorem requires enough parameter curvature to exceed the deficit of the other objective terms.
 #
-# Part A simulates an analytically tractable population model. Parts B to E examine action and parameter references, optimizer anchoring and injected noise under PPO on the wear problem. We evaluate the policy induced by the anchor, including its action dispersion. These finite-network runs use one million steps per run and measure behavior under the specified discrete optimizer. [Theory and implementation](../../docs/under-the-hood/decisions-and-theory.md#5-choose-regularizers-for-their-role)
+# Part A simulates an analytically tractable population model. Parts B to E examine action and parameter references, optimizer anchoring and injected noise under PPO on the wear problem. We evaluate the policy induced by the anchor, including its action dispersion. These finite-network runs use three million training interactions per fitted policy and measure behavior under the specified discrete optimizer. [Theory and implementation](../../docs/under-the-hood/decisions-and-theory.md#5-choose-regularizers-for-their-role)
 #
 # ## The optimization problems considered here
 #
@@ -14,7 +14,7 @@
 # Let $V_m(\mu)$ be the clipped value at price $m=1$, $\Gamma=N(0,\sigma^2)$ the prior, and $\mathcal A(\mu)$ the stopped action relative entropy to the action reference. Let $\mathcal M$ be the laws with finite second moment and finite regularization cost. The population problem is
 #
 # $$
-# \underset{\mu\in\mathcal M}{\operatorname{minimize}}\quad -V_m(\mu)+\eta\mathcal A(\mu)+\kappa_1\,{\rm KL}(\mu\Vert\Gamma)+\frac{\kappa_2}{2}\int y^2\,\mu(dy).
+# \underset{\mu\in\mathcal M}{\mathrm{minimize}}\quad -V_m(\mu)+\eta\mathcal A(\mu)+\kappa_1\,{\rm KL}(\mu\Vert\Gamma)+\frac{\kappa_2}{2}\int y^2\,\mu(dy).
 # $$
 #
 # Part A sets $\eta=0$ for its particle comparison. The PPO demonstrations instead use the continuous wear simulator. They maximize its priced return $U(\pi)-m q_\beta(\pi)/(1-\beta)$ at $m=0.03$, with an optional per-decision action charge or parameter anchor. The two experiments therefore use different representations and numerical updates. They measure achieved stopped utility, geometric risk and the relevant reference distances.
@@ -55,10 +55,10 @@ print(advice.explain())
 # %% [markdown]
 # ## Part A. The roles on the analytical example
 #
-# The clipped value depends on $\mu$ only through the tilt $c$. Differentiating the normalized density gives $V_m'(c)=\operatorname{Cov}_{c}(a,R)$, where $R$ is the trajectory's clipped return. The derivative with respect to an individual unit contributes $V_m'(c)\chi'(y_i)$ to its drift. With current empirical tilt $c_n=n^{-1}\sum_i\chi(y_i)$ and time step $h$, the particle calculation updates
+# The clipped value depends on $\mu$ only through the tilt $c$. Differentiating the normalized density gives $V_m'(c)=\mathrm{Cov}_{c}(a,R)$, where $R$ is the trajectory's clipped return. The derivative with respect to an individual unit contributes $V_m'(c)\chi'(y_i)$ to its drift. With current empirical tilt $c_n=n^{-1}\sum_i\chi(y_i)$ and time step $h$, the particle calculation updates
 #
 # $$
-# y_i^+=y_i+h\{V_m'(c_n)\chi'(y_i)-(\kappa_1/\sigma^2+\kappa_2)y_i\}
+# y_i^+=y_i+h\lbrace V_m'(c_n)\chi'(y_i)-(\kappa_1/\sigma^2+\kappa_2)y_i\rbrace
 #        +\sqrt{2\kappa_1h}\,Z_i ,
 # $$
 #
@@ -138,11 +138,11 @@ print(f"prior policy N(0,1): V_m = {prior_value:+.4f}")
 #
 # A rollout contains actions sampled from the current actor $\pi_{w_0}$ and the rewards of the stated training objective. The critic $v(o_t)$ predicts remaining return from observation $o_t$. At a nonterminal step, the prediction residual is $e_t=r_t+\gamma_{\rm alg}v(o_{t+1})-v(o_t)$. At a true terminal step continuation is zero. Generalized advantage estimation sums these residuals using weights $(\gamma_{\rm alg}\lambda_{\rm GAE})^j$. The resulting estimate $\widehat A_t$ measures how favorable the sampled action was relative to the critic's prediction.
 #
-# For a trial actor $\pi_w$, compute $L_t=\pi_w(a_t\mid o_t)/\pi_{w_0}(a_t\mid o_t)$. The actor increases the minibatch average of $\min\{L_t\widehat A_t,\operatorname{clip}(L_t,1-\epsilon,1+\epsilon)\widehat A_t\}$. The critic is fitted to the estimated returns. PPO takes several minibatch updates on the rollout and then collects a fresh one. The clipping level $\epsilon$ limits the incentive for large ratio changes. The independent evaluation cells test the candidate's risk.
+# For a trial actor $\pi_w$, compute $\ell_t=\pi_w(a_t\mid o_t)/\pi_{w_0}(a_t\mid o_t)$. The actor increases the minibatch average of $\min\lbrace\ell_t\widehat A_t,\mathrm{clip}(\ell_t,1-\epsilon,1+\epsilon)\widehat A_t\rbrace$. The critic is fitted to the estimated returns. PPO takes several minibatch updates on the rollout and then collects a fresh one. The clipping level $\epsilon$ limits the incentive for large ratio changes. The independent evaluation cells test the candidate's risk.
 #
 # The wear environment stops independently with probability $1-\beta$ after each surviving action, so PPO uses $\gamma_{\rm alg}=1$.
 #
-# The PPO settings are those of notebook T2. The **incumbent rule** runs at the rate $\min\{1,z/(3b)\}$ with a Gaussian
+# The PPO settings are those of notebook T2. The **incumbent rule** runs at the rate $\min\lbrace1,z/(3b)\rbrace$ with a Gaussian
 # dispersion of $0.05$ in the rate: it breaks down in about one percent of the episodes. It serves as the action
 # reference $\rho$ (Part C) and, fitted into the actor, as the prior (Parts D and E).
 
@@ -156,7 +156,7 @@ def make_ppo(stage, seed=0, n_envs=32, log_std_init=-1.0):
                device="cpu", verbose=0)
 
 
-STEPS = 1_000_000
+STEPS = 3_000_000
 env = lambda: make_wear_env(low_price, model)
 rule_mean = lambda z: np.minimum(1.0, np.maximum(z, 0.0) / 3.0)         # the incumbent's rate at reserve fraction z
 RULE_STD = 0.05
@@ -195,8 +195,7 @@ print(f"incumbent rule: q_beta = {q_ref:.4f}, U = {rule_eval.U:.3f}")
 # ## Part C. The action anchor
 #
 # `ActionAnchor` charges $\eta[\log\pi(a\mid y)-\log\rho(a\mid y)]$ at every decision up to and including the
-# failing one, the sample form of $\mathcal A$. At this low price the learner without the anchor heads for the risky optimum;
-# the anchor holds it near the incumbent.
+# failing one, the sample form of $\mathcal A$. The comparison measures how the action penalty changes achieved divergence, utility and breakdown risk at the same training budget.
 
 # %%
 action_runs = {}
@@ -225,9 +224,9 @@ plt.tight_layout(); plt.show()
 #
 # ## Part D. Evaluate the policy induced by the parameter anchor
 #
-# A finite network carries the drift part of a Gaussian prior: weight decay toward parameters $\theta_0$
+# For a finite actor, the anchor penalizes departures from reference weights $w_{\rm ref}$
 # (`ParameterAnchor`; the paper's *The prior and the particle system of the gradient flow*). We fit the actor's mean to the incumbent rule (`fit_actor_mean`) and set its
-# dispersion to the incumbent's (`set_log_std`): the actor at $\theta_0$ is then the **prior policy**. The learner
+# dispersion to the incumbent's (`set_log_std`): the actor at $w_{\rm ref}$ is then the **prior policy**. The learner
 # inherits the prior policy's risk and utility, so we evaluate it as a candidate before training.
 #
 # The prior must cover every parameter that shapes the policy. Anchoring the mean network alone leaves the
@@ -272,17 +271,14 @@ path = [dict(kappa=k, q_beta=param_runs[l][0].q_beta, U=param_runs[l][0].U) for 
 print(regularizer_effects(spec, low_price.with_(kappa=10.0), cand(param_runs["anchor, kappa_p = 10"][0]), path=path).explain())
 
 # %% [markdown]
-# The anchor moves the learner back from the run without the anchor toward the prior policy as $\kappa_p$ grows, in risk and utility
-# together; at the strongest anchor the candidate sits at the prior policy. In this one-million-step run the free
-# dispersion of the anchor on the mean network only changed little. In the paper's study (eight million steps, starting from the
-# learner's wider default dispersion) it grew from 0.37 to 7.5 while the mean network stayed at $\theta_0$, and the
-# policy became bang-bang with a third of the episodes breaking down. The flag in `regularizer_effects` fires when an
-# dispersion left free moves by more than half; whether it does depends on the run, which is why the prior should
-# cover the dispersion in the first place.
+# Compare each candidate's geometric risk, utility and action dispersion with those of the fitted reference. These
+# runs use one training seed per configuration. In the paper's
+# eight-million-interaction runs, allowing the dispersion to move freely sometimes changed risk substantially
+# even when the mean network stayed close to the anchor.
 #
 # ## Part E. The roles on PPO: drift and noise
 #
-# The finite-network counterpart of the entropy term is Gaussian noise of variance $2\kappa_1$ times the learning
+# The finite-network comparison implements Gaussian noise of variance $2\kappa_1$ times the learning
 # rate after each optimizer step (`ParameterNoise`). The injected noise carries no drift of its own: only the anchor
 # pulls. Under plain gradient descent without an objective, the anchor $\kappa_2$ and the noise give the
 # per-parameter spread $\sqrt{\kappa_1/\kappa_2}$ (`roles.noise_and_anchor_spread`), not the flow's
@@ -291,7 +287,7 @@ print(regularizer_effects(spec, low_price.with_(kappa=10.0), cand(param_runs["an
 # spread growing in proportion to $\kappa_1$ (about $\sqrt2\,\kappa_1$); the paper proposes Adam's normalization of
 # the drift as an explanation, after the runs. The toolbox's default is the decoupled anchor, applied to the parameters
 # after the step. Under Adam the objective's step stays adaptive, so $\sqrt{\kappa_1/\kappa_2}$ is a reference to
-# compare with, not a prediction. This part reproduces the paper's form. Here: the anchor $\kappa_2=10$ with noise $\kappa_1\in\{0.01,0.1\}$, and noise alone.
+# compare with, not a prediction. This part reproduces the paper's form. Here: the anchor $\kappa_2=10$ with noise $\kappa_1\in\lbrace0.01,0.1\rbrace$, and noise alone.
 
 # %%
 noise_runs = {0.0: (param_runs["anchor, kappa_p = 10"][0], param_runs["anchor, kappa_p = 10"][2].spread())}
@@ -308,8 +304,7 @@ e, spread = noise_runs[(0.1, 0.0)]
 print("\n" + regularizer_effects(spec, low_price, cand(e), noise_kappa1=0.1, anchor_kappa2=0.0, spread=spread, prior_policy=prior_c).explain())
 
 # %% [markdown]
-# The drift $\kappa_2$ sets where the units are held and the noise $\kappa_1$ how far they spread. Noise without a drift
-# abandons the prior and acts as exploration. Treat $\kappa_1$ as a knob to vary and measure, not one to set from the formula.
+# The two runs at noise strength 0.1 recorded zero breakdowns in 10,000 episodes, alongside very low stopped utility. In this model, near-zero utility indicates very little production. The large estimated action divergence reflects differences between the pre-clipping Gaussian policies. These are results for one seed per configuration. The stationary spread formula describes the constant-step model with an anchor.
 #
 # ## Joint use
 #
@@ -333,7 +328,7 @@ print(f"joint: q_beta = {e.q_beta:.4f}, U = {e.U:.3f}, estimated A = {A:.3f}\n")
 # | Regularizer | Acts on | What it does | Toolbox |
 # |---|---|---|---|
 # | action relative entropy $\eta\mathcal A$ | the action law | holds the policy near $\rho$; risk within $\mathrm{kl}\le\mathcal A$ of $\rho$'s; no curvature | `ActionAnchor` |
-# | prior's potential / anchor (drift) | the unit law | holds the units near $\theta_0$; supplies curvature; the learner inherits the prior policy | `ParameterAnchor` |
+# | prior's potential / anchor (drift) | the unit law | holds the units near reference weights $w_{\rm ref}$ in the finite actor; a common quadratic potential supplies curvature in the population model | `ParameterAnchor` |
 # | entropy of relative entropy (noise) | the unit law | spreads the units; lets them leave flat regions; exploration without a drift | `ParameterNoise` |
 # | faster-growing integrand (spread) | the unit law | limits crowding relative to the prior; needs a density | population gradient flow only |
 #

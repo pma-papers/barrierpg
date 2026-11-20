@@ -5,23 +5,23 @@
 #
 # Training traces describe changes in measured risk and utility over the run. The dynamic-programming grid benchmark supports a descriptive shortfall at each price. Estimating the shortfall to the best available grid policy does not give an upper bound on optimization error. We assess deployment risk on separate episodes and repeat selected evaluations with a reduced true allowance.
 #
-# Install the RL extras with `pip install -e ".[rl]"`. These runs use two million steps per configuration. The paper's runs used eight million steps and eight seeds per configuration. [Price and validation theory](../../docs/under-the-hood/decisions-and-theory.md#3-fix-the-price-then-certify)
+# Install the RL extras with `pip install -e ".[rl]"`. These runs use about four million training interactions per fitted policy. The paper's runs used eight million steps and eight seeds per configuration. [Price and validation theory](../../docs/under-the-hood/decisions-and-theory.md#3-fix-the-price-then-certify)
 #
 # ## The control problem and what the learner optimizes
 #
-# In the wear simulator the policy selects operating rate $a_t\in[0,1]$ from price index $s_t$ and reserve $z_t$. It earns $(1+0.5s_t)a_t/1.5$ on a nonfailing action. The reserve changes by $z_{t+1}=z_t-0.1a_t X_t$, where $X_t$ is gamma with shape $0.5$ and scale $2$. The price index follows $s_{t+1}=0.8s_t+0.2W_t$ with $W_t$ uniform on $[-1,1]$. The starting allowance is one. Let $\tau$ be the first index of negative post-action reserve. Independent geometric maintenance with survival $\beta=0.95$ makes its breakdown event have probability $q_\beta=\mathbb E_\pi[\beta^\tau\mathbf1_{\{\tau<\infty\}}]$.
+# In the wear simulator the policy selects operating rate $a_t\in[0,1]$ from price index $s_t$ and reserve $z_t$. It earns $(1+0.5s_t)a_t/1.5$ on a nonfailing action. The reserve changes by $z_{t+1}=z_t-0.1a_t X_t$, where $X_t$ is gamma with shape $0.5$ and scale $2$. The price index follows $s_{t+1}=0.8s_t+0.2W_t$ with $W_t$ uniform on $[-1,1]$. The starting allowance is one. Let $\tau$ be the first index of negative post-action reserve. Independent geometric maintenance with survival $\beta=0.95$ makes its breakdown event have probability $q_\beta=\mathbb E_\pi[\beta^\tau\mathbf1_{\lbrace\tau<\infty\rbrace}]$.
 #
-# Let $\Pi$ be the actor class, $U(\pi)$ the expected discounted utility before breakdown, and $I_m(\pi)$ the expected discounted interior deduction, set to zero in the failure-only runs. At a fixed price, PPO searches for a solution to
+# Let $\Pi$ be the actor class, $U(\pi)$ the expected discounted utility before breakdown, and $\mathcal I_m(\pi)$ the expected discounted interior deduction, set to zero in the failure-only runs. At a fixed price, PPO searches for a solution to
 #
 # $$
-# \underset{\pi\in\Pi}{\operatorname{maximize}}\quad U(\pi)-I_m(\pi)-\frac{m}{1-\beta}q_\beta(\pi).
+# \underset{\pi\in\Pi}{\mathrm{maximize}}\quad U(\pi)-\mathcal I_m(\pi)-\frac{m}{1-\beta}q_\beta(\pi).
 # $$
 #
 # The adaptive variant updates the lump charge $\nu$ toward the training level $\alpha_{\rm train}=0.02$ for $q_\beta$ using the rollout failure rate. The deployment problem uses a finite horizon.
 #
 # $$
 # \begin{aligned}
-# \underset{\pi\in\Pi}{\operatorname{maximize}}\quad & U(\pi)\\
+# \underset{\pi\in\Pi}{\mathrm{maximize}}\quad & U(\pi)\\
 # \text{subject to}\quad & \Pr_\pi(\tau\le19)\le0.05.
 # \end{aligned}
 # $$
@@ -56,7 +56,7 @@ req = Requirement(T=19, alpha=0.05, zeta=0.05, family=2)       # two final evalu
 #
 # A rollout contains actions sampled from the current actor $\pi_{w_0}$ and the rewards of the stated training objective. The critic $v(o_t)$ predicts remaining return from observation $o_t$. At a nonterminal step, the prediction residual is $e_t=r_t+\gamma_{\rm alg}v(o_{t+1})-v(o_t)$. At a true terminal step continuation is zero. Generalized advantage estimation sums these residuals using weights $(\gamma_{\rm alg}\lambda_{\rm GAE})^j$. The resulting estimate $\widehat A_t$ measures how favorable the sampled action was relative to the critic's prediction.
 #
-# For a trial actor $\pi_w$, compute $L_t=\pi_w(a_t\mid o_t)/\pi_{w_0}(a_t\mid o_t)$. The actor increases the minibatch average of $\min\{L_t\widehat A_t,\operatorname{clip}(L_t,1-\epsilon,1+\epsilon)\widehat A_t\}$. The critic is fitted to the estimated returns. PPO takes several minibatch updates on the rollout and then collects a fresh one. The clipping level $\epsilon$ limits the incentive for large ratio changes. The independent evaluation cells test the candidate's risk.
+# For a trial actor $\pi_w$, compute $\ell_t=\pi_w(a_t\mid o_t)/\pi_{w_0}(a_t\mid o_t)$. The actor increases the minibatch average of $\min\lbrace\ell_t\widehat A_t,\mathrm{clip}(\ell_t,1-\epsilon,1+\epsilon)\widehat A_t\rbrace$. The critic is fitted to the estimated returns. PPO takes several minibatch updates on the rollout and then collects a fresh one. The clipping level $\epsilon$ limits the incentive for large ratio changes. The independent evaluation cells test the candidate's risk.
 #
 # The wear environment stops independently with probability $1-\beta$ after each surviving action, so PPO uses $\gamma_{\rm alg}=1$.
 #
@@ -66,7 +66,7 @@ req = Requirement(T=19, alpha=0.05, zeta=0.05, family=2)       # two final evalu
 # minibatches of 1024, ten epochs, a learning rate decaying linearly to zero, no entropy bonus.
 
 # %%
-def train(stage, seed=0, steps=2_000_000, callbacks=(), n_envs=32):
+def train(stage, seed=0, steps=4_000_000, callbacks=(), n_envs=32):
     venv = DummyVecEnv([lambda: make_wear_env(stage, model) for _ in range(n_envs)])
     venv.seed(seed)
     venv = VecNormalize(venv, norm_obs=False, norm_reward=True, clip_reward=1e9, gamma=1.0)
@@ -122,7 +122,7 @@ print(f"grid benchmark at m = 1: q_beta = {EXACT_FRONTIER[1.0][0]:.4f}, U = {EXA
 # ## Training at several prices
 #
 # At an exact continuing priced optimum, the price supports the frontier at the attained geometric risk. The fitted PPO policies give empirical comparisons across tested prices. Training at three prices, with a
-# second seed at $m=1$, shows the measured price–risk trade-off.
+# second seed at $m=1$, illustrates the observed price–risk trade-off. Seed-to-seed variation is reported separately.
 
 # %%
 prices = (0.3, 1.0, 3.0)
@@ -157,14 +157,14 @@ print({m: [round(benchmark_value(m) - e.V_m, 3) for (price, _), e in by_price.it
 
 # %% [markdown]
 # With three prices and one or two seeds this is a descriptive comparison for this learner and interaction budget. The check is
-# useful on short pilot runs before committing to a large price. A shortfall that grows roughly in proportion
+# useful before committing to a larger failure price. A shortfall that grows roughly in proportion
 # to price is reason to investigate the learner's optimization error. A few noisy grid comparisons cannot determine
 # whether that error grows sublinearly along a price sequence.
 #
 # ## A prescribed level: the adaptive multiplier
 #
 # A multiplier method charges a flat penalty $\nu$ at failure and updates it after each rollout,
-# $\nu\leftarrow\max\{0,\nu+c(\hat q-\alpha)\}$. At a fixed $\nu$, the failure-only objective in this setting
+# $\nu\leftarrow\max\lbrace0,\nu+h(\widehat q-\alpha_{\rm train})\rbrace$. Here $h$ is the multiplier step size and $\widehat q$ the observed rollout failure frequency. At a fixed $\nu$, the failure-only objective in this setting
 # is the fixed-price objective at $m=(1-\beta)\nu$. This identifies the objective even when PPO's optimization
 # error is unknown. We size the step using the fixed-price runs. If they bracket the target with decreasing,
 # positive risks, we interpolate on a log scale. Otherwise we use the tested price whose estimated risk was closest.
@@ -217,7 +217,7 @@ print(f"adaptive candidate: q_beta = {ev_a.q_beta:.4f}, U = {ev_a.U:.3f}, final 
 #
 # A failure-only price can favor policies that operate close to exhaustion. Compare both trained policies
 # when the true allowance is ten percent smaller than the one the policy observes. The interior
-# barrier ($\theta>0$) charges for using up the reserve before failure. The wrapper option
+# barrier ($\theta_B>0$) charges for using up the reserve before failure. The wrapper option
 # `true_budget_scale=0.9` judges failure against the reduced allowance while the policy sees the nominal reserve.
 
 # %%
@@ -235,6 +235,9 @@ for r in rows:
 # %% [markdown]
 # These are simulator estimates for the two trained policies. Compare the nominal utility as well as the
 # breakdown probabilities at both allowances. A known reduction can be represented directly in the budget used for training.
+# At 90% of nominal allowance the estimated geometric risk was 16.1% for the failure-only actor and 1.47%
+# for the barrier actor. The barrier actor also earned less nominal stopped utility. This comparison uses
+# one training seed per objective.
 #
 # ## Validate and report
 #
@@ -260,7 +263,8 @@ print(rep.text())
 # The route through $q_\beta$ is conservative under geometric stopping: $q_\beta$ counts every failure before
 # maintenance access, including failures long after action 19. The requirement concerns $p_{19}$, so we validate it
 # directly on fresh episodes over a fixed horizon of 20 actions, without the clock. The same network is the same
-# candidate here; only the evaluation changes.
+# candidate here. The two tests use separate evaluation seeds and each receives half of the statistical error.
+# We report only the fixed-horizon failure statistic in this cell. Training used the continuing objective.
 
 # %%
 from barrierpg import BudgetWrapper
@@ -269,9 +273,11 @@ fixed_spec = spec.with_(horizon=req.T + 1)
 torch.manual_seed(200_000)
 ev_fixed = evaluate(lambda: BudgetWrapper(WearCore(model), wear_cost, fixed_spec, stage, geometric_stop=False), sb3_policy(ppo),
                     10_000, spec=fixed_spec, stage=stage, seed=200_000, T=req.T)
-rep_fixed = interpret(fixed_spec, req, stage, ev_fixed, delta=None)
-print(f"p_19 = {ev_fixed.p_T:.4f}; certified: {rep_fixed.certified}")
-print("\n".join(rep_fixed.text().split("\n")[:12]))
+rep_fixed = interpret(fixed_spec, req, stage, ev_fixed, delta=None, include_physical_value=False)
+direct = rep_fixed.validation
+print(f"Failures through action {req.T}: {direct.failures} of {direct.n} ({ev_fixed.p_T:.2%}).")
+print(f"One-sided upper bound: {direct.upper:.3%} (error {direct.err:g}).")
+print(f"Requirement (at most {req.alpha:.2%}): {'met' if rep_fixed.certified else 'unconfirmed'}.")
 
 # %% [markdown]
 # ## Summary
@@ -279,6 +285,6 @@ print("\n".join(rep_fixed.text().split("\n")[:12]))
 # * PPO is trained unchanged; the wrapper carries the budget and the clipped reward.
 # * The grid-based comparisons illustrate measured performance. The validation test uses the candidate's failure counts.
 # * A multiplier method targets a level, needs a step that respects the time scales, and should aim below the tolerance.
-# * The barrier keeps a measurable reserve for a smaller true allowance.
+# * Re-evaluate each fixed policy at the lower allowance to measure its sensitivity to the budget reduction.
 #
 # Next: **notebook T3** looks at the two regularizers and the roles of their parts.

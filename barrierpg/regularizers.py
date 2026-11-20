@@ -267,8 +267,8 @@ def regularizer_effects(spec: BudgetSpec, stage: Stage, candidate: Dict, *, acti
         line = (f"parameter noise (kappa1 = {noise_kappa1:g}" + (f", drift kappa2 = {k2:g}" if k2 > 0 else ", no drift") + f"): per-parameter spread {spread:.3g}")
         if k2 > 0:
             line += f"; plain gradient steps without an objective would hold it at sqrt(kappa1/kappa2) = {nominal:.3g}"
-        line += (f"; with the coupled anchor under Adam the spread is proportional to kappa1 whatever the drift [{cite('roles')}], "
-                 f"about sqrt(2) kappa1 = {adam:.3g} by an explanation proposed after the runs")
+            line += (f"; a post-hoc reference for the tested coupled Adam runs is sqrt(2) kappa1 = {adam:.3g} "
+                     f"[{cite('roles')}]")
         E.lines.append(line)
         if dispersion_final is not None and spread >= 0.5 * dispersion_final:
             E.flags.append("the parameter spread is comparable to the action dispersion: in the paper's study risk and utility moved away from the anchored values "
@@ -284,22 +284,22 @@ def regularizer_effects(spec: BudgetSpec, stage: Stage, candidate: Dict, *, acti
         at_prior = abs(dq) <= 2 * se_q + 1e-12 and abs(dU) <= 2 * se_U + 1e-12
         E.inheritance = dict(dq=dq, dU=dU, se_q=se_q, se_U=se_U, at_prior=at_prior)
         E.lines.append(f"inheritance: candidate minus prior policy, q_beta {dq:+.4g} (se {se_q:.2g}), U {dU:+.4g} (se {se_U:.2g}); "
-                       + ("the candidate sits at the prior policy within sampling error: the regularization returned the prior (no learning gain)"
-                          if at_prior else "the candidate has moved from the prior policy toward the unregularized optimum")
+                       + ("both differences are within two estimated standard errors"
+                          if at_prior else "at least one difference exceeds two estimated standard errors")
                        + f" [{cite('particle')}; {cite('prior_improvement')}]")
         if "V_m" in candidate and "V_m" in prior_policy and candidate["V_m"] < prior_policy["V_m"] - 2 * np.hypot(candidate.get("V_se", 0.0), prior_policy.get("V_se", 0.0)):
             E.flags.append("the candidate's clipped value is below the prior policy's: for the population gradient flow started at the prior the clipped value never falls "
                            f"below the prior's [{cite('prior_improvement')}]; check the price, the optimization and the candidate's dispersion")
         if dU < -2 * se_U and dq < -2 * se_q:
             E.lines.append(f"lower utility than the prior policy came with lower risk: the signed comparison charges the risk-price term m[q_hat - q_prior]/(1-beta) "
-                           f"= {m * dq / (1 - beta):.4g}, so an improved clipped value does not by itself preserve a positive-risk prior's utility [{cite('matched_risk')}]")
+                           f"= {m * dq / (1 - beta):.4g} [{cite('matched_risk')}]")
     # regularization path
     if path:
         pts = sorted(path, key=lambda d: -d["kappa"])
         E.path = [dict(p) for p in pts]
         start, end = pts[0], pts[-1]
         E.lines.append(f"regularization path over kappa from {start['kappa']:g} to {end['kappa']:g}: (q_beta, U) moves from ({start['q_beta']:.4g}, {start['U']:.4g}) "
-                       f"to ({end['q_beta']:.4g}, {end['U']:.4g}); the path starts at the prior policy and kappa sets how far along it the learner is "
+                       f"to ({end['q_beta']:.4g}, {end['U']:.4g}) for the supplied candidates "
                        f"[{cite('flow_test')}; {cite('anchor_study')}]")
         mono_q = all(a["q_beta"] <= b["q_beta"] + 1e-12 for a, b in zip(pts[:-1], pts[1:])) or all(a["q_beta"] >= b["q_beta"] - 1e-12 for a, b in zip(pts[:-1], pts[1:]))
         if not mono_q:
@@ -316,7 +316,7 @@ def regularizer_effects(spec: BudgetSpec, stage: Stage, candidate: Dict, *, acti
     if stage.eta > 0 and stage.kappa > 0:
         E.joint = ("both anchors act: the action term pulls the action law toward rho, the parameter term pulls the unit law toward pi_Gamma"
                    + ("; under the centering construction these coincide, so the two terms have one target and differ only in geometry" if centered else
-                      "; without centering the two targets differ and the learner ends between them")
+                      "; the two reference policies can differ")
                    + "; the biases add in every certificate and the action term adds eta C_A to the curvature the parameter term must supply")
         E.lines.append("joint effect: " + E.joint + f" [{cite('centering')}; {cite('flow')}]")
     return E

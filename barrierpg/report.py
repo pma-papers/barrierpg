@@ -68,9 +68,13 @@ class Report:
             lines = [f"{who} was run on {e.n} fresh episodes. It ran out of {resource} {observed} in {e.failures} of them "
                      f"({e.failures / e.n:.2%})."]
         if v is not None:
-            share = f" (the error {r.zeta:g} is shared among {r.family} candidates)" if r.family > 1 else ""
+            statements = round(r.zeta / v.err)
+            share = f" (the error {r.zeta:g} is shared among {statements} statements)" if statements > 1 else ""
             what = "of running out before the episode's random end" if v.event == "q_beta" else f"of running out within {steps}"
             lines.append(f"With confidence {1 - r.zeta:g}, its probability {what} is at most {v.upper:.3%}{share}.")
+            if v.event == "q_beta" and r.kind == "finite":
+                upper = finite_from_geometric(v.upper, self.spec.beta, r.T).value
+                lines.append(f"This implies an upper bound of {upper:.3%} on failure within {steps}.")
             if v.passed:
                 lines.append(f"Requirement (at most {r.alpha:.2%}): met.")
             else:
@@ -85,7 +89,7 @@ class Report:
         if self.training is not None:
             t = self.training
             if t.status == "converged":
-                lines.append(f"Training had converged by the toolbox's check (the last {t.window} batches against the {t.window} before).")
+                lines.append(f"Training metrics were stable by the toolbox's check (the last {t.window} batches against the {t.window} before).")
             elif t.status == "not converged":
                 moving = [c.label for c in t.moving]
                 lines.append("Training had not converged: " + (_and(moving) + (" was" if len(moving) == 1 else " were")
@@ -119,10 +123,17 @@ class Report:
         event = {"finite": f"p_{r.T}", "geometric": "q_beta", "eventual": "P(ever failing)"}[r.kind]
         head = (who
                 + (f", barrier theta = {s.theta:g}" if s.theta else "")
-                + f"; requirement {event} <= {r.alpha:g} at error {r.zeta:g}" + (f"/{r.family}" if r.family > 1 else "") + ".")
+                + f"; requirement {event} <= {r.alpha:g} with total error {r.zeta:g}.")
         lines = [head, "", "Measured on fresh episodes:", "  " + e.summary().replace("\n", "\n  "), ""]
-        lines.append("Verdict: " + ("CERTIFIED by direct validation at the specified horizon." if self.certified else
-                                    "NOT certified at the specified horizon (failure to certify does not prove violation)."))
+        if not self.certified:
+            verdict = "NOT certified (failure to certify does not prove violation)."
+        elif e.event != "q_beta":
+            verdict = "CERTIFIED by direct validation at the specified horizon."
+        elif r.kind == "finite":
+            verdict = "CERTIFIED at the specified horizon through the geometric-risk bound."
+        else:
+            verdict = "CERTIFIED by direct validation under the geometric clock."
+        lines.append(f"Verdict: {verdict}")
         lines += ["", "In what sense the candidate is a solution:"] + ["  - " + x for x in self.reading]
         lines += ["", "Evidence and bounds:"] + ["  - " + x for x in self.evidence]
         if self.effects is not None:

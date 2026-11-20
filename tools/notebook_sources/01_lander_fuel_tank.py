@@ -28,7 +28,7 @@
 # \underset{\pi\in\Pi}{\mathrm{maximize}}\quad U_H(\pi)-\mathbb E_\pi[\beta^\tau F_\tau\mathbf1_{\lbrace\tau<H\rbrace}].
 # $$
 #
-# The price assigns a greater charge to early fuel failure. The deployment constraint counts every crossing within the mission once. The validation cell tests that event and records crashes and landings separately.
+# The price assigns a greater charge to early fuel failure. The deployment constraint counts the first crossing within the mission. The validation cell tests that event, and the archived campaign reports crash and landing flags separately.
 
 # %%
 import sys
@@ -258,16 +258,17 @@ ax.set_xlabel("million frames"); ax.set_ylabel("ran dry (per batch)"); ax.set_ti
 ax.legend(fontsize=7); plt.tight_layout(); plt.show()
 
 # %% [markdown]
-# Running dry ends the episode before the landing bonus, so the task's own reward already punishes it, and the wrapper
-# only had to make the tank part of the problem; given enough frames, the lander learns to land within it. Check the
-# learning curves before comparing configurations: a run stopped early tells you about its length, not about its
-# configuration. The campaign ran the tank alone and prices from 0.25 to 2, all for 3 million frames.
+# If the fuel budget is crossed, stopped utility excludes that action's reward. This already removes the chance of
+# earning a later landing bonus at price zero. The no-charge runs had 1.3% to 6.0% fuel failure on their first
+# evaluation. Across the tested prices, the rates varied by seed and did not fall monotonically. The landing and
+# crash columns are simulator flags reported as fractions of episodes. A physical outcome can coincide with fuel
+# failure on the same action, so these columns and the fuel-failure rate need not sum to one.
 #
 # ## 4. The full campaign: prices
 
 # %%
 prices = ["tank-no-price", "price-0.25", "price-0.5", "price-1", "price-2"]
-print(Campaign.show(camp.table(prices, extras=("landed", "crashed"))))
+print(Campaign.show(camp.table(prices, extras=("landed", "crashed")), extras=("landed", "crashed")))
 
 fig, ax = plt.subplots(1, 2, figsize=(9, 3))
 x = np.arange(len(prices))
@@ -311,7 +312,7 @@ print(camp.convergence_table(prices))
 
 # %%
 regs = ["price-0.5", "anchor-0.01", "anchor-0.1", "anchor-1", "anchor-10", "action-anchor"]
-print(Campaign.show(camp.table(regs, extras=("landed", "crashed"))))
+print(Campaign.show(camp.table(regs, extras=("landed", "crashed")), extras=("landed", "crashed")))
 for cfg in ["anchor-0.01", "anchor-0.1", "anchor-1", "anchor-10"]:
     print(f"{cfg}: weight distance from the controller at the end {np.round([r['anchor_distance'] for r in camp.records(cfg)], 3)}")
 print("\nConvergence at the end of training:")
@@ -329,16 +330,18 @@ print(camp.convergence_table(regs))
 # `ParameterAnchor`'s docstring). Whether the anchored lander still runs dry under the decoupled form at these
 # strengths is not tested here.
 #
-# The action anchor holds the behavior near the controller and gives way where the tank demands a change. With it the
-# lander learned to save fuel as well as without it; its effect on crashes was mixed across seeds.
+# At price 0.5, the action-anchored runs averaged 4.9% fuel failure versus 6.8% without the anchor. Their
+# per-seed ranges overlapped (1.4% to 8.7% and 5.5% to 8.1%). The coupled parameter anchors had much higher
+# failure rates in this comparison.
 #
 # When fine-tuning a controller that violates the new limit, treat the action and parameter references as
 # separate design choices. Use fresh evaluation to check which candidate meets the constraint.
 #
 # ## 6. Validate the policy to deploy, and report
 #
-# Use the archived evaluations for candidate selection. Take the highest landing rate among policies whose
-# estimated failure rate is below the tolerance. If none qualify, take the lowest estimated failure rate.
+# Use the archived data to select the highest estimated stopped utility among policies whose estimated fuel
+# failure probability is at most the tolerance. If none qualify, select the policy with the lowest estimated
+# failure probability for final evaluation.
 # Test the selected policy and its mean-action version on 2,000 fresh episodes each.
 #
 # **Theory.** The exact binomial test holds for any fixed policy, however it was trained; it is the deployment
@@ -347,10 +350,10 @@ print(camp.convergence_table(regs))
 
 # %%
 cands = [(c, s) for c in prices + regs[1:] for s in camp.seeds(c)]
-ok = [cs for cs in cands if np.mean(camp.record(*cs)["evaluation"]["failed"]) < req.alpha]
-best = (max(ok, key=lambda cs: np.mean(camp.record(*cs)["evaluation"]["landed"])) if ok else
-        min(cands, key=lambda cs: np.mean(camp.record(*cs)["evaluation"]["failed"])))
-print("candidate:", best, camp.record(*best)["note"])
+screened = [(cs, camp.evaluation(*cs)) for cs in cands]
+eligible = [(cs, ev) for cs, ev in screened if ev.p_T <= req.alpha]
+best, first_eval = max(eligible, key=lambda item: item[1].U) if eligible else min(screened, key=lambda item: item[1].p_T)
+print(f"Selected {best[0]}, seed {best[1]}: initial fuel failure {first_eval.p_T:.2%}, stopped utility {first_eval.U:.1f}.")
 best_stage = camp.stage(*best)
 for det in (False, True):
     e = evaluate(lambda: make_env(best_stage), camp.policy(*best, deterministic=det), 2000, spec=spec, stage=best_stage,

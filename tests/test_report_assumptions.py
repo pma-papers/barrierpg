@@ -1,4 +1,6 @@
 """A deployment report must not silently assume an unknown optimizer error is zero."""
+from dataclasses import replace
+
 import numpy as np
 from barrierpg import BudgetSpec, Requirement, Stage, interpret
 from barrierpg.evaluate import Evaluation
@@ -41,6 +43,16 @@ def test_report_does_not_certify_a_different_risk_event():
     for kind in ("geometric", "eventual"):
         report = interpret(spec, Requirement(T=0, alpha=1.0, kind=kind), Stage(m=1.), candidate())
         assert not report.certified and report.validation is None and report.best_bound() is None
+
+
+def test_report_labels_the_route_from_geometric_risk_to_finite_horizon():
+    spec = BudgetSpec(budgets=[1.], beta=.9, ubar=1.)
+    evaluation = replace(candidate(), event="q_beta", geometric_stop=True, p_T=float("nan"))
+    report = interpret(spec, Requirement(T=2, alpha=.05), Stage(m=1.), evaluation)
+
+    assert report.certified
+    assert "through the geometric-risk bound" in report.text()
+    assert "3.644% on failure within 3 steps" in report.summary()
 
 
 def test_physical_return_only_uses_the_physical_certificate_and_shares_error():
