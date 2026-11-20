@@ -24,8 +24,8 @@ Failure is the first action index $\tau$ for which some $z_{t+1,k}<0$. Set $\tau
 
 $$
 \begin{aligned}
-V^{(H)}(\pi)&=\mathbb E_\pi\!\left[\sum_{t=0}^{H-1}\beta^t u_t\right],\\
-U_H(\pi)&=\mathbb E_\pi\!\left[\sum_{t=0}^{H-1}\beta^t u_t\mathbf 1_{\{t<\tau\}}\right].
+V^{(H)}(\pi)&=\mathbb E_\pi\left[\sum_{t=0}^{H-1}\beta^t u_t\right],\\
+U_H(\pi)&=\mathbb E_\pi\left[\sum_{t=0}^{H-1}\beta^t u_t\mathbf 1_{\{t<\tau\}}\right].
 \end{aligned}
 $$
 
