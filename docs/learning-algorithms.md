@@ -39,8 +39,8 @@ Index the sampled transitions of a minibatch by $i=1,\ldots,n$. They come from $
 
 $$
 \widehat J_{\rm PPO}(w)=\frac1n\sum_{i=1}^{n}
-\min\left\{\ell_i(w)\widehat A_i,\quad
-\mathrm{clip}\big(\ell_i(w),1-\epsilon,1+\epsilon\big)\widehat A_i\right\}.
+\min\left\lbrace\ell_i(w)\widehat A_i,\quad
+\mathrm{clip}\big(\ell_i(w),1-\epsilon,1+\epsilon\big)\widehat A_i\right\rbrace.
 $$
 
 When an estimated advantage is positive, increasing the action ratio beyond $1+\epsilon$ no longer improves that sample term. For a negative advantage, decreasing the ratio below $1-\epsilon$ no longer improves it. For $\epsilon=0.2$, $\ell_i=1.3$ and $\widehat A_i=2$, the contribution is $2.4$. At the same ratio with advantage $-2$, the contribution is $-2.6$. Raising the probability of a disadvantageous action is still penalized.
@@ -56,7 +56,7 @@ Consider maximizing stopped utility $U(\pi)$ subject to $q_\beta(\pi)\le\alpha_{
 The toolbox's `DualAscent` callback implements this update for the mean of the recorded failure flags in a rollout. Given $k$ failures among $n$ completed episodes and step size $h$, its update is
 
 $$
-\nu_{j+1}=\max\{0,\ \nu_j+h(k/n-\alpha_{\rm train})\}.
+\nu_{j+1}=\max\lbrace0,\ \nu_j+h(k/n-\alpha_{\rm train})\rbrace.
 $$
 
 If $n=0$, the multiplier stays at its previous value. With a geometric clock, these flags estimate $q_\beta$. With a physical horizon they estimate failure by that horizon. The failure charge is applied at the failure time. For a fixed finite horizon with $\gamma_{\rm alg}=\beta<1$, the actor's discounted charge weights a failure at $t$ by $\beta^t$, even though the callback counts that failure once. Thus an adaptive finite-horizon run in the toolbox is a way to search for a candidate, and the direct binomial test supplies evidence for the stated chance constraint. [Retailer notebook](../notebooks/02_retailer_cash.ipynb)

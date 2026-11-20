@@ -25,7 +25,7 @@ Failure is the first action index $\tau$ for which some $z_{t+1,k}<0$. Set $\tau
 $$
 \begin{aligned}
 V^{(H)}(\pi)&=\mathbb E_\pi\left[\sum_{t=0}^{H-1}\beta^t u_t\right],\\
-U_H(\pi)&=\mathbb E_\pi\left[\sum_{t=0}^{H-1}\beta^t u_t\mathbf 1_{\{t<\tau\}}\right].
+U_H(\pi)&=\mathbb E_\pi\left[\sum_{t=0}^{H-1}\beta^t u_t\mathbf 1_{\lbrace t<\tau\rbrace}\right].
 \end{aligned}
 $$
 
@@ -58,7 +58,7 @@ Here $\alpha$ is a probability tolerance. The same choice of utility applies whe
 | Conditional value-at-risk (CVaR) | $\mathrm{CVaR}_\varepsilon(Z)\le d$ | The mean of the worst $\varepsilon$ fraction of losses is bounded by $d$. |
 | Pathwise feasibility | $p_{H-1}(\pi)=0$ | Every positive-probability trajectory of a finite model must respect the budget throughout the episode. |
 
-An expected-cost method can impose the chance constraint by using $Z=\mathbf 1_{\{\tau\le T\}}$ and setting the cost limit to $\alpha$. For nonnegative consumption, iteration of the reserve recursion gives $\gamma_k^{T+1}z_{T+1,k}=b_k-\sum_{t=0}^T\gamma_k^t c_{t,k}$. Each discounted cumulative sum is nondecreasing, so crossing by action $T$ occurs if any of these sums exceeds $b_k$. For undiscounted net use that can decrease after replenishment, use its maximum through $T$ or record the first crossing directly.
+An expected-cost method can impose the chance constraint by using $Z=\mathbf 1_{\lbrace\tau\le T\rbrace}$ and setting the cost limit to $\alpha$. For nonnegative consumption, iteration of the reserve recursion gives $\gamma_k^{T+1}z_{T+1,k}=b_k-\sum_{t=0}^T\gamma_k^t c_{t,k}$. Each discounted cumulative sum is nondecreasing, so crossing by action $T$ occurs if any of these sums exceeds $b_k$. For undiscounted net use that can decrease after replenishment, use its maximum through $T$ or record the first crossing directly.
 
 For CVaR, let $(x)_+=\max(x,0)$. The formula below holds for integrable $Z$ with $0<\varepsilon<1$.
 
@@ -71,13 +71,13 @@ The variable $\xi$ is a threshold in the units of the loss. At the minimum it is
 
 ## Write the priced training objective
 
-For a continuing task, let $q_\beta(\pi)=\mathbb E_\pi[\beta^\tau\mathbf 1_{\{\tau<\infty\}}]$. This is the probability of failure before an independent geometric stop with survival probability $\beta$ after each surviving action. Let $U(\pi)$ be discounted stopped utility and let $\mathcal I_m(\pi)$ be the expected discounted deduction from the pre-failure reward. On a nonfailing action the floor is applied after subtracting the barrier at the updated reserve. The change in utility is $u_t-\max\{-m,u_t-B(z_{t+1})\}$. It is nonnegative when $u_t\ge-m$. If the raw utility is below the floor, clipping can raise the reward. With failure-only pricing, $\mathcal I_m=0$. The continuing training problem is
+For a continuing task, let $q_\beta(\pi)=\mathbb E_\pi[\beta^\tau\mathbf 1_{\lbrace\tau<\infty\rbrace}]$. This is the probability of failure before an independent geometric stop with survival probability $\beta$ after each surviving action. Let $U(\pi)$ be discounted stopped utility and let $\mathcal I_m(\pi)$ be the expected discounted deduction from the pre-failure reward. On a nonfailing action the floor is applied after subtracting the barrier at the updated reserve. The change in utility is $u_t-\max\lbrace-m,u_t-B(z_{t+1})\rbrace$. It is nonnegative when $u_t\ge-m$. If the raw utility is below the floor, clipping can raise the reward. With failure-only pricing, $\mathcal I_m=0$. The continuing training problem is
 
 $$
 \underset{\pi\in\Pi}{\mathrm{maximize}}\quad U(\pi)-\mathcal I_m(\pi)-\frac{m}{1-\beta}q_\beta(\pi).
 $$
 
-The charge $m/(1-\beta)$ at the failing step represents a discounted sequence of rewards $-m$ from failure onward. Under a physical horizon $H$, the charge at a failure at $t$ is $F_t=m\sum_{j=0}^{H-1-t}\beta^j$. Training then maximizes $U_H(\pi)-\mathcal I_{m,H}(\pi)-\mathbb E_\pi[\beta^\tau F_\tau\mathbf 1_{\{\tau<H\}}]$, where $\mathcal I_{m,H}$ is the interior deduction through the physical horizon. A lump charge sets $F_t=F$ at all failure times. Validation uses the stated deployment event $p_T$. Its confidence level is a separate statistical input.
+The charge $m/(1-\beta)$ at the failing step represents a discounted sequence of rewards $-m$ from failure onward. Under a physical horizon $H$, the charge at a failure at $t$ is $F_t=m\sum_{j=0}^{H-1-t}\beta^j$. Training then maximizes $U_H(\pi)-\mathcal I_{m,H}(\pi)-\mathbb E_\pi[\beta^\tau F_\tau\mathbf 1_{\lbrace\tau<H\rbrace}]$, where $\mathcal I_{m,H}$ is the interior deduction through the physical horizon. A lump charge sets $F_t=F$ at all failure times. Validation uses the stated deployment event $p_T$. Its confidence level is a separate statistical input.
 
 ## Choose a numerical method
 
@@ -150,10 +150,10 @@ Log and inverse diverge at zero, where the wrapper uses the clipped reward floor
 In the one-stage example, $a$ is chosen on a grid. Consumption is $c=a+X$, where $X$ equals $0.18$ with probability $0.1$ and zero otherwise. With budget one and the penalty shape $B$, the script maximizes
 
 $$
-\underset{a\in\{0.01,0.02,\ldots,0.99\}}{\mathrm{maximize}}\quad\mathbb E[r(a,c)],\qquad
+\underset{a\in\lbrace0.01,0.02,\ldots,0.99\rbrace}{\mathrm{maximize}}\quad\mathbb E[r(a,c)],\qquad
 r(a,c)=
 \begin{cases}
-\max\{-1,2a-B(1-c)\}, & c\le1,\\
+\max\lbrace-1,2a-B(1-c)\rbrace, & c\le1,\\
 -1, & c>1.
 \end{cases}
 $$

@@ -23,7 +23,7 @@
 # In the fixed-price problem, $F_t=m\sum_{j=0}^{999-t}0.999^j$ is the charge if failure occurs at $t$. PPO searches for a policy with high value under this charge.
 #
 # $$
-# \underset{\pi\in\Pi}{\mathrm{maximize}}\quad U_{1000}(\pi)-\mathbb E_\pi[0.999^\tau F_\tau\mathbf1_{\{\tau<1000\}}].
+# \underset{\pi\in\Pi}{\mathrm{maximize}}\quad U_{1000}(\pi)-\mathbb E_\pi[0.999^\tau F_\tau\mathbf1_{\lbrace\tau<1000\rbrace}].
 # $$
 #
 # The reserve-penalty run further deducts the log penalty on the positive post-action reserve. Evaluating with 90% of the initial battery changes the crossing event while retaining the actor's nominal reserve observation.
@@ -125,7 +125,7 @@ print(Campaign.show(camp.table(["no-price-no-clock", "no-price", "price-3-no-clo
 #
 # A rollout contains actions sampled from the current actor $\pi_{w_0}$ and the rewards of the stated training objective. The critic $v(o_t)$ predicts remaining return from observation $o_t$. At a nonterminal step, the prediction residual is $e_t=r_t+\gamma_{\rm alg}v(o_{t+1})-v(o_t)$. At a true terminal step continuation is zero. Generalized advantage estimation sums these residuals using weights $(\gamma_{\rm alg}\lambda_{\rm GAE})^j$. The resulting estimate $\widehat A_t$ measures how favorable the sampled action was relative to the critic's prediction.
 #
-# For a trial actor $\pi_w$, compute $\ell_t=\pi_w(a_t\mid o_t)/\pi_{w_0}(a_t\mid o_t)$. The actor increases the minibatch average of $\min\{\ell_t\widehat A_t,\mathrm{clip}(\ell_t,1-\epsilon,1+\epsilon)\widehat A_t\}$. The critic is fitted to the estimated returns. PPO takes several minibatch updates on the rollout and then collects a fresh one. The clipping level $\epsilon$ limits the incentive for large ratio changes. The independent evaluation cells test the candidate's risk.
+# For a trial actor $\pi_w$, compute $\ell_t=\pi_w(a_t\mid o_t)/\pi_{w_0}(a_t\mid o_t)$. The actor increases the minibatch average of $\min\lbrace\ell_t\widehat A_t,\mathrm{clip}(\ell_t,1-\epsilon,1+\epsilon)\widehat A_t\rbrace$. The critic is fitted to the estimated returns. PPO takes several minibatch updates on the rollout and then collects a fresh one. The clipping level $\epsilon$ limits the incentive for large ratio changes. The independent evaluation cells test the candidate's risk.
 #
 # The simulator has a physical horizon, so the algorithm uses $\gamma_{\rm alg}=\beta=0.999$.
 #

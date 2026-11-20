@@ -84,8 +84,9 @@ python tools/make_readme_figure.py       # regenerate the overview figure in doc
 Typeset the policy objective, constraints and symbols together in a display. Use standard TeX commands, with
 `\mathrm{maximize}` and `\mathrm{CVaR}` for upright labels. GitHub's Markdown renderer can reject
 `\operatorname` and leave the whole formula as source text. Omit the negative spacing command `\!`
-in Markdown math. It can display as an exclamation mark. Check the repository's rendered Preview
-after changes to equations. Use the notebook preview as well when updating notebook sources.
+in Markdown math. It can display as an exclamation mark. Use `\lbrace` and `\rbrace` for visible braces.
+Check the repository's rendered Preview after changes to equations. Use the notebook preview as well
+when updating notebook sources.
 
 ## Following a new revision of the paper
 

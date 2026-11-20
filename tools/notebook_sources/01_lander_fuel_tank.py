@@ -11,7 +11,7 @@
 #
 # ### Policy optimization with the fuel limit
 #
-# At frame $t$, the policy observes the lander observation and normalized fuel reserve $z_t/24$. The archived configuration omits an explicit clock, so the actor class uses that restricted observation. Its action $a_t\in[-1,1]^2$ supplies the main and side engine commands. The simulator maps them to powers $p_t^{\rm main}$ and $p_t^{\rm side}$. The consumption and reserve are $c_t=0.30p_t^{\rm main}+0.03p_t^{\rm side}$ and $z_{t+1}=z_t-c_t$, with $z_0=24$. Write $\tau=\inf\{t:z_{t+1}<0\}$. An ordinary landing or crash terminates the episode and contributes its normal task reward if fuel failure has not occurred on the same action.
+# At frame $t$, the policy observes the lander observation and normalized fuel reserve $z_t/24$. The archived configuration omits an explicit clock, so the actor class uses that restricted observation. Its action $a_t\in[-1,1]^2$ supplies the main and side engine commands. The simulator maps them to powers $p_t^{\rm main}$ and $p_t^{\rm side}$. The consumption and reserve are $c_t=0.30p_t^{\rm main}+0.03p_t^{\rm side}$ and $z_{t+1}=z_t-c_t$, with $z_0=24$. Write $\tau=\inf\lbrace t:z_{t+1}<0\rbrace$. An ordinary landing or crash terminates the episode and contributes its normal task reward if fuel failure has not occurred on the same action.
 #
 # Let $U_H(\pi)=\mathbb E_\pi[\sum_{0\le t<H,\ t<\tau}\beta^t u_t]$ be stopped Gymnasium utility, with $H=1000$ and $\beta=0.999$. Utility after genuine task termination is zero. Let $\Pi$ be the class represented by the actor. The deployment problem is
 #
@@ -25,7 +25,7 @@
 # In training, a failure at time $t$ is charged $F_t=0.5\sum_{j=0}^{H-1-t}\beta^j$. PPO searches for a solution to the priced objective.
 #
 # $$
-# \underset{\pi\in\Pi}{\mathrm{maximize}}\quad U_H(\pi)-\mathbb E_\pi[\beta^\tau F_\tau\mathbf1_{\{\tau<H\}}].
+# \underset{\pi\in\Pi}{\mathrm{maximize}}\quad U_H(\pi)-\mathbb E_\pi[\beta^\tau F_\tau\mathbf1_{\lbrace\tau<H\rbrace}].
 # $$
 #
 # The price assigns a greater charge to early fuel failure. The deployment constraint counts every crossing within the mission once. The validation cell tests that event and records crashes and landings separately.
@@ -163,7 +163,7 @@ print(p.explain())
 #
 # A rollout contains actions sampled from the current actor $\pi_{w_0}$ and the rewards of the stated training objective. The critic $v(o_t)$ predicts remaining return from observation $o_t$. At a nonterminal step, the prediction residual is $e_t=r_t+\gamma_{\rm alg}v(o_{t+1})-v(o_t)$. At a true terminal step continuation is zero. Generalized advantage estimation sums these residuals using weights $(\gamma_{\rm alg}\lambda_{\rm GAE})^j$. The resulting estimate $\widehat A_t$ measures how favorable the sampled action was relative to the critic's prediction.
 #
-# For a trial actor $\pi_w$, compute $\ell_t=\pi_w(a_t\mid o_t)/\pi_{w_0}(a_t\mid o_t)$. The actor increases the minibatch average of $\min\{\ell_t\widehat A_t,\mathrm{clip}(\ell_t,1-\epsilon,1+\epsilon)\widehat A_t\}$. The critic is fitted to the estimated returns. PPO takes several minibatch updates on the rollout and then collects a fresh one. The clipping level $\epsilon$ limits the incentive for large ratio changes. The independent evaluation cells test the candidate's risk.
+# For a trial actor $\pi_w$, compute $\ell_t=\pi_w(a_t\mid o_t)/\pi_{w_0}(a_t\mid o_t)$. The actor increases the minibatch average of $\min\lbrace\ell_t\widehat A_t,\mathrm{clip}(\ell_t,1-\epsilon,1+\epsilon)\widehat A_t\rbrace$. The critic is fitted to the estimated returns. PPO takes several minibatch updates on the rollout and then collects a fresh one. The clipping level $\epsilon$ limits the incentive for large ratio changes. The independent evaluation cells test the candidate's risk.
 #
 # The simulator has a physical horizon, so the algorithm uses $\gamma_{\rm alg}=\beta=0.999$.
 #

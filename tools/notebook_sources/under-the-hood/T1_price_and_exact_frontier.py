@@ -11,7 +11,7 @@
 #
 # The state is the price index $s_t\in[-1,1]$ and the remaining wear allowance $z_t$. The actor selects operating rate $a_t\in[0,1]$. Utility is $u_t=(1+0.5s_t)a_t/1.5$. The next index is $0.8s_t+0.2W_t$, with $W_t$ uniform on $[-1,1]$. Consumption is $0.1a_t X_t$ with a gamma wear shock $X_t$ of shape $0.5$ and scale $2$. Take $z_0=1$ and $\beta=0.95$. Let $\tau$ be the first action with $z_{t+1}=z_t-0.1a_tX_t<0$. Set $\tau=\infty$ if no such action occurs.
 #
-# Let $U$ denote expected discounted utility before failure and $\mathcal I_m$ the expected discounted interior deduction. Let $\Pi$ denote the policy class and $q_\beta=\mathbb E_\pi[\beta^\tau\mathbf1_{\{\tau<\infty\}}]$. The continuing priced problem is
+# Let $U$ denote expected discounted utility before failure and $\mathcal I_m$ the expected discounted interior deduction. Let $\Pi$ denote the policy class and $q_\beta=\mathbb E_\pi[\beta^\tau\mathbf1_{\lbrace\tau<\infty\rbrace}]$. The continuing priced problem is
 #
 # $$
 # \underset{\pi\in\Pi}{\mathrm{maximize}}\quad U(\pi)-\mathcal I_m(\pi)-\frac{m}{1-\beta}q_\beta(\pi).
@@ -44,7 +44,7 @@ print("barrierpg", barrierpg.__version__, "| checked against the paper's", barri
 # An asset earns revenue in proportion to its **operating rate** $a\in[0,1]$ and a market price index $s$.
 # Each unit of throughput consumes a random part of a **wear allowance** $b=1$. Exhausting the allowance
 # before the next maintenance access is a **breakdown**. Maintenance access arrives with probability
-# $1-\beta=0.05$ per period, so the **geometric risk** $q_\beta=\mathbb E[\beta^\tau 1\{\tau<\infty\}]$ is
+# $1-\beta=0.05$ per period, so the **geometric risk** $q_\beta=\mathbb E[\beta^\tau 1\lbrace\tau<\infty\rbrace]$ is
 # exactly the probability of a breakdown before access. Standing still never fails and earns nothing;
 # every positive rate can fail, because the wear shock is unbounded. This is the paper's running example.
 #
@@ -60,7 +60,7 @@ print(spec)
 # ## Reward with an interior barrier
 #
 # The wrapper carries the remaining reserve $z$ in the state and replaces the reward by
-# $$r_m=\max\{-m,\;u-B(z')\},\qquad B(z')=\theta_B\log(1+b/z'),$$
+# $$r_m=\max\lbrace-m,\;u-B(z')\rbrace,\qquad B(z')=\theta_B\log(1+b/z'),$$
 # with $z'$ the reserve after the action. An unclipped singular barrier can give infinite expected loss;
 # clipping at $-m$ keeps returns finite. From failure onward every reward is $-m$, so $m$ is a **price of failure
 # risk**: one unit of geometric risk costs $m/(1-\beta)$. Before failure, the barrier subtracts an **interior loss**
@@ -128,7 +128,7 @@ print(p.explain())
 # ## Candidates against the grid benchmark
 #
 # A **candidate** is one fixed policy that may be deployed. Here the candidates are hand-made rules: standing
-# still, and rules that run at a rate proportional to the remaining allowance, $a=\min\{1, z/(\text{span}\cdot b)\}$.
+# still, and rules that run at a rate proportional to the remaining allowance, $a=\min\lbrace1, z/(\text{span}\cdot b)\rbrace$.
 # The plotted points are the grid-based wear benchmark across prices. A true fixed-price optimum is optimal at its attained risk under the conditions of *Fixed price of failure risk*.
 
 # %%

@@ -113,7 +113,7 @@ The example uses the paper's landing model. Utility on an action is $36$ for com
 $$
 \begin{aligned}
 \underset{\pi\in\Pi}{\mathrm{maximize}}\quad &
- U_{1000}(\pi)-\mathbb E_\pi\left[\beta^\tau F_\tau\mathbf1_{\{\tau<1000\}}\right],\\
+ U_{1000}(\pi)-\mathbb E_\pi\left[\beta^\tau F_\tau\mathbf1_{\lbrace\tau<1000\rbrace}\right],\\
  & F_t=m\sum_{j=0}^{999-t}\beta^j.
 \end{aligned}
 $$

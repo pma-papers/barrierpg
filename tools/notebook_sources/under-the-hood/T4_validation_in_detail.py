@@ -20,7 +20,7 @@
 #
 # The notebook treats the policy as fixed during final evaluation. It estimates the constraint statistic $\Pr_\pi(\tau\le T)$ and computes a one-sided upper confidence limit. Let $\zeta_0$ be the statistical error allocated to a single statement. For $K<N$ failures in $N$ independent episodes, the upper endpoint $p^+$ solves $\Pr_{Y\sim{\rm Binomial}(N,p^+)}(Y\le K)=\zeta_0$. The validation rule accepts when $p^+\le\alpha$. Zero failures give $p^+=1-\zeta_0^{1/N}$.
 #
-# If the evaluator instead stops independently with geometric survival $\beta$, its breakdown indicators have mean $q_\beta$. The appropriate confidence statement is on $q_\beta$. Converting it at time $T$ gives upper endpoint $\min\{1,\beta^{-T}q^+\}$. A physical-horizon evaluator can count $p_T$ directly.
+# If the evaluator instead stops independently with geometric survival $\beta$, its breakdown indicators have mean $q_\beta$. The appropriate confidence statement is on $q_\beta$. Converting it at time $T$ gives upper endpoint $\min\lbrace1,\beta^{-T}q^+\rbrace$. A physical-horizon evaluator can count $p_T$ directly.
 
 # %%
 import numpy as np
@@ -151,7 +151,7 @@ print(V.value_resolution_check(beta=spec.beta, H=H, T=19, N=Nv, zeta=error_per_p
 #
 # ## 5. A physical horizon and a lump sanction, with your own evaluator
 #
-# The abatement action is $a_t\in[0,0.3]$. The emissions increment is $0.63+s_{t+1}+0.03E_t-a_t$, where $s_{t+1}=0.9s_t+0.05W_t$ and $E_t,W_t$ are independent standard normals. The reserve equals $31.7$ minus cumulative net emissions. Abatement costs $3a_t^2$ each surviving week. With utility $u_t=-3a_t^2$ and failure charge $F=50$, the fixed-charge objective maximizes $U_{52}(\pi)-50\mathbb E_\pi[\beta^\tau\mathbf1_{\{\tau<52\}}]$. The direct constraint is $p_{51}(\pi)\le0.05$.
+# The abatement action is $a_t\in[0,0.3]$. The emissions increment is $0.63+s_{t+1}+0.03E_t-a_t$, where $s_{t+1}=0.9s_t+0.05W_t$ and $E_t,W_t$ are independent standard normals. The reserve equals $31.7$ minus cumulative net emissions. Abatement costs $3a_t^2$ each surviving week. With utility $u_t=-3a_t^2$ and failure charge $F=50$, the fixed-charge objective maximizes $U_{52}(\pi)-50\mathbb E_\pi[\beta^\tau\mathbf1_{\lbrace\tau<52\rbrace}]$. The direct constraint is $p_{51}(\pi)\le0.05$.
 #
 # The code evaluates a specified class of pacing rules indexed by an emissions buffer. At week $t$, forecast unmitigated cumulative emissions at year-end from current cumulative emissions and the current shock. The rule divides the excess over the allowance less the buffer by the weeks remaining and clips the result to $[0,0.3]$. Larger buffers change the candidate's abatement and its crossing probability. The evaluation compares three buffers with common simulated draws and allocates error across the resulting statements.
 #

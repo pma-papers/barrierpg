@@ -17,10 +17,10 @@
 #
 # Here $x_t^{\rm hold}$ is stock after regular sales and before markdowns. The weekly profit $u_t$ uses gross margins on sales, holding costs, overhead and the markdown loss. This distinguishes profit recognition from the purchase cash outflow. The market factor varies by week and is latent. The actor uses the supplied observations.
 #
-# Let $\tau=\inf\{t:s_{t+1}^{\rm cash}<0\}$ and $U_{52}(\pi)=\mathbb E_\pi[\sum_{0\le t<52,\ t<\tau}0.999^t u_t]$. Let $\Pi$ be the class of candidate actors. With a known loss $F$ at insolvency, the priced problem is
+# Let $\tau=\inf\lbrace t:s_{t+1}^{\rm cash}<0\rbrace$ and $U_{52}(\pi)=\mathbb E_\pi[\sum_{0\le t<52,\ t<\tau}0.999^t u_t]$. Let $\Pi$ be the class of candidate actors. With a known loss $F$ at insolvency, the priced problem is
 #
 # $$
-# \underset{\pi\in\Pi}{\mathrm{maximize}}\quad U_{52}(\pi)-\mathbb E_\pi[0.999^\tau F\,\mathbf1_{\{\tau<52\}}].
+# \underset{\pi\in\Pi}{\mathrm{maximize}}\quad U_{52}(\pi)-\mathbb E_\pi[0.999^\tau F\,\mathbf1_{\lbrace\tau<52\rbrace}].
 # $$
 #
 # The deployment problem under an annual risk limit is
@@ -261,7 +261,7 @@ for name, e in rule_ev.items():
 #
 # A rollout contains actions sampled from the current actor $\pi_{w_0}$ and the rewards of the stated training objective. The critic $v(o_t)$ predicts remaining return from observation $o_t$. At a nonterminal step, the prediction residual is $e_t=r_t+\gamma_{\rm alg}v(o_{t+1})-v(o_t)$. At a true terminal step continuation is zero. Generalized advantage estimation sums these residuals using weights $(\gamma_{\rm alg}\lambda_{\rm GAE})^j$. The resulting estimate $\widehat A_t$ measures how favorable the sampled action was relative to the critic's prediction.
 #
-# For a trial actor $\pi_w$, compute $\ell_t=\pi_w(a_t\mid o_t)/\pi_{w_0}(a_t\mid o_t)$. The actor increases the minibatch average of $\min\{\ell_t\widehat A_t,\mathrm{clip}(\ell_t,1-\epsilon,1+\epsilon)\widehat A_t\}$. The critic is fitted to the estimated returns. PPO takes several minibatch updates on the rollout and then collects a fresh one. The clipping level $\epsilon$ limits the incentive for large ratio changes. The independent evaluation cells test the candidate's risk.
+# For a trial actor $\pi_w$, compute $\ell_t=\pi_w(a_t\mid o_t)/\pi_{w_0}(a_t\mid o_t)$. The actor increases the minibatch average of $\min\lbrace\ell_t\widehat A_t,\mathrm{clip}(\ell_t,1-\epsilon,1+\epsilon)\widehat A_t\rbrace$. The critic is fitted to the estimated returns. PPO takes several minibatch updates on the rollout and then collects a fresh one. The clipping level $\epsilon$ limits the incentive for large ratio changes. The independent evaluation cells test the candidate's risk.
 #
 # The simulator has a physical horizon, so the algorithm uses $\gamma_{\rm alg}=\beta=0.999$.
 #
@@ -425,7 +425,7 @@ print(camp.convergence_table(["lump-5000"] + starts))
 #
 # ## 8. A tolerance instead of a cost: the adaptive multiplier
 #
-# Let $\nu_j$ be the lump charge in rollout $j$. If $k$ of its $n$ completed years ended in insolvency, the callback sets $\nu_{j+1}=\max\{0,\nu_j+h(k/n-\alpha_{\rm train})\}$. The multiplier thus increases when the observed rate is above the training level. The actor responds to a discounted charge at insolvency. The callback responds to the undiscounted annual count, so these updates are used to find candidates. The final independent test measures the annual constraint directly.
+# Let $\nu_j$ be the lump charge in rollout $j$. If $k$ of its $n$ completed years ended in insolvency, the callback sets $\nu_{j+1}=\max\lbrace0,\nu_j+h(k/n-\alpha_{\rm train})\rbrace$. The multiplier thus increases when the observed rate is above the training level. The actor responds to a discounted charge at insolvency. The callback responds to the undiscounted annual count, so these updates are used to find candidates. The final independent test measures the annual constraint directly.
 #
 # Suppose the owners name no cost, and the lender asks for insolvency below 1%. An adaptive multiplier charges a
 # penalty at insolvency and moves it after every batch of training years, toward the level at which the insolvency

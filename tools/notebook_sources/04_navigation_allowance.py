@@ -11,7 +11,7 @@
 #
 # Let $c_t$ be the hazard cost reported by the simulator and $D_t=\sum_{j=0}^{t}c_j$ the accumulated damage. The navigation policy controls motion to earn progress rewards and goal bonuses. Let $V^{(H)}(\pi)$ be expected discounted utility through the original task's horizon $H=1000$. For the mean-cost formulation, $D_{999}$ is measured over the original episode, with subsequent costs zero after a genuine terminal state.
 #
-# The probability formulation uses budget $b=25$, reserve $z_{t+1}=25-D_t$, and failure time $\tau=\inf\{t:D_t>25\}$. Write $U_H(\pi)$ for expected discounted utility earned before failure. With $\Pi$ the actor class, the mean-cost problem on the original task is
+# The probability formulation uses budget $b=25$, reserve $z_{t+1}=25-D_t$, and failure time $\tau=\inf\lbrace t:D_t>25\rbrace$. Write $U_H(\pi)$ for expected discounted utility earned before failure. With $\Pi$ the actor class, the mean-cost problem on the original task is
 #
 # $$
 # \begin{aligned}
@@ -32,7 +32,7 @@
 # One can encode the second constraint in a mean-cost algorithm by using cost one on the first crossing and zero otherwise. Here a failure at $t$ costs $F_t=m\sum_{j=0}^{H-1-t}\beta^j$, with $\beta=0.999$. PPO trains on
 #
 # $$
-# \underset{\pi\in\Pi}{\mathrm{maximize}}\quad U_H(\pi)-\mathbb E_\pi[\beta^\tau F_\tau\mathbf1_{\{\tau<H\}}].
+# \underset{\pi\in\Pi}{\mathrm{maximize}}\quad U_H(\pi)-\mathbb E_\pi[\beta^\tau F_\tau\mathbf1_{\lbrace\tau<H\rbrace}].
 # $$
 #
 # The recorded mean damage uses episodes stopped at first crossing. It concerns the stopped simulator, whereas the expected-cost problem above concerns the original episodic process.
@@ -75,7 +75,7 @@ plt.rcParams.update({"figure.dpi": 110, "axes.spines.top": False, "axes.spines.r
 #
 # A rollout contains actions sampled from the current actor $\pi_{w_0}$ and the rewards of the stated training objective. The critic $v(o_t)$ predicts remaining return from observation $o_t$. At a nonterminal step, the prediction residual is $e_t=r_t+\gamma_{\rm alg}v(o_{t+1})-v(o_t)$. At a true terminal step continuation is zero. Generalized advantage estimation sums these residuals using weights $(\gamma_{\rm alg}\lambda_{\rm GAE})^j$. The resulting estimate $\widehat A_t$ measures how favorable the sampled action was relative to the critic's prediction.
 #
-# For a trial actor $\pi_w$, compute $\ell_t=\pi_w(a_t\mid o_t)/\pi_{w_0}(a_t\mid o_t)$. The actor increases the minibatch average of $\min\{\ell_t\widehat A_t,\mathrm{clip}(\ell_t,1-\epsilon,1+\epsilon)\widehat A_t\}$. The critic is fitted to the estimated returns. PPO takes several minibatch updates on the rollout and then collects a fresh one. The clipping level $\epsilon$ limits the incentive for large ratio changes. The independent evaluation cells test the candidate's risk.
+# For a trial actor $\pi_w$, compute $\ell_t=\pi_w(a_t\mid o_t)/\pi_{w_0}(a_t\mid o_t)$. The actor increases the minibatch average of $\min\lbrace\ell_t\widehat A_t,\mathrm{clip}(\ell_t,1-\epsilon,1+\epsilon)\widehat A_t\rbrace$. The critic is fitted to the estimated returns. PPO takes several minibatch updates on the rollout and then collects a fresh one. The clipping level $\epsilon$ limits the incentive for large ratio changes. The independent evaluation cells test the candidate's risk.
 #
 # The simulator has a physical horizon, so the algorithm uses $\gamma_{\rm alg}=\beta=0.999$.
 #
