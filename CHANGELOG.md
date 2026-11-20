@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased · revision 78 audit
+## 0.9.0 (2026-11-20)
+
+### Revision 78 audit
 
 - Added exact finite-horizon dynamic programming for priced and pathwise resource budgets with stochastic consumption.
 - Revised the landing page, guides and notebooks around the choice of formulation and documented barrier-free CPO and CVaR training.
@@ -15,7 +17,7 @@
 - A risk lower bound can rule out a tolerance. When it leaves feasibility open, `prescribed_level_attainable(...)["attainable"]` is `None`.
 - The wear examples use their discretized solutions as benchmarks. Their measured shortfalls are descriptive comparisons. The paper registry and selection guidance follow revision 78.
 
-## 0.9.0 (2026-11-19): checked against revision 77; the landing problem of the paper's lander study
+### Landing example and revision 77 updates
 
 - New `barrierpg.problems.landing`: the landing problem with which revision 77 replaces the fuel-tank study. It is built
   on the simulator of LunarLanderContinuous-v3 with a revenue of 36 when the lander comes to rest over the pad, fuel at
