@@ -163,4 +163,4 @@ These workflow examples use their own recorded campaigns, with three training se
 
 ## Citation and license
 
-The toolbox code is distributed under the MIT license. The manuscript study figures and data use CC BY 4.0. [Code license](LICENSE) · [Study materials](notebooks/manuscript/README.md#data-and-figures) · [Citation metadata](CITATION.cff) · [Zenodo archive](https://doi.org/10.5281/zenodo.23597362)
+The toolbox code is distributed under the MIT license. The manuscript study figures and data use CC BY 4.0. [Code license](LICENSE) · [Study materials](notebooks/manuscript/README.md#data-and-figures) · [Citation metadata](CITATION.cff) · [Zenodo v0.9.0](https://doi.org/10.5281/zenodo.24395578) · [Zenodo all versions](https://doi.org/10.5281/zenodo.23597362)
