@@ -82,3 +82,8 @@ before maintenance, and priced value is stopped utility minus six times that ris
 
 The estimated value was higher with skips for all four seeds at 16,384 steps and three of four
 at 32,768 steps. The largest mean difference was at the middle checkpoint. These observations compare learning at the same number of simulator interactions for this task and PPO configuration. The paired runs change skip connections in both actor and critic together, so the observed difference is for that joint change. [Run records](../examples/residual_wear_comparison.json)
+
+A separate comparison uses the paper's wear simulator and eight paired seeds at a fixed price of
+`m=1`. The published tanh network had the highest mean priced value at each of six checkpoints and
+trained fastest. The LayerNorm networks with and without skips reached similar final priced values.
+All final policies passed the 5% breakdown-risk check. [Full study and per-seed results](https://github.com/pma-papers/bpg-replication/blob/main/wear-allowance/ARCHITECTURE-PILOT.md)
